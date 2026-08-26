@@ -1,0 +1,56 @@
+# Dependencies
+node_modules/
+vendor/
+composer.lock
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build output
+dist/
+build/
+*.log
+
+# Docker
+.docker/
+docker-compose.override.yml
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Temporary files
+*.tmp
+.cache/
+.temp/
+
+# Database
+*.sql
+*.sqlite
+*.db
+
+# Node
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Vite
+.vite/
+
+# PHP
+.phpstan/
+.phpunit.result.cache
+
+# Testing
+coverage/
+.nyc_output/

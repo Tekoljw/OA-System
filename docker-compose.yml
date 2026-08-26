@@ -1,0 +1,118 @@
+version: '3.8'
+
+services:
+  # PostgreSQL 数据库
+  postgres:
+    image: postgres:16-alpine
+    container_name: oa-system-postgres
+    environment:
+      POSTGRES_DB: oa_system
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./api/config/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oa-network
+
+  # MySQL 数据库
+  mysql:
+    image: mysql:8.0
+    container_name: oa-system-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: mysql
+      MYSQL_DATABASE: oa_system
+    ports:
+      - "3308:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./api/config/init_mysql.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oa-network
+
+  # Redis 缓存
+  redis:
+    image: redis:7-alpine
+    container_name: oa-system-redis
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - oa-network
+
+  # OA System 主应用
+  oa-system:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: oa-system-app
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: oa_system
+      PGUSER: postgres
+      PGPASSWORD: postgres
+      DB_HOST: mysql
+      DB_PORT: 3306
+      DB_NAME: oa_system
+      DB_USER: root
+      DB_PASSWORD: mysql
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      API_URL: http://localhost:8000/api
+      FRONTEND_URL: http://localhost:8000
+    ports:
+      - "8000:80"
+      - "8001:9000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./api:/var/www/oa-system/api
+      - ./public:/var/www/oa-system/public
+      - ./src:/var/www/oa-system/src
+    networks:
+      - oa-network
+
+  # Adminer - 数据库管理工具
+  adminer:
+    image: adminer:latest
+    container_name: oa-system-adminer
+    ports:
+      - "8888:8080"
+    depends_on:
+      - postgres
+      - mysql
+    networks:
+      - oa-network
+
+networks:
+  oa-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+  mysql_data:
+  redis_data:
