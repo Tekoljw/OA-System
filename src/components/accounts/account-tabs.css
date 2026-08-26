@@ -1,0 +1,27 @@
+/* 自定义TabsList容器样式，确保灰色背景覆盖所有页签 */
+[data-orientation="horizontal"] {
+  background-color: transparent !important;
+}
+
+/* 确保灰色背景容器正确包裹所有选项卡内容 */
+.bg-muted {
+  display: block !important;
+  height: auto !important;
+  min-height: 48px !important;
+  overflow: visible !important;
+}
+
+/* 修复页签之间的间距和包裹 */
+.flex.flex-wrap {
+  width: 100% !important;
+  display: flex !important;
+  flex-wrap: wrap !important;
+  align-items: center !important;
+  gap: 4px !important;
+  padding: 4px !important;
+}
+
+/* 确保页签在垂直方向居中 */
+[role="tab"] {
+  margin: 4px !important;
+}

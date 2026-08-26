@@ -1,0 +1,88 @@
+{
+  "success": true,
+  "data": {
+    "assets": [
+      {
+        "id": 1,
+        "name": "公司服务器",
+        "type": "电子设备",
+        "quantity": 2,
+        "unit_price": "25000.00",
+        "total_price": "50000.00",
+        "remaining_value": "45000.00",
+        "currency_type": "CNY",
+        "department": "研发部",
+        "description": "用于开发和测试的高性能服务器",
+        "status": "正常",
+        "submitter_id": 1,
+        "approver_id": 1,
+        "submitted_at": "2025-05-01 09:00:00"
+      },
+      {
+        "id": 2,
+        "name": "办公电脑",
+        "type": "电子设备",
+        "quantity": 10,
+        "unit_price": "8000.00",
+        "total_price": "80000.00",
+        "remaining_value": "72000.00",
+        "currency_type": "CNY",
+        "department": "市场部",
+        "description": "员工办公用设备",
+        "status": "正常",
+        "submitter_id": 2,
+        "approver_id": 1,
+        "submitted_at": "2025-05-02 10:30:00"
+      },
+      {
+        "id": 3,
+        "name": "打印机",
+        "type": "办公设备",
+        "quantity": 3,
+        "unit_price": "3000.00",
+        "total_price": "9000.00",
+        "remaining_value": "8100.00",
+        "currency_type": "CNY",
+        "department": "行政部",
+        "description": "办公室打印设备",
+        "status": "正常",
+        "submitter_id": 3,
+        "approver_id": 1,
+        "submitted_at": "2025-05-03 11:15:00"
+      },
+      {
+        "id": 4,
+        "name": "办公桌椅",
+        "type": "办公家具",
+        "quantity": 15,
+        "unit_price": "2000.00",
+        "total_price": "30000.00",
+        "remaining_value": "27000.00",
+        "currency_type": "CNY",
+        "department": "行政部",
+        "description": "员工办公桌椅",
+        "status": "正常",
+        "submitter_id": 3,
+        "approver_id": 1,
+        "submitted_at": "2025-05-04 14:20:00"
+      },
+      {
+        "id": 5,
+        "name": "投影仪",
+        "type": "会议设备",
+        "quantity": 2,
+        "unit_price": "5000.00",
+        "total_price": "10000.00",
+        "remaining_value": "9000.00",
+        "currency_type": "CNY",
+        "department": "行政部",
+        "description": "会议室投影设备",
+        "status": "正常",
+        "submitter_id": 3,
+        "approver_id": 1,
+        "submitted_at": "2025-05-05 09:45:00"
+      }
+    ],
+    "total": 5
+  }
+}

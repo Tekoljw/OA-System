@@ -1,0 +1,168 @@
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Base colors */
+    --background: 210 50% 98%;
+    --foreground: 215 25% 15%;
+
+    /* Primary colors - blue/teal professional theme */
+    --primary: 205 70% 30%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Secondary colors */
+    --secondary: 200 30% 96%;
+    --secondary-foreground: 205 70% 25%;
+
+    /* Muted colors */
+    --muted: 210 15% 94%;
+    --muted-foreground: 215 15% 40%;
+
+    /* Accent colors */
+    --accent: 190 80% 50%;
+    --accent-foreground: 210 40% 98%;
+
+    /* Card colors */
+    --card: 0 0% 100%;
+    --card-foreground: 215 25% 15%;
+
+    /* Popover colors */
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 25% 15%;
+
+    /* Border colors */
+    --border: 215 20% 90%;
+    --input: 215 20% 90%;
+
+    /* Destructive colors */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 210 40% 98%;
+
+    /* Success colors */
+    --success: 142 70% 45%;
+    --success-foreground: 0 0% 100%;
+
+    /* Warning colors */
+    --warning: 35 92% 65%;
+    --warning-foreground: 215 25% 15%;
+
+    /* Ring */
+    --ring: 205 70% 30%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 215 25% 12%;
+    --foreground: 210 15% 94%;
+
+    --primary: 205 70% 50%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 215 25% 18%;
+    --secondary-foreground: 210 15% 94%;
+
+    --muted: 215 25% 20%;
+    --muted-foreground: 210 15% 70%;
+
+    --accent: 190 80% 40%;
+    --accent-foreground: 0 0% 100%;
+
+    --card: 215 25% 15%;
+    --card-foreground: 210 15% 94%;
+
+    --popover: 215 25% 15%;
+    --popover-foreground: 210 15% 94%;
+
+    --border: 215 25% 25%;
+    --input: 215 25% 25%;
+
+    --destructive: 0 70% 55%;
+    --destructive-foreground: 210 40% 98%;
+
+    --success: 142 70% 40%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 35 92% 60%;
+    --warning-foreground: 215 25% 15%;
+
+    --ring: 205 70% 50%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideInRight {
+  from { transform: translateX(-10px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-in-out;
+}
+
+.animate-slide-in {
+  animation: slideInRight 0.3s ease-out;
+}
+
+/* Status badges */
+.badge-pending {
+  @apply bg-warning/20 text-warning border border-warning/30 px-2 py-0.5 rounded text-xs font-medium;
+}
+
+.badge-approved {
+  @apply bg-success/20 text-success border border-success/30 px-2 py-0.5 rounded text-xs font-medium;
+}
+
+.badge-rejected {
+  @apply bg-destructive/20 text-destructive border border-destructive/30 px-2 py-0.5 rounded text-xs font-medium;
+}
+
+.badge-completed {
+  @apply bg-primary/20 text-primary border border-primary/30 px-2 py-0.5 rounded text-xs font-medium;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--secondary));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 40%);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 60%);
+}
+
+/* 隐藏滚动条但保留滚动功能 */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE 和 Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari 和 Opera */
+}

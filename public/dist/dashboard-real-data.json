@@ -1,0 +1,24 @@
+{
+  "success": true,
+  "currentMonth": {
+    "income": 0,
+    "expense": 0,
+    "netFlow": 0
+  },
+  "previousMonth": {
+    "income": 0,
+    "expense": 0,
+    "netFlow": 0
+  },
+  "total": {
+    "income": 0,
+    "expense": 0,
+    "assets": 0
+  },
+  "mainCurrency": "CNY",
+  "forexCurrency": "USD",
+  "incomeBySubject": [],
+  "expenseBySubject": [],
+  "expenseByDepartment": [],
+  "timeSeriesData": []
+}
