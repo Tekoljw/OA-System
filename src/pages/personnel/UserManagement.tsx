@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { API_BASE_URL } from "@/utils/api-config";
+import { API_BASE_URL } from "@/api/client";
 import { MoreHorizontal, Search, UserPlus, UserCheck, UserX, Loader2, Trash2 } from "lucide-react";
 import { AccountManagementDialog } from "@/components/accounts/AccountManagementDialog";
 import { useToast } from "@/hooks/use-toast";

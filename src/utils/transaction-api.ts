@@ -3,7 +3,7 @@
  * 处理与后端交易记录API的通信
  */
 
-import { apiRequest } from './api-config';
+import { apiRequest } from '../api/client';
 
 // 交易记录类型定义
 export interface TransactionData {

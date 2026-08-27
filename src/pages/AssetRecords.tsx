@@ -34,7 +34,7 @@ import { zhCN } from "date-fns/locale";
 import { cn } from "../lib/utils";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
-import axiosInstance from "../utils/axios-config";
+import client from "../api/client";
 
 interface DepreciationRecord {
   id: string;
@@ -218,10 +218,10 @@ const AssetRecordsContent: React.FC = () => {
     if (!selectedAsset) return;
     
     try {
-      // 使用axiosInstance - 它会自动添加项目ID参数
+      // 使用client - 它会自动添加项目ID参数
       const url = `/api/assets/${selectedAsset.id}/depreciate`;
       
-      const response = await axiosInstance.post(url, {
+      const response = await client.post(url, {
         ...data,
         approverId: 1, // 默认使用当前用户ID
       });

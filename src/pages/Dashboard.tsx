@@ -7,7 +7,7 @@ import { useAuth } from "../contexts/AuthContext";
 import { ArrowDown, ArrowUp, DollarSign, PieChart, LoaderCircle, AlertCircle } from "lucide-react";
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { toast } from "../hooks/use-toast";
-import axiosInstance from "../utils/axios-config";
+import client from "../api/client";
 
 // 使用更新的集中式 API 请求函数
 import {
@@ -150,7 +150,7 @@ const Dashboard: React.FC = () => {
     checks.forEach(check => {
       console.log(`Axios诊断请求: /api/dashboard/${check.endpoint}`);
       
-      axiosInstance.get(`/api/dashboard/${check.endpoint}`)
+      client.get(`/api/dashboard/${check.endpoint}`)
         .then(response => {
           console.log(`API诊断(Axios) - ${check.name}: ${response.status} OK`);
           console.log(`API诊断(Axios) - ${check.name} 数据:`, response.data);

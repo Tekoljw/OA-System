@@ -1,9 +1,6 @@
 import axios from 'axios';
-import { API_CONFIG } from '../contexts/api-fix';
 
-// API基础URL设置 - 使用导入的配置确保路径正确
-const API_BASE_URL = API_CONFIG?.BASE_URL || '';
-const API_PATH = API_CONFIG?.API_PATH || '/api';
+const API_PATH = '/api';
 
 /**
  * 审批应用

@@ -39,7 +39,7 @@ import LoadMoreButton from "../components/common/LoadMoreButton";
 import StatCard from "../components/dashboard/StatCard";
 import { TransactionData, getTransactions } from "../utils/transaction-api";
 import { useToast } from "../hooks/use-toast";
-import { apiRequest } from "../utils/api-config";
+import { apiRequest } from "../api/client";
 
 // 币种类型定义
 interface CurrencyType {

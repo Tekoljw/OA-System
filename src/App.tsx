@@ -12,14 +12,10 @@ import { Routes, Route, useNavigate, useLocation } from "react-router-dom";
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import AccountManagement from "./pages/AccountManagement";
-// import Dashboard from "./pages/Dashboard";
-import Dashboard from "./pages/dashboard-new";
+import Dashboard from "./pages/Dashboard";
 import ExternalTransactions from "./pages/ExternalTransactions";
 import InternalTransactions from "./pages/InternalTransactions";
 import AssetRecords from "./pages/AssetRecords";
-import SimpleAssetRecord from "./pages/SimpleAssetRecord";
-import DirectAssets from "./pages/DirectAssets";
-import RealDatabaseAssets from "./pages/RealDatabaseAssets";
 import LoanRecords from "./pages/AssetRecords/LoanRecords";
 import MyApplications from "./pages/Workflows/MyApplications";
 import PendingApprovals from "./pages/Workflows/PendingApprovals";
@@ -30,18 +26,10 @@ import AssetCategories from "./pages/configurations/AssetCategories";
 import SubjectCategories from "./pages/configurations/SubjectCategories";
 import TransactionTypes from "./pages/configurations/TransactionTypes";
 import DepartmentManagement from "./pages/configurations/DepartmentManagement";
-// Feature sync removed as all projects have identical functionality
 import PermissionManagement from "./pages/personnel/PermissionManagement";
 import ActivityLogs from "./pages/personnel/ActivityLogs";
 import UserManagement from "./pages/personnel/UserManagement";
-import RealUserManagement from "./pages/RealUserManagement";
 import Login from "./pages/Login";
-import EmergencyLogin from "./pages/emergency-login";
-import ApiTest from "./pages/ApiTest";
-import DashboardTest from "./pages/DashboardTest";
-import ConnectionTest from "./pages/ConnectionTest";
-import ApiDirectTest from "./pages/ApiDirectTest";
-import AssetTest from "./pages/AssetTest";
 
 const queryClient = new QueryClient();
 
@@ -143,13 +131,6 @@ const App = () => {
                   </ProtectedSidebarPage>
                 } />
                 
-                {/* 简化版资产页面 - 用于测试 */}
-                <Route path="/assets/simple" element={
-                  <ProtectedSidebarPage>
-                    <SimpleAssetRecord />
-                  </ProtectedSidebarPage>
-                } />
-                
                 <Route path="/assets/loans" element={
                   <ProtectedSidebarPage>
                     <LoanRecords />
@@ -228,35 +209,6 @@ const App = () => {
                 } />
                 
                 {/* Feature sync removed as all projects now automatically share functionality */}
-                
-                {/* API测试工具 */}
-                <Route path="/api-test" element={
-                  <ProtectedSidebarPage>
-                    <ApiTest />
-                  </ProtectedSidebarPage>
-                } />
-                
-                {/* 仪表盘测试工具 */}
-                <Route path="/dashboard-test" element={
-                  <ProtectedSidebarPage>
-                    <DashboardTest />
-                  </ProtectedSidebarPage>
-                } />
-                
-                {/* API连接测试工具 */}
-                <Route path="/connection-test" element={<ConnectionTest />} />
-                
-                {/* 资产数据测试工具 */}
-                <Route path="/asset-test" element={<AssetTest />} />
-                
-                {/* 直接API测试工具 - 不需要登录验证 */}
-                <Route path="/api-direct-test" element={<ApiDirectTest />} />
-                
-                {/* 直接资产查看页面 - 不需要登录验证 */}
-                <Route path="/direct-assets" element={<DirectAssets />} />
-                
-                {/* 真实数据库资产查看页面 - 不需要登录验证 */}
-                <Route path="/real-db-assets" element={<RealDatabaseAssets />} />
                 
                 {/* 人员管理 */}
                 <Route path="/personnel/departments" element={

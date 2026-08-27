@@ -1,6 +1,6 @@
 import React, { createContext, useState, useEffect, ReactNode, useContext } from "react";
 import { useToast } from "../hooks/use-toast";
-import { apiRequest, AUTH_API } from "../utils/api-config";
+import { apiRequest, AUTH_API } from "../api/client";
 
 // 项目类型
 export interface Project {

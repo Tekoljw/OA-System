@@ -1,8 +1,4 @@
-// 导入获取当前项目ID的函数
-import { getCurrentProjectId } from './axios-config';
-
-// 从window对象中获取API配置
-const API_CONFIG = window.API_CONFIG || { BASE_URL: '', API_PATH: '/api' };
+import { getCurrentProjectId } from '../api/client';
 
 // 定义活动日志数据接口
 export interface ActivityLog {
@@ -129,7 +125,7 @@ export const addActivityLog = async (logData: Omit<ActivityLog, 'id' | 'timestam
       throw new Error('未授权，请先登录');
     }
 
-    const response = await fetch(`${API_CONFIG.BASE_URL}/api/activity-logs`, {
+    const response = await fetch(`/api/activity-logs`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${token}`,

@@ -10,7 +10,7 @@ import { Building, PlusCircle, Trash2, AlertTriangle, Edit, Save } from "lucide-
 import { useAuth, Project, CreateProjectData } from "../contexts/AuthContext";
 import { useToast } from "../hooks/use-toast";
 import { useTranslation } from "react-i18next";
-import { apiRequest, AUTH_API } from "../utils/api-config";
+import { apiRequest, AUTH_API } from "../api/client";
 import {
   Dialog,
   DialogContent,
