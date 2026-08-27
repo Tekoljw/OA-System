@@ -351,112 +351,55 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
   
-  // 修改登录方法以支持项目ID
+  // 登录方法（支持项目ID）
   const loginWithProject = async (username: string, password: string, projectId?: number): Promise<boolean> => {
     setIsLoading(true);
 
     try {
-      // 准备登录请求数据
       const loginData: any = { username, password };
       if (projectId) {
         loginData.projectId = projectId;
       }
-      
+
       console.log('发送登录请求:', { username, hasProjectId: !!projectId });
-      
-      // 直接使用fetch向简化的PHP后端登录接口发送请求
-      const fetchPromise = fetch('/admin-login.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(loginData),
-      });
-      
-      // 设置请求超时，以避免长时间等待
-      const timeoutPromise = new Promise<Response>((_, reject) => {
-        setTimeout(() => reject(new Error("登录请求超时，请稍后重试")), 5000);
-      });
-      
-      // 使用Promise.race确保请求不会无限等待
-      const fetchResponse = await Promise.race([fetchPromise, timeoutPromise]);
-      
-      if (!fetchResponse.ok) {
-        throw new Error(`登录请求失败: ${fetchResponse.status} ${fetchResponse.statusText}`);
-      }
-      
-      const response = await fetchResponse.json();
-      
-      // 适配PHP后端响应格式的处理逻辑
-      console.log('PHP后端登录响应数据:', response);
-      let userData = null;
-      let token = null;
-      
-      // 处理PHP后端的成功响应
-      if (response && response.success && response.data) {
-        // PHP后端返回的数据格式: { success: true, message: '登录成功', data: {...} }
-        userData = response.data;
-        token = response.data.token;
-        console.log('使用PHP后端返回的用户数据:', userData);
-      } else if (response && response.success && response.user) {
-        // 兼容原有格式: { success: true, user: {...}, token: '...' }
-        userData = response.user;
-        token = response.token;
-      } else if (response && response.username) {
-        // 兼容简单格式: { username: '...', ... }
-        userData = response;
-        token = response.token;
-      } else if (!response.success && response.message) {
-        // 处理明确的错误消息
-        throw new Error(response.message);
-      } else if (!response) {
-        throw new Error("服务器未返回有效响应");
-      }
+
+      const response = await apiRequest('POST', AUTH_API.LOGIN, loginData);
+      console.log('登录响应数据:', response);
+
+      // 统一API返回格式: { success: true, data: {...} }
+      const userData = response?.data || response;
 
       if (userData && userData.username) {
-        // 处理后端字段名差异 - is_super_admin 转换为 isSuperAdmin
+        // 处理后端字段名差异
         if (userData.is_super_admin !== undefined && userData.isSuperAdmin === undefined) {
           userData.isSuperAdmin = userData.is_super_admin;
-          console.log(`从is_super_admin映射超级管理员状态: ${userData.isSuperAdmin}`);
         }
-        
-        console.log('登录成功，用户数据:', {
-          username: userData.username,
-          isSuperAdmin: userData.isSuperAdmin,
-          projectsCount: userData.projectsList?.length || 0
-        });
-        
-        // 登录成功，设置状态和本地存储
+
         setUser(userData);
         setIsLoggedIn(true);
-        
+
         // 设置项目相关信息
         if (userData.projectsList && userData.projectsList.length > 0) {
           setAvailableProjects(userData.projectsList);
-          
-          // 设置当前项目 (使用当前项目ID或第一个项目)
-          const currentProj = userData.projectsList.find(p => p.id === userData.projectId) 
+
+          const currentProj = userData.projectsList.find((p: Project) => p.id === userData.projectId)
             || userData.projectsList[0];
           setCurrentProject(currentProj);
-          
-          // 将当前项目信息保存到localStorage
           localStorage.setItem("currentProject", JSON.stringify(currentProj));
-          console.log('已在登录时更新localStorage中的currentProject:', currentProj);
         }
-        
-        // 保存token和用户数据到localStorage
-        localStorage.setItem("token", token || "1");
+
+        localStorage.setItem("token", userData.token || "1");
         localStorage.setItem("user", JSON.stringify(userData));
 
         toast({
           title: "登录成功",
-          description: `欢迎回来，${userData.fullName || userData.username || username}`,
+          description: `欢迎回来，${userData.fullName || userData.username}`,
         });
 
         setIsLoading(false);
         return true;
       } else {
-        throw new Error("用户名或密码错误");
+        throw new Error(response?.message || "用户名或密码错误");
       }
     } catch (error: any) {
       toast({

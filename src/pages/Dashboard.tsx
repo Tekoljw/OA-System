@@ -150,7 +150,7 @@ const Dashboard: React.FC = () => {
     checks.forEach(check => {
       console.log(`Axios诊断请求: /api/dashboard/${check.endpoint}`);
       
-      client.get(`/api/dashboard/${check.endpoint}`)
+      client.get(`/dashboard/${check.endpoint}`)
         .then(response => {
           console.log(`API诊断(Axios) - ${check.name}: ${response.status} OK`);
           console.log(`API诊断(Axios) - ${check.name} 数据:`, response.data);

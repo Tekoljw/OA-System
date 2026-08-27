@@ -13,35 +13,35 @@ export const apiRequest = baseApiRequest;
 // API函数
 export const apiService = {
   getCurrentUser: async () => {
-    const response = await client.get('/api/user');
+    const response = await client.get('/user');
     return response.data;
   },
 
   login: async (username: string, password: string, projectId?: number) => {
     const params = projectId ? { projectId } : {};
-    const response = await client.post('/api/login', { username, password }, { params });
+    const response = await client.post('/login', { username, password }, { params });
     return response.data;
   },
 
   logout: async () => {
-    await client.post('/api/logout');
+    await client.post('/logout');
   },
 
   getDepartments: async (projectId?: number) => {
     const params = projectId ? { projectId } : {};
-    const response = await client.get('/api/departments', { params });
+    const response = await client.get('/departments', { params });
     return response.data;
   },
 
   getAccounts: async (projectId?: number) => {
     const params = projectId ? { projectId } : {};
-    const response = await client.get('/api/accounts', { params });
+    const response = await client.get('/accounts', { params });
     return response.data;
   },
 
   getDashboardData: async (endpoint: string, projectId?: number) => {
     const params = projectId ? { projectId } : {};
-    const response = await client.get(`/api/dashboard/${endpoint}`, { params });
+    const response = await client.get(`/dashboard/${endpoint}`, { params });
     return response.data;
   },
 
@@ -57,7 +57,7 @@ export const getManagerUsers = async (projectId?: number) => {
   try {
     const params: Record<string, any> = { role: 'manager' };
     if (projectId) params.projectId = projectId;
-    const response = await client.get('/api/users', { params });
+    const response = await client.get('/users', { params });
     return response.data;
   } catch (error) {
     console.error('获取管理者用户列表失败:', error);
@@ -68,7 +68,7 @@ export const getManagerUsers = async (projectId?: number) => {
 export const getAllUsers = async (projectId?: number) => {
   try {
     const params = projectId ? { projectId } : {};
-    const response = await client.get('/api/users', { params });
+    const response = await client.get('/users', { params });
     return response.data;
   } catch (error) {
     console.error('获取所有用户失败:', error);
@@ -77,19 +77,19 @@ export const getAllUsers = async (projectId?: number) => {
 };
 
 export const updateUser = async (userId: number | string, userData: any) => {
-  const response = await client.put(`/api/users/${userId}`, userData);
+  const response = await client.put(`/users/${userId}`, userData);
   return response.data;
 };
 
 export const deleteUser = async (userId: number | string) => {
-  const response = await client.delete(`/api/users/${userId}`);
+  const response = await client.delete(`/users/${userId}`);
   return response.data;
 };
 
 export const getRoles = async (projectId?: number) => {
   try {
     const params = projectId ? { projectId } : {};
-    const response = await client.get('/api/roles', { params });
+    const response = await client.get('/roles', { params });
     return response.data;
   } catch (error) {
     console.error('获取角色列表失败:', error);

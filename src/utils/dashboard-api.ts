@@ -18,7 +18,7 @@ export const fetchDashboardData = async (endpoint: string) => {
       }
     }
 
-    const url = `/api/dashboard/${endpoint}`;
+    const url = `/dashboard/${endpoint}`;
     const params: any = {};
     if (projectId) params.projectId = projectId;
 

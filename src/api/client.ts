@@ -32,8 +32,27 @@ client.interceptors.response.use(
   }
 );
 
-// 通用 API 请求函数（兼容旧的 apiRequest 签名）
-export async function apiRequest(url: string, options: RequestInit = {}): Promise<any> {
+// 通用 API 请求函数
+// 支持两种调用方式:
+//   apiRequest(url, options)           — fetch 风格
+//   apiRequest(method, url, data?)     — 简洁风格
+export async function apiRequest(urlOrMethod: string, urlOrOptions?: string | RequestInit, data?: any): Promise<any> {
+  let url: string;
+  let options: RequestInit = {};
+
+  // 判断调用方式：如果第一个参数是 HTTP method
+  if (['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(urlOrMethod.toUpperCase())) {
+    const method = urlOrMethod.toUpperCase();
+    url = urlOrOptions as string;
+    options = { method };
+    if (data && method !== 'GET') {
+      options.body = JSON.stringify(data);
+    }
+  } else {
+    url = urlOrMethod;
+    options = (urlOrOptions as RequestInit) || {};
+  }
+
   const token = localStorage.getItem('token');
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -56,7 +75,14 @@ export async function apiRequest(url: string, options: RequestInit = {}): Promis
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
-    throw new Error(`API Error: ${response.status}`);
+    // 尝试解析错误消息
+    try {
+      const errorData = await response.json();
+      throw new Error(errorData.error?.message || errorData.message || `API Error: ${response.status}`);
+    } catch (e) {
+      if (e instanceof Error && !e.message.startsWith('API Error')) throw e;
+      throw new Error(`API Error: ${response.status}`);
+    }
   }
 
   return response.json();
