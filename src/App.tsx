@@ -4,7 +4,6 @@ import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { SidebarProvider } from "./components/layout/NewSidebar";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
-import { ProjectProvider } from "./contexts/ProjectContext";
 import ApiErrorHandler from "./components/common/ApiErrorHandler";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -77,7 +76,6 @@ const App = () => {
   
   return (
     <AuthProvider>
-      <ProjectProvider>
         <QueryClientProvider client={queryClient}>
           <TooltipProvider>
             <ApiErrorHandler>
@@ -241,7 +239,6 @@ const App = () => {
             </ApiErrorHandler>
           </TooltipProvider>
         </QueryClientProvider>
-      </ProjectProvider>
     </AuthProvider>
   );
 };
