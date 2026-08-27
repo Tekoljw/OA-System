@@ -31,6 +31,7 @@ import {
 import LoadMoreButton from "../../common/LoadMoreButton";
 import { useIsMobile } from "../../../hooks/use-mobile";
 import { Card, CardContent, CardHeader, CardTitle } from "../../ui/card";
+import { apiRequest } from "../../../api/client";
 
 interface DepartmentMember {
   id: number;
@@ -109,16 +110,12 @@ const DepartmentList = () => {
     setError(null);
     
     try {
-      console.log('正在加载真实PostgreSQL部门数据...');
-      
-      const response = await fetch('/departments-data.json');
-      const result = await response.json();
-      
-      if (result.success && result.departments && Array.isArray(result.departments)) {
-        console.log('成功加载部门列表:', result.departments);
-        
-        // 转换数据为组件所需的格式
-        const formattedDepartments = result.departments.map(dept => ({
+      console.log('正在加载部门数据...');
+
+      const result = await apiRequest('GET', '/api/departments');
+
+      if (result.success && result.data && Array.isArray(result.data)) {
+        const formattedDepartments = result.data.map((dept: any) => ({
           id: dept.id,
           name: dept.name,
           code: dept.code || '',
@@ -126,27 +123,7 @@ const DepartmentList = () => {
           memberCount: 0,
           members: []
         }));
-        
-        // 检查是否有新创建的部门在localStorage中
-        const newDepartments = JSON.parse(localStorage.getItem('newDepartments') || '[]');
-        if (newDepartments.length > 0) {
-          // 转换新部门数据格式
-          const formattedNewDepartments = newDepartments.map(dept => ({
-            id: dept.id,
-            name: dept.name,
-            code: dept.code || '',
-            manager: dept.managerName || '未指定',
-            memberCount: 0,
-            members: []
-          }));
-          
-          // 合并新部门到现有列表
-          const allDepartments = [...formattedDepartments, ...formattedNewDepartments];
-          setDepartments(allDepartments);
-          console.log('合并新创建的部门:', allDepartments);
-        } else {
-          setDepartments(formattedDepartments);
-        }
+        setDepartments(formattedDepartments);
       } else {
         throw new Error('部门数据格式错误');
       }

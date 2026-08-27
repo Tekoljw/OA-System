@@ -10,11 +10,19 @@ const client = axios.create({
   headers: { 'Content-Type': 'application/json' }
 });
 
-// 请求拦截器：自动注入 token
+// 请求拦截器：自动注入 token 和 projectId
 client.interceptors.request.use(config => {
   const token = localStorage.getItem('token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+  }
+  // 自动注入 projectId
+  const url = config.url || '';
+  if (!url.includes('/login') && !url.includes('/logout')) {
+    const projectId = getCurrentProjectId();
+    if (projectId && !config.params?.projectId) {
+      config.params = { ...config.params, projectId };
+    }
   }
   return config;
 });
@@ -62,7 +70,16 @@ export async function apiRequest(urlOrMethod: string, urlOrOptions?: string | Re
     headers['Authorization'] = `Bearer ${token}`;
   }
 
-  const fullUrl = url.startsWith('/api') ? url : `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+  let fullUrl = url.startsWith('/api') ? url : `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+
+  // 自动注入 projectId（如果 URL 中没有）
+  if (!fullUrl.includes('projectId') && !fullUrl.includes('/login') && !fullUrl.includes('/logout')) {
+    const projectId = getCurrentProjectId();
+    if (projectId) {
+      const separator = fullUrl.includes('?') ? '&' : '?';
+      fullUrl = `${fullUrl}${separator}projectId=${projectId}`;
+    }
+  }
 
   const response = await fetch(fullUrl, {
     ...options,

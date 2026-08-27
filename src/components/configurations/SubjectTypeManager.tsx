@@ -61,7 +61,9 @@ const SubjectTypeManager: React.FC<SubjectTypeManagerProps> = ({
         if (data && Array.isArray(data)) {
           // 如果需要按分类过滤
           if (filterByCategory) {
-            setSubjects(data.filter(subject => subject.category === category));
+            const typeMap: Record<string, string> = { '收入': 'income', '支出': 'expense' };
+            const filterType = typeMap[category] || category;
+            setSubjects(data.filter(subject => subject.type === filterType || subject.category === category));
           } else {
             setSubjects(data);
           }

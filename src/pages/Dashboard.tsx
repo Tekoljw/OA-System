@@ -201,7 +201,22 @@ const Dashboard: React.FC = () => {
       
       if (responseData.success && responseData.data) {
         console.log('设置账户摘要数据:', responseData.data);
-        setAccountSummaryData(responseData.data);
+        // API 返回按货币分组的数组，转换为前端需要的格式
+        const rawData = responseData.data;
+        if (Array.isArray(rawData)) {
+          const totalBalance = rawData.reduce((sum: number, item: any) => sum + parseFloat(item.total_balance || 0), 0);
+          setAccountSummaryData({
+            totalAssets: totalBalance > 0 ? totalBalance : 0,
+            totalLiabilities: totalBalance < 0 ? Math.abs(totalBalance) : 0,
+            netAssets: totalBalance,
+            operatingCash: totalBalance,
+            capitalCash: 0,
+            forexCash: 0,
+            investmentCash: 0
+          });
+        } else {
+          setAccountSummaryData(rawData);
+        }
       } else {
         throw new Error('获取账户摘要数据格式不正确: ' + JSON.stringify(responseData));
       }
