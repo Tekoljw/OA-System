@@ -1,8 +1,7 @@
 import React from "react";
-import Dashboard from "./dashboard-new"; // Import the new dashboard component
+import Dashboard from "./Dashboard";
 
 const Index: React.FC = () => {
-  // Use the new dashboard component for the index page
   return <Dashboard />;
 };
 
