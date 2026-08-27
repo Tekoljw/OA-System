@@ -1,380 +1,473 @@
 <?php
 /**
- * API入口文件
- * 负责分发请求到对应的控制器
+ * API 入口文件 — 路由分发 + 中间件管道
+ * 重构版：Middleware → Controller → Service → Repository
  */
 
-// 添加CORS头
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-header('Access-Control-Allow-Headers: Content-Type, Authorization');
-header('Access-Control-Max-Age: 3600');
+// 中间件管道
+require_once __DIR__ . '/middleware/CorsMiddleware.php';
+require_once __DIR__ . '/middleware/JsonMiddleware.php';
+require_once __DIR__ . '/middleware/AuthMiddleware.php';
+require_once __DIR__ . '/utils/Response.php';
 
-// 处理OPTIONS预检请求
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-    http_response_code(200);
-    exit;
+// 1. CORS
+CorsMiddleware::handle();
+
+// 2. JSON 响应头
+JsonMiddleware::handle();
+
+// 3. 解析请求路径
+$requestUri = $_SERVER['REQUEST_URI'];
+$path = parse_url($requestUri, PHP_URL_PATH);
+$pathParts = array_values(array_filter(explode('/', trim($path, '/'))));
+$method = $_SERVER['REQUEST_METHOD'];
+
+// 如果路径不以 api 开头，返回 404
+if (empty($pathParts) || $pathParts[0] !== 'api') {
+    Response::error('请求的API端点不存在', 'NOT_FOUND', 404);
 }
 
-require_once 'config/config.php';
-
-// 获取请求路径
-$request_uri = $_SERVER['REQUEST_URI'];
-$path = parse_url($request_uri, PHP_URL_PATH);
-$path_parts = explode('/', trim($path, '/'));
-
-// 添加调试日志
-error_log("API请求: 路径=$path, 部分=" . implode(',', $path_parts));
-
-// 处理两种情况: 
-// 1. /api/endpoint 标准路径
-// 2. /api 不带端点的请求 (直接返回API状态)
-if (count($path_parts) < 1 || (count($path_parts) == 1 && $path_parts[0] !== 'api') || (count($path_parts) > 1 && $path_parts[0] !== 'api')) {
-    sendResponse(404, '请求的API端点不存在');
-}
-
-// 提取API路径部分 - 如果只有/api则返回默认状态信息
-if (count($path_parts) == 1 && $path_parts[0] === 'api') {
-    header('Content-Type: application/json');
-    echo json_encode([
-        'success' => true, 
-        'message' => 'PHP API服务正在运行',
-        'version' => '1.0.0',
+// API 根路径 — 返回状态
+if (count($pathParts) === 1) {
+    Response::success([
+        'version' => '2.0.0',
         'timestamp' => date('Y-m-d H:i:s')
-    ]);
-    exit;
+    ], 'OA System API 运行中');
 }
 
-// 正常API请求处理
-$endpoint = $path_parts[1];
+// 提取端点和资源 ID
+$endpoint = $pathParts[1] ?? '';
+$resourceId = isset($pathParts[2]) ? $pathParts[2] : null;
+$subEndpoint = isset($pathParts[3]) ? $pathParts[3] : null;
 
-// 处理测试路径
-if ($endpoint === 'test') {
-    // 直接包含测试登录文件 - 支持多种路径格式
-    if ((isset($path_parts[2]) && $path_parts[2] === 'login.php') || 
-        (isset($path_parts[2]) && $path_parts[2] === 'login')) {
-        require_once __DIR__ . '/test/login.php';
-        exit;
-    }
+// 连接数据库
+require_once __DIR__ . '/config/database.php';
+$database = new Database();
+$db = $database->getConnection();
+
+if (!$db) {
+    Response::error('数据库连接失败', 'DB_ERROR', 500);
 }
 
-// 根据端点分发请求到不同的控制器
-switch ($endpoint) {
-    // 身份验证相关接口
-    case 'login':
-    case 'logout':
-    case 'register':
-    case 'user':
-    case 'switch-project':
-        require_once 'controllers/auth_controller.php';
-        break;
-    
-    // 项目相关接口
-    case 'projects':
-        require_once 'controllers/projects_controller.php';
-        break;
-    
-    // 账户相关接口
-    case 'accounts':
-    case 'account-types':
-    case 'account-summary':
-        require_once 'controllers/accounts_controller.php';
-        break;
-    
-    // 交易相关接口
-    case 'transactions':
-    case 'transaction-summary':
-        require_once 'controllers/transactions_controller.php';
-        break;
-    
-    // 配置相关接口
-    case 'currency-types':
-    case 'asset-types':
-    case 'subjects':
-        require_once 'controllers/config_controller.php';
-        break;
-    
-    // 仪表盘相关接口
-    case 'dashboard-data':
-    case 'income-by-subject':
-    case 'expense-by-subject':
-    case 'expense-by-department':
-    case 'recent-transactions':
-    case 'project-stats':
-        require_once 'controllers/dashboard_controller.php';
-        break;
-    
-    // API文档
-    case 'docs':
-        header('Content-Type: text/html; charset=UTF-8');
-        echo '
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>OA财务系统 API文档</title>
-            <style>
-                body { font-family: Arial, sans-serif; margin: 0; padding: 20px; line-height: 1.6; }
-                h1 { color: #333; }
-                h2 { color: #0066cc; margin-top: 30px; }
-                h3 { color: #009900; }
-                pre { background: #f5f5f5; padding: 10px; border-radius: 5px; overflow-x: auto; }
-                .endpoint { background: #e6f3ff; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-                .method { display: inline-block; padding: 5px 10px; border-radius: 3px; color: white; font-weight: bold; margin-right: 10px; }
-                .get { background-color: #61affe; }
-                .post { background-color: #49cc90; }
-                .put { background-color: #fca130; }
-                .delete { background-color: #f93e3e; }
-            </style>
-        </head>
-        <body>
-            <h1>OA财务系统 API文档</h1>
-            
-            <p>本文档提供OA财务系统API的使用说明。所有请求都需要进行身份验证（除了登录和注册接口）。</p>
-            
-            <h2>身份验证接口</h2>
-            
-            <div class="endpoint">
-                <h3><span class="method post">POST</span> /api/login</h3>
-                <p>用户登录接口</p>
-                <p><strong>请求参数：</strong></p>
-                <pre>
-{
-  "username": "用户名",
-  "password": "密码",
-  "projectId": 1 // 可选，指定登录后使用的项目ID
+// 公开路由（不需要认证）
+$publicRoutes = ['login', 'register', 'health'];
+
+// 4. 认证中间件
+$currentUser = null;
+if (!in_array($endpoint, $publicRoutes)) {
+    $currentUser = AuthMiddleware::handle(true);
 }
-                </pre>
-                <p><strong>响应：</strong></p>
-                <pre>
-{
-  "success": true,
-  "message": "登录成功",
-  "data": {
-    "id": 1,
-    "username": "admin",
-    "fullName": "系统管理员",
-    "role": "admin",
-    "isSuperAdmin": true,
-    "token": "JWT令牌...",
-    "projectsList": [
-      {
-        "id": 1,
-        "name": "演示项目",
-        "code": "default"
-      }
-    ],
-    "currentProject": {
-      "id": 1,
-      "name": "演示项目",
-      "code": "default"
-    },
-    "projectId": 1
-  }
-}
-                </pre>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method post">POST</span> /api/logout</h3>
-                <p>用户注销接口</p>
-                <p><strong>响应：</strong></p>
-                <pre>
-{
-  "success": true,
-  "message": "已成功注销"
-}
-                </pre>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/user</h3>
-                <p>获取当前用户信息</p>
-                <p><strong>响应：</strong></p>
-                <pre>
-{
-  "success": true,
-  "message": "获取用户信息成功",
-  "data": {
-    "id": 1,
-    "username": "admin",
-    "fullName": "系统管理员",
-    "role": "admin",
-    "isSuperAdmin": true,
-    "projectsList": [
-      {
-        "id": 1,
-        "name": "演示项目",
-        "code": "default"
-      }
-    ],
-    "currentProject": {
-      "id": 1,
-      "name": "演示项目",
-      "code": "default"
-    },
-    "projectId": 1
-  }
-}
-                </pre>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method post">POST</span> /api/switch-project</h3>
-                <p>切换当前项目</p>
-                <p><strong>请求参数：</strong></p>
-                <pre>
-{
-  "projectId": 2
-}
-                </pre>
-                <p><strong>响应：</strong></p>
-                <pre>
-{
-  "success": true,
-  "message": "已切换到项目: 测试",
-  "data": {
-    "id": 2,
-    "name": "测试",
-    "code": "test"
-  }
-}
-                </pre>
-            </div>
-            
-            <h2>项目接口</h2>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/projects</h3>
-                <p>获取项目列表</p>
-                <p><strong>响应：</strong></p>
-                <pre>
-{
-  "success": true,
-  "message": "获取项目列表成功",
-  "data": [
-    {
-      "id": 1,
-      "name": "演示项目",
-      "code": "default",
-      "description": "系统演示项目"
-    },
-    {
-      "id": 2,
-      "name": "测试",
-      "code": "test"
+
+// 5. 路由分发
+try {
+    switch ($endpoint) {
+        // ===== 认证 =====
+        case 'login':
+            require_once __DIR__ . '/services/AuthService.php';
+            $authService = new AuthService($db);
+            $body = JsonMiddleware::getRequestBody();
+            $username = $body['username'] ?? '';
+            $password = $body['password'] ?? '';
+            $projectId = $body['projectId'] ?? null;
+
+            if (empty($username) || empty($password)) {
+                Response::error('用户名和密码不能为空', 'VALIDATION_ERROR');
+            }
+
+            $userData = $authService->login($username, $password, (int)$projectId);
+            Response::success($userData, '登录成功');
+            break;
+
+        case 'logout':
+            Response::success(null, '已成功注销');
+            break;
+
+        case 'register':
+            Response::error('注册功能暂未开放', 'NOT_IMPLEMENTED', 501);
+            break;
+
+        case 'user':
+            require_once __DIR__ . '/services/AuthService.php';
+            $authService = new AuthService($db);
+            $userData = $authService->getUserInfo($currentUser['id']);
+            Response::success($userData, '获取用户信息成功');
+            break;
+
+        case 'switch-project':
+            require_once __DIR__ . '/services/AuthService.php';
+            $authService = new AuthService($db);
+            $body = JsonMiddleware::getRequestBody();
+            $projectId = (int)($body['projectId'] ?? 0);
+
+            if (!$projectId) {
+                Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+            }
+
+            $project = $authService->switchProject($currentUser['id'], $projectId);
+            Response::success($project, "已切换到项目: {$project['name']}");
+            break;
+
+        // ===== 项目 =====
+        case 'projects':
+            require_once __DIR__ . '/repositories/ProjectRepository.php';
+            $projectRepo = new ProjectRepository($db);
+
+            if ($method === 'GET' && !$resourceId) {
+                $projects = $projectRepo->findActive();
+                Response::success($projects, '获取项目列表成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                $project = $projectRepo->findById((int)$resourceId);
+                $project ? Response::success($project) : Response::error('项目不存在', 'NOT_FOUND', 404);
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $project = $projectRepo->create($body);
+                Response::success($project, '项目创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                $project = $projectRepo->update((int)$resourceId, $body);
+                $project ? Response::success($project, '项目更新成功') : Response::error('项目不存在', 'NOT_FOUND', 404);
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $projectRepo->delete((int)$resourceId);
+                Response::success(null, '项目删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        // ===== 账户 =====
+        case 'accounts':
+            require_once __DIR__ . '/services/AccountService.php';
+            $accountService = new AccountService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET' && !$resourceId) {
+                $page = (int)($_GET['page'] ?? 1);
+                $limit = (int)($_GET['limit'] ?? 50);
+                $currency = $_GET['currency'] ?? null;
+                $type = $_GET['type'] ?? null;
+                $result = $accountService->getAccounts($projectId, $page, $limit, $currency, $type);
+                Response::paginated($result['items'], $result['total'], $page, $limit);
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'];
+                $account = $accountService->createAccount($body);
+                Response::success($account, '账户创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                $account = $accountService->updateAccount((int)$resourceId, $body);
+                Response::success($account, '账户更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $accountService->deleteAccount((int)$resourceId);
+                Response::success(null, '账户删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        case 'account-types':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET') {
+                Response::success($configService->getAccountTypes($projectId), '获取account_types列表成功');
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                Response::success($configService->createAccountType($body), '创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($configService->updateAccountType((int)$resourceId, $body), '更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $configService->deleteAccountType((int)$resourceId);
+                Response::success(null, '删除成功');
+            }
+            break;
+
+        case 'account-summary':
+            require_once __DIR__ . '/services/AccountService.php';
+            $accountService = new AccountService($db);
+            $projectId = (int)($_GET['projectId'] ?? 0);
+            Response::success($accountService->getAccountSummary($projectId), '获取账户摘要成功');
+            break;
+
+        // ===== 交易 =====
+        case 'transactions':
+            require_once __DIR__ . '/services/TransactionService.php';
+            $txService = new TransactionService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET' && !$resourceId) {
+                $page = (int)($_GET['page'] ?? 1);
+                $limit = (int)($_GET['limit'] ?? 50);
+                $filters = array_filter([
+                    'type' => $_GET['type'] ?? null,
+                    'status' => $_GET['status'] ?? null,
+                    'account_id' => $_GET['account_id'] ?? null,
+                ]);
+                $result = $txService->getTransactions($projectId, $filters, $page, $limit);
+                Response::paginated($result['items'], $result['total'], $page, $limit);
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'];
+                $tx = $txService->createTransaction($body);
+                Response::success($tx, '交易创建成功', 201);
+            } elseif ($method === 'GET' && $resourceId) {
+                require_once __DIR__ . '/repositories/TransactionRepository.php';
+                $repo = new TransactionRepository($db);
+                $tx = $repo->findById((int)$resourceId);
+                $tx ? Response::success($tx) : Response::error('交易不存在', 'NOT_FOUND', 404);
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        case 'transaction-summary':
+            require_once __DIR__ . '/services/TransactionService.php';
+            $txService = new TransactionService($db);
+            $projectId = (int)($_GET['projectId'] ?? 0);
+            $period = $_GET['period'] ?? 'month';
+            Response::success($txService->getTransactionSummary($projectId, $period), '获取交易摘要成功');
+            break;
+
+        // ===== 配置管理 =====
+        case 'currency-types':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET') {
+                Response::success($configService->getCurrencyTypes($projectId), '获取currency_types列表成功');
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                Response::success($configService->createCurrencyType($body), '创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($configService->updateCurrencyType((int)$resourceId, $body), '更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $configService->deleteCurrencyType((int)$resourceId);
+                Response::success(null, '删除成功');
+            }
+            break;
+
+        case 'subjects':
+        case 'subject-types':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET') {
+                $type = $_GET['type'] ?? null;
+                Response::success($configService->getSubjects($projectId, $type), '获取科目列表成功');
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                Response::success($configService->createSubject($body), '创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($configService->updateSubject((int)$resourceId, $body), '更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $configService->deleteSubject((int)$resourceId);
+                Response::success(null, '删除成功');
+            }
+            break;
+
+        case 'asset-types':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            // 暂时返回空数组（资产类型表未单独创建）
+            Response::success([], '获取资产类型列表成功');
+            break;
+
+        case 'departments':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET') {
+                Response::success($configService->getDepartments($projectId), '获取部门列表成功');
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                Response::success($configService->createDepartment($body), '创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($configService->updateDepartment((int)$resourceId, $body), '更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $configService->deleteDepartment((int)$resourceId);
+                Response::success(null, '删除成功');
+            }
+            break;
+
+        case 'transaction-types':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            // 流水类型通过科目表的 type 字段区分
+            if ($resourceId === 'income') {
+                Response::success($configService->getSubjects($projectId, 'income'), '获取收入类型成功');
+            } elseif ($resourceId === 'expense') {
+                Response::success($configService->getSubjects($projectId, 'expense'), '获取支出类型成功');
+            } else {
+                Response::success($configService->getSubjects($projectId), '获取流水类型成功');
+            }
+            break;
+
+        // ===== 仪表盘 =====
+        case 'dashboard':
+            require_once __DIR__ . '/services/TransactionService.php';
+            require_once __DIR__ . '/services/AccountService.php';
+            $txService = new TransactionService($db);
+            $accountService = new AccountService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            $period = $_GET['period'] ?? 'month';
+
+            $dashboardEndpoint = $resourceId ?? '';
+
+            switch ($dashboardEndpoint) {
+                case 'account-summary':
+                    Response::success($accountService->getAccountSummary($projectId), '获取账户摘要成功');
+                    break;
+                case 'transactions':
+                case 'transaction-summary':
+                    Response::success($txService->getTransactionSummary($projectId, $period), '获取交易摘要成功');
+                    break;
+                case 'income-by-subject':
+                    Response::success($txService->getIncomeBySubject($projectId, $period), '获取收入科目分析成功');
+                    break;
+                case 'expense-by-subject':
+                    Response::success($txService->getExpenseBySubject($projectId, $period), '获取支出科目分析成功');
+                    break;
+                case 'expense-by-department':
+                    Response::success($txService->getExpenseByDepartment($projectId, $period), '获取部门支出分析成功');
+                    break;
+                default:
+                    // 综合仪表盘数据
+                    $summary = [
+                        'accountSummary' => $accountService->getAccountSummary($projectId),
+                        'transactionSummary' => $txService->getTransactionSummary($projectId, $period),
+                        'incomeBySubject' => $txService->getIncomeBySubject($projectId, $period),
+                        'expenseBySubject' => $txService->getExpenseBySubject($projectId, $period),
+                        'expenseByDepartment' => $txService->getExpenseByDepartment($projectId, $period),
+                    ];
+                    Response::success($summary, '获取仪表盘数据成功');
+                    break;
+            }
+            break;
+
+        // 兼容旧端点（直接在 /api/ 下的仪表盘路径）
+        case 'dashboard-data':
+        case 'income-by-subject':
+        case 'expense-by-subject':
+        case 'expense-by-department':
+        case 'recent-transactions':
+        case 'project-stats':
+            require_once __DIR__ . '/services/TransactionService.php';
+            require_once __DIR__ . '/services/AccountService.php';
+            $txService = new TransactionService($db);
+            $accountService = new AccountService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            $period = $_GET['period'] ?? 'month';
+
+            switch ($endpoint) {
+                case 'income-by-subject':
+                    Response::success($txService->getIncomeBySubject($projectId, $period));
+                    break;
+                case 'expense-by-subject':
+                    Response::success($txService->getExpenseBySubject($projectId, $period));
+                    break;
+                case 'expense-by-department':
+                    Response::success($txService->getExpenseByDepartment($projectId, $period));
+                    break;
+                default:
+                    $summary = [
+                        'accountSummary' => $accountService->getAccountSummary($projectId),
+                        'transactionSummary' => $txService->getTransactionSummary($projectId, $period),
+                    ];
+                    Response::success($summary);
+                    break;
+            }
+            break;
+
+        // ===== 用户管理 =====
+        case 'users':
+            require_once __DIR__ . '/repositories/UserRepository.php';
+            $userRepo = new UserRepository($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($method === 'GET' && !$resourceId) {
+                $users = $userRepo->findByProjectId($projectId);
+                Response::success($users, '获取用户列表成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                $user = $userRepo->findById((int)$resourceId);
+                $user ? Response::success($user) : Response::error('用户不存在', 'NOT_FOUND', 404);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                unset($body['password']); // 不允许通过此接口修改密码
+                $user = $userRepo->update((int)$resourceId, $body);
+                $user ? Response::success($user, '用户更新成功') : Response::error('用户不存在', 'NOT_FOUND', 404);
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $userRepo->delete((int)$resourceId);
+                Response::success(null, '用户删除成功');
+            }
+            break;
+
+        // ===== 活动日志 =====
+        case 'activity-logs':
+            require_once __DIR__ . '/repositories/BaseRepository.php';
+            // 简单实现
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            $page = (int)($_GET['page'] ?? 1);
+            $limit = (int)($_GET['limit'] ?? 20);
+            $offset = ($page - 1) * $limit;
+
+            if ($method === 'GET') {
+                $stmt = $db->prepare("SELECT * FROM activity_logs WHERE project_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
+                $stmt->execute([$projectId, $limit, $offset]);
+                $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+                $countStmt = $db->prepare("SELECT COUNT(*) FROM activity_logs WHERE project_id = ?");
+                $countStmt->execute([$projectId]);
+                $total = (int)$countStmt->fetchColumn();
+
+                Response::paginated($logs, $total, $page, $limit);
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $stmt = $db->prepare("INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *");
+                $stmt->execute([
+                    $body['action'] ?? '',
+                    $body['target_type'] ?? 'system',
+                    $body['target_id'] ?? null,
+                    $body['description'] ?? '',
+                    $currentUser['id'],
+                    $projectId
+                ]);
+                $log = $stmt->fetch(PDO::FETCH_ASSOC);
+                Response::success($log, '日志记录成功', 201);
+            }
+            break;
+
+        // ===== 健康检查 =====
+        case 'health':
+            Response::success(['status' => 'healthy', 'db' => 'connected'], 'OK');
+            break;
+
+        default:
+            Response::error("端点 '{$endpoint}' 不存在", 'NOT_FOUND', 404);
     }
-  ]
-}
-                </pre>
-            </div>
-            
-            <h2>配置接口</h2>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/currency-types?projectId=1</h3>
-                <p>获取币种列表</p>
-                <p><strong>响应：</strong></p>
-                <pre>
-{
-  "success": true,
-  "message": "获取currency_types列表成功",
-  "data": [
-    {
-      "id": 1,
-      "name": "人民币",
-      "code": "CNY",
-      "description": "中国法定货币",
-      "project_id": 1
-    },
-    {
-      "id": 2,
-      "name": "美元",
-      "code": "USD",
-      "description": "美国法定货币",
-      "project_id": 1
-    }
-  ]
-}
-                </pre>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/account-types?projectId=1</h3>
-                <p>获取账户类型列表</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/asset-types?projectId=1</h3>
-                <p>获取资产类型列表</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/subjects?projectId=1</h3>
-                <p>获取科目列表</p>
-            </div>
-            
-            <h2>账户接口</h2>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/accounts?projectId=1</h3>
-                <p>获取账户列表</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method post">POST</span> /api/accounts</h3>
-                <p>创建新账户</p>
-            </div>
-            
-            <h2>交易接口</h2>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/transactions?projectId=1</h3>
-                <p>获取交易列表</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method post">POST</span> /api/transactions</h3>
-                <p>创建新交易</p>
-            </div>
-            
-            <h2>仪表盘接口</h2>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/dashboard-data?projectId=1</h3>
-                <p>获取仪表盘综合数据</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/account-summary?projectId=1</h3>
-                <p>获取账户摘要数据</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/transaction-summary?projectId=1&period=month</h3>
-                <p>获取交易摘要数据</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/income-by-subject?projectId=1&period=month</h3>
-                <p>获取收入按科目分析数据</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/expense-by-subject?projectId=1&period=month</h3>
-                <p>获取支出按科目分析数据</p>
-            </div>
-            
-            <div class="endpoint">
-                <h3><span class="method get">GET</span> /api/expense-by-department?projectId=1&period=month</h3>
-                <p>获取支出按部门分析数据</p>
-            </div>
-            
-        </body>
-        </html>
-        ';
-        exit;
-    
-    // 默认情况
-    default:
-        sendResponse(404, '请求的API端点不存在');
+} catch (\InvalidArgumentException $e) {
+    Response::error($e->getMessage(), 'VALIDATION_ERROR', 400);
+} catch (\RuntimeException $e) {
+    Response::error($e->getMessage(), 'BUSINESS_ERROR', 400);
+} catch (\PDOException $e) {
+    error_log("Database error: " . $e->getMessage());
+    Response::error('数据库操作失败', 'DB_ERROR', 500);
+} catch (\Exception $e) {
+    error_log("Unexpected error: " . $e->getMessage());
+    Response::error('服务器内部错误', 'INTERNAL_ERROR', 500);
 }
