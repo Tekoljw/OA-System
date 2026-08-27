@@ -34,33 +34,8 @@ const TransactionTypesList = () => {
           let incomeTypesData = await getIncomeTypes();
           let expenseTypesData = await getExpenseTypes();
           
-          // 检查API返回的数据是否有效
-          const incomeDataValid = incomeTypesData && Array.isArray(incomeTypesData) && incomeTypesData.length > 0;
-          const expenseDataValid = expenseTypesData && Array.isArray(expenseTypesData) && expenseTypesData.length > 0;
-          
-          // 如果API返回的数据无效，使用默认数据
-          if (!incomeDataValid) {
-            console.log("使用默认收入流水类型数据");
-            incomeTypesData = [
-              { id: "1", name: "工资收入", description: "从雇主处获得的工资、奖金等收入", type: 'income' },
-              { id: "2", name: "投资收益", description: "股息、利息、基金分红等投资回报", type: 'income' },
-              { id: "3", name: "兼职收入", description: "临时工作和兼职活动获得的收入", type: 'income' },
-              { id: "4", name: "租金收入", description: "出租房产或设备获得的收入", type: 'income' }
-            ];
-          }
-          
-          if (!expenseDataValid) {
-            console.log("使用默认支出流水类型数据");
-            expenseTypesData = [
-              { id: "1", name: "办公用品", description: "文具、打印纸等办公必须品", type: 'expense' },
-              { id: "2", name: "水电费用", description: "办公场所的水电费支出", type: 'expense' },
-              { id: "3", name: "差旅费用", description: "商务差旅的交通、住宿费用", type: 'expense' },
-              { id: "4", name: "餐饮费用", description: "工作餐、客户接待等餐饮支出", type: 'expense' }
-            ];
-          }
-          
-          setIncomeTypes(incomeTypesData);
-          setExpenseTypes(expenseTypesData);
+          setIncomeTypes(Array.isArray(incomeTypesData) ? incomeTypesData : []);
+          setExpenseTypes(Array.isArray(expenseTypesData) ? expenseTypesData : []);
         } catch (err) {
           console.error("获取流水类型失败:", err);
           

@@ -183,29 +183,7 @@ const Dashboard: React.FC = () => {
           console.error(`API诊断(相对路径) - ${check.name} 错误:`, error.message);
         });
       
-      // 从当前主机名构建完整URL测试，确保在Replit和本地都能工作
-      const apiPort = 5000; // UnifiedEntry服务器端口
-      const baseApiUrl = `${window.location.protocol}//${window.location.hostname}:${apiPort}`;
-      const fullURL = `${baseApiUrl}/api/dashboard/${check.endpoint}?projectId=${currentProject?.id || 2}&_=${Date.now()}`;
-      console.log(`尝试完整URL请求: ${fullURL}`);
-      
-      // 提供一种手动设置API服务器端口的方法（用于调试）
-      console.log('调试: 可在控制台使用 window.setApiServerPort(端口号) 修改API端口');
-      
-      fetch(fullURL)
-        .then(response => {
-          console.log(`API诊断(完整URL) - ${check.name}: ${response.status} ${response.statusText}`);
-          if (!response.ok) {
-            throw new Error(`HTTP错误 ${response.status}: ${response.statusText}`);
-          }
-          return response.json();
-        })
-        .then(data => {
-          console.log(`API诊断(完整URL) - ${check.name} 数据:`, data);
-        })
-        .catch(error => {
-          console.error(`API诊断(完整URL) - ${check.name} 错误:`, error.message);
-        });
+      // 不再测试额外端口，统一使用相对路径
     });
   };
   

@@ -164,10 +164,10 @@ const useCurrencyStats = (currency: string) => {
               monthlyExpense: expense,
               monthlySurplus: income - expense,
               currentBalance: latestTx.balance,
-              incomeChange: { value: 5.5, isPositive: true },
-              expenseChange: { value: 3.2, isPositive: false },
-              surplusChange: { value: 7.8, isPositive: true },
-              balanceChange: { value: 2.3, isPositive: true }
+              incomeChange: { value: 0, isPositive: true },
+              expenseChange: { value: 0, isPositive: true },
+              surplusChange: { value: 0, isPositive: true },
+              balanceChange: { value: 0, isPositive: true }
             });
           }
         }

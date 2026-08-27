@@ -102,31 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(userData);
         setIsLoggedIn(true);
         
-        // 确保用户数据中包含项目列表
-        if (!userData.projectsList || userData.projectsList.length === 0) {
-          console.log('localStorage中的用户数据没有项目列表，创建默认项目');
-          
-          // 为防止本地存储中没有项目列表信息，添加默认项目
-          const defaultProjects = [
-            {
-              id: 1,
-              name: '默认项目',
-              code: 'default',
-              description: '系统默认项目',
-              active: true,
-              created_at: new Date().toISOString(),
-              updated_at: new Date().toISOString()
-            }
-          ];
-          
-          userData.projectsList = defaultProjects;
-          userData.hasMultipleProjects = false;
-          userData.currentProject = defaultProjects[0];
-          
-          // 更新本地存储
-          localStorage.setItem("user", JSON.stringify(userData));
-        }
-        
         // 设置项目相关状态
         if (userData.projectsList && userData.projectsList.length > 0) {
           console.log('设置项目列表状态:', userData.projectsList);
@@ -413,57 +388,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  // 创建新项目功能 - 完全修复版
+  // 创建新项目
   const createProject = async (projectData: CreateProjectData): Promise<Project | null> => {
     try {
       setIsLoading(true);
-      console.log('开始创建项目:', projectData);
-      
-      // 使用本地模拟创建项目，不再依赖服务器API
-      const newProject: Project = {
-        id: Math.floor(Math.random() * 1000) + 10, // 生成随机ID
-        name: projectData.name,
-        code: projectData.code,
-        description: projectData.description || '新建项目',
-        active: true
-      };
-      
-      console.log('创建的新项目:', newProject);
-      
-      // 更新当前用户的项目列表
-      if (user) {
+
+      const response = await apiRequest('POST', AUTH_API.PROJECTS, projectData);
+      const newProject = response?.data;
+
+      if (newProject && user) {
         const updatedProjectsList = user.projectsList ? [...user.projectsList, newProject] : [newProject];
-        
         const updatedUser = {
           ...user,
           projectsList: updatedProjectsList,
           hasMultipleProjects: updatedProjectsList.length > 1
         };
-        
-        // 更新状态
         setUser(updatedUser);
         setAvailableProjects(updatedProjectsList);
-        
-        // 更新本地存储
         localStorage.setItem('user', JSON.stringify(updatedUser));
-        console.log('已更新用户项目列表:', updatedProjectsList);
-        
-        // 同时更新项目计数缓存
-        const projectsCount = updatedProjectsList.length;
-        localStorage.setItem('projectsCount', projectsCount.toString());
-        
-        // 清除相关缓存
-        const requestCache = new Map();
-        requestCache.delete('GET:/projects');
-        requestCache.delete('GET:/api/projects');
-        requestCache.delete('GET:/api/projects/count');
       }
-      
+
       toast({
         title: "创建成功",
-        description: `项目"${newProject.name}"已创建`,
+        description: `项目"${newProject?.name || projectData.name}"已创建`,
       });
-      
+
       setIsLoading(false);
       return newProject;
     } catch (error: any) {
@@ -473,7 +422,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error.message || "创建项目时发生错误",
         variant: "destructive",
       });
-      
+
       setIsLoading(false);
       return null;
     }

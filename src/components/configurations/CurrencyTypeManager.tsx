@@ -36,88 +36,16 @@ const CurrencyTypeManager = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { toast } = useToast();
 
-  // 默认币种数据 - 仅在API完全无法访问时使用
-  const DEFAULT_CURRENCIES: CurrencyType[] = [
-    { id: "56", code: "CNY", name: "人民币", description: "中国法定货币" },
-    { id: "57", code: "USD", name: "美元", description: "美国法定货币" }
-  ];
-
   // 获取币种数据
   useEffect(() => {
     const fetchCurrencies = async () => {
       try {
         setIsLoading(true);
-        console.log("开始获取币种列表...");
-        
-        // 重试机制
-        let attempts = 0;
-        const maxAttempts = 3;
-        let success = false;
-        let data = [];
-        
-        while (attempts < maxAttempts && !success) {
-          try {
-            attempts++;
-            console.log(`尝试获取币种列表 (第${attempts}次尝试)...`);
-            
-            // 添加随机参数避免缓存
-            const timestamp = Date.now();
-            const projectId = localStorage.getItem('current_project_id') || '2';
-            
-            // 从数据库API获取币种信息
-            const response = await fetch(`/get-currency-types.php?projectId=27`);
-            
-            if (response.ok) {
-              const result = await response.json();
-              data = result.data || [];
-              success = true;
-              console.log("成功获取币种列表:", data);
-            } else {
-              throw new Error(`API返回状态码: ${response.status}`);
-            }
-          } catch (retryError) {
-            console.warn(`获取币种列表第${attempts}次尝试失败:`, retryError);
-            if (attempts < maxAttempts) {
-              // 增加等待时间
-              await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
-            }
-          }
-        }
-        
-        if (success) {
-          if (data.length > 0) {
-            // 检查是否有新创建的币种在localStorage中
-            const newCurrencies = JSON.parse(localStorage.getItem('newCurrencies') || '[]');
-            if (newCurrencies.length > 0) {
-              // 合并新币种到现有列表
-              const allCurrencies = [...data, ...newCurrencies];
-              setCurrencies(allCurrencies);
-              console.log('合并新创建的币种:', allCurrencies);
-            } else {
-              setCurrencies(data);
-            }
-          } else {
-            setCurrencies([]);
-            toast({
-              title: "数据获取提示",
-              description: "未找到币种数据",
-              variant: "default",
-            });
-          }
-        } else {
-          setCurrencies([]);
-          toast({
-            variant: "destructive",
-            title: "连接失败",
-            description: "无法连接到服务器获取币种数据，请稍后重试",
-          });
-        }
+        const data = await getCurrencyTypes();
+        setCurrencies(data);
       } catch (error) {
         console.error("获取币种列表失败:", error);
-        
-        // 不使用默认值，显示空数据和错误提示
         setCurrencies([]);
-        
         toast({
           variant: "destructive",
           title: "获取币种列表失败",

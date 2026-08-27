@@ -52,6 +52,18 @@ class ConfigRepository extends BaseRepository {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    public function getAssetTypes(int $projectId): array {
+        $stmt = $this->db->prepare("SELECT * FROM asset_types WHERE project_id = ? ORDER BY id");
+        $stmt->execute([$projectId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function createAssetType(array $data): array {
+        $stmt = $this->db->prepare("INSERT INTO asset_types (name, description, depreciation_rate, useful_life, project_id, created_by) VALUES (?, ?, ?, ?, ?, ?) RETURNING *");
+        $stmt->execute([$data['name'], $data['description'] ?? '', $data['depreciation_rate'] ?? 0, $data['useful_life'] ?? 0, $data['project_id'], $data['created_by'] ?? null]);
+        return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
     public function createDepartment(array $data): array {
         $stmt = $this->db->prepare("INSERT INTO departments (name, code, description, project_id) VALUES (?, ?, ?, ?) RETURNING *");
         $stmt->execute([$data['name'], $data['code'] ?? '', $data['description'] ?? '', $data['project_id']]);

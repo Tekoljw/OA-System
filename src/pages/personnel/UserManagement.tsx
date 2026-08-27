@@ -17,7 +17,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { API_BASE_URL } from "@/api/client";
+import { API_BASE_URL, apiRequest } from "@/api/client";
 import { MoreHorizontal, Search, UserPlus, UserCheck, UserX, Loader2, Trash2 } from "lucide-react";
 import { AccountManagementDialog } from "@/components/accounts/AccountManagementDialog";
 import { useToast } from "@/hooks/use-toast";
@@ -112,132 +112,30 @@ const UserManagement = () => {
     const fetchUsers = async () => {
       setLoading(true);
       try {
-        // 直接从PostgreSQL数据库获取真实用户数据
-        console.log('正在从数据库获取用户数据...');
-        
-        // 直接显示数据库中的真实用户数据
-        const realUsers = [
-          {
-            id: "624",
-            username: "12312", 
-            fullName: "123",
-            role: "department_manager",
-            email: "",
-            phone: "",
-            department: "财务部",
-            notes: "",
-            status: "active",
-            active: true,
-            created_at: "2025-05-27 11:08:34",
-            updated_at: "2025-05-27 11:08:34"
-          },
-          {
-            id: "623",
-            username: "123123", 
-            fullName: "123",
-            role: "manager",
-            email: "",
-            phone: "",
-            department: "财务部",
-            notes: "",
-            status: "active",
-            active: true,
-            created_at: "2025-05-27 07:43:15",
-            updated_at: "2025-05-27 07:43:15"
-          },
-          {
-            id: "622",
-            username: "123", 
-            fullName: "123",
-            role: "manager",
-            email: "",
-            phone: "",
-            department: "财务部",
-            notes: "",
-            status: "active",
-            active: true,
-            created_at: "2025-05-27 06:42:32",
-            updated_at: "2025-05-27 06:42:32"
-          },
-          {
-            id: "621",
-            username: "test123", 
-            fullName: "测试用户",
-            role: "user",
-            email: "",
-            phone: "",
-            department: "研发部",
-            notes: "",
-            status: "active",
-            active: true,
-            created_at: "2025-05-26 21:06:30",
-            updated_at: "2025-05-26 21:06:30"
-          },
-          {
-            id: "548",
-            username: "project27user",
-            fullName: "项目27测试用户", 
-            role: "staff",
-            email: "test27@example.com",
-            phone: "",
-            department: "",
-            notes: "",
-            status: "active",
-            active: true,
-            created_at: "2025-05-14 18:13:06",
-            updated_at: "2025-05-14 18:13:06"
-          }
-        ];
-        
-        setUsers(realUsers);
-        toast({
-          title: "数据加载成功",
-          description: `从BeGot项目数据库加载了 ${realUsers.length} 个用户记录`,
-        });
+        const result = await apiRequest('GET', `/api/users?projectId=${currentProjectId || ''}`);
+        const data = result.data || [];
+        const formattedUsers = data.map((user: any) => ({
+          id: String(user.id),
+          username: user.username,
+          fullName: user.full_name || user.fullName || '',
+          role: user.role,
+          email: user.email || '',
+          phone: user.phone || '',
+          notes: user.notes || '',
+          status: user.is_active ? 'active' : 'inactive',
+          active: user.is_active,
+          department: user.department || '',
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        }));
+        setUsers(formattedUsers);
         setError(null);
-        setLoading(false);
-        return;
-        
-        if (data.success && data.data) {
-          // 转换数据库返回的用户数据格式为前端期望的格式
-          const formattedUsers = data.data.map((user: any) => ({
-            id: user.id.toString(),
-            username: user.username,
-            fullName: user.full_name,
-            role: user.role,
-            email: user.email || '',
-            phone: user.phone || '',
-            notes: user.notes || '',
-            status: user.status,
-            active: user.active,
-            department: user.department || '',
-            created_at: user.created_at,
-            updated_at: user.updated_at
-          }));
-          
-          setUsers(formattedUsers);
-          toast({
-            title: "数据加载成功",
-            description: `从数据库加载了 ${formattedUsers.length} 个用户记录`,
-          });
-          setError(null);
-        } else {
-          throw new Error(data.message || '无法获取用户数据');
-        }
       } catch (error: any) {
         console.error('加载用户数据出错:', error);
-        console.error('错误详情:', error.message || '未知错误');
-        console.error('错误类型:', typeof error);
-        console.error('完整错误对象:', JSON.stringify(error, null, 2));
-        const apiUrl = window.location.hostname.includes('replit.dev') 
-          ? window.location.origin.replace(':3001', ':5000')
-          : 'http://localhost:5000';
-        console.error('API地址:', `${apiUrl}/api/users?projectId=${currentProjectId || ''}`);
-        
         setError("数据加载失败");
         toast({
           title: "错误",
-          description: `API连接失败: ${error.message || '网络错误'}`,
+          description: error.message || '获取用户列表失败',
           variant: "destructive",
         });
       } finally {
@@ -421,63 +319,44 @@ const UserManagement = () => {
   };
 
   const onCreateUser = async (userData: any) => {
-    console.log('提交用户数据:', userData);
     try {
-      // 调用真正的数据库API创建用户
-      const response = await fetch('http://localhost:5000/user-management.php?projectId=27', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          username: userData.username,
-          password: userData.password,
-          fullName: userData.fullName,
-          role: userData.role,
-          email: userData.email || '',
-          phone: userData.phone || '',
-          department: userData.department || '',
-          notes: userData.notes || '',
-          status: 'active'
-        })
+      const result = await apiRequest('POST', '/api/users', {
+        username: userData.username,
+        password: userData.password,
+        fullName: userData.fullName,
+        role: userData.role,
+        email: userData.email || '',
+        phone: userData.phone || '',
+        department: userData.department || '',
+        notes: userData.notes || '',
+        status: 'active'
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      const result = await response.json();
-      
       if (result.success && result.data) {
-        // 更新本地用户列表，添加新创建的用户
         const newUser = {
-          id: result.data.id.toString(),
+          id: String(result.data.id),
           username: result.data.username,
-          fullName: result.data.full_name,
+          fullName: result.data.full_name || result.data.fullName || '',
           role: result.data.role,
           email: result.data.email || '',
           phone: result.data.phone || '',
           notes: result.data.notes || '',
-          status: result.data.status,
-          active: result.data.active,
+          status: result.data.status || 'active',
+          active: result.data.active ?? true,
           department: result.data.department || '',
           created_at: result.data.created_at,
           updated_at: result.data.updated_at
         };
-
         setUsers([...users, newUser]);
         setIsCreateDialogOpen(false);
-        
         toast({
           title: '用户创建成功',
-          description: `用户 ${userData.username} 已成功保存到数据库`,
+          description: `用户 ${userData.username} 已创建`,
         });
       } else {
         throw new Error(result.message || '创建用户失败');
       }
-      
-    } catch (error) {
+    } catch (error: any) {
       console.error('创建用户错误:', error);
       toast({
         variant: "destructive",

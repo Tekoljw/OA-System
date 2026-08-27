@@ -65,6 +65,23 @@ class ConfigService {
     }
 
     // 部门
+    public function getAssetTypes(int $projectId): array {
+        return $this->repo->getAssetTypes($projectId);
+    }
+
+    public function createAssetType(array $data): array {
+        if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
+        return $this->repo->createAssetType($data);
+    }
+
+    public function updateAssetType(int $id, array $data): ?array {
+        return $this->repo->updateItem('asset_types', $id, $data);
+    }
+
+    public function deleteAssetType(int $id): bool {
+        return $this->repo->deleteItem('asset_types', $id);
+    }
+
     public function getDepartments(int $projectId): array {
         return $this->repo->getDepartments($projectId);
     }

@@ -1268,7 +1268,7 @@ const InternalTransactions: React.FC = () => {
   const paginatedTransfers = filteredTransfers;
   
   // 是否有更多数据
-  const hasMore = page < 3; // 模拟最多加载3页
+  const hasMore = false; // 分页由后端控制
   
   // 处理日期选择
   const handleDateSelect = (date: Date | undefined) => {

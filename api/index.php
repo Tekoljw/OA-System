@@ -279,8 +279,21 @@ try {
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
-            // 暂时返回空数组（资产类型表未单独创建）
-            Response::success([], '获取资产类型列表成功');
+
+            if ($method === 'GET') {
+                Response::success($configService->getAssetTypes($projectId), '获取资产类型列表成功');
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'] ?? null;
+                Response::success($configService->createAssetType($body), '创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($configService->updateAssetType((int)$resourceId, $body), '更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $configService->deleteAssetType((int)$resourceId);
+                Response::success(null, '删除成功');
+            }
             break;
 
         case 'departments':

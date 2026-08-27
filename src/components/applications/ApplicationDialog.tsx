@@ -22,14 +22,6 @@ import {
 import { getDepartments, Department } from "../../utils/departments-api";
 import { useAuth } from "../../contexts/AuthContext";
 
-// 预定义的资产类型（用于在资产API不可用时使用）
-const DEFAULT_ASSET_TYPES = [
-  { id: "1", name: "办公设备", description: "办公用设备", depreciationRate: 20, depreciationMethod: "直线法" },
-  { id: "2", name: "电子设备", description: "电子类设备", depreciationRate: 25, depreciationMethod: "直线法" },
-  { id: "3", name: "家具", description: "办公家具", depreciationRate: 15, depreciationMethod: "直线法" },
-  { id: "4", name: "车辆", description: "交通工具", depreciationRate: 10, depreciationMethod: "直线法" },
-  { id: "5", name: "软件", description: "软件类资产", depreciationRate: 30, depreciationMethod: "直线法" }
-];
 
 // 更新表单Schema，增加资产信息和借贷相关字段
 const defaultFormSchema = z.object({
@@ -75,7 +67,7 @@ interface ApplicationDialogProps {
 export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: ApplicationDialogProps) {
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
-  const [assetTypes, setAssetTypes] = useState<AssetType[]>(DEFAULT_ASSET_TYPES);
+  const [assetTypes, setAssetTypes] = useState<AssetType[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingAssetTypes, setIsLoadingAssetTypes] = useState(false);
@@ -118,12 +110,12 @@ export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: App
             setAssetTypes(types);
           } else {
             // 如果API未返回数据，使用默认资产类型
-            setAssetTypes(DEFAULT_ASSET_TYPES);
+            setAssetTypes([]);
           }
         } catch (error) {
           console.error('加载资产类型失败:', error);
           // 使用默认资产类型
-          setAssetTypes(DEFAULT_ASSET_TYPES);
+          setAssetTypes([]);
         } finally {
           setIsLoadingAssetTypes(false);
         }
