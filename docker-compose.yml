@@ -64,6 +64,8 @@ services:
     volumes:
       - ./api:/var/www/oa-system/api
       - ./public:/var/www/oa-system/public
+      - ./dist:/var/www/oa-system/public/dist
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
     networks:
       - oa-network
 

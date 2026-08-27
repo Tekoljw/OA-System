@@ -267,7 +267,7 @@ class Auth {
     
     /**
      * 切换项目
-     * 
+     *
      * @param int $userId 用户ID
      * @param int $projectId 项目ID
      * @return array|bool 项目信息或false
@@ -276,20 +276,73 @@ class Auth {
         if (!$this->hasProjectAccess($userId, $projectId)) {
             return false;
         }
-        
+
         try {
             $query = "SELECT * FROM projects WHERE id = ? AND active = true";
             $stmt = $this->conn->prepare($query);
             $stmt->execute([$projectId]);
-            
+
             if ($stmt->rowCount() > 0) {
                 return $stmt->fetch();
             }
-            
+
             return false;
         } catch (PDOException $e) {
             error_log("切换项目错误: " . $e->getMessage());
             return false;
         }
     }
+}
+
+/**
+ * 独立函数：生成 JWT 令牌（供 Service 层调用）
+ */
+function generateToken(array $user): string {
+    $header = json_encode(['typ' => 'JWT', 'alg' => 'HS256']);
+    $payload = json_encode([
+        'sub' => $user['id'],
+        'name' => $user['username'] ?? '',
+        'role' => $user['role'] ?? '',
+        'iat' => time(),
+        'exp' => time() + (60 * 60 * 24)
+    ]);
+
+    $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
+    $base64UrlPayload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
+
+    $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: 'your_secret_key', true);
+    $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
+
+    return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
+}
+
+/**
+ * 独立函数：验证 JWT 令牌（供 Middleware 层调用）
+ */
+function validateToken(string $token): array|false {
+    if (empty($token)) {
+        return false;
+    }
+
+    $parts = explode('.', $token);
+    if (count($parts) != 3) {
+        return false;
+    }
+
+    [$base64UrlHeader, $base64UrlPayload, $base64UrlSignature] = $parts;
+
+    $signature = base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlSignature));
+    $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: 'your_secret_key', true);
+
+    if (!hash_equals($signature, $expectedSignature)) {
+        return false;
+    }
+
+    $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlPayload)), true);
+
+    if (isset($payload['exp']) && $payload['exp'] < time()) {
+        return false;
+    }
+
+    return $payload;
 }

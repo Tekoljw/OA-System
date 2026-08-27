@@ -97,6 +97,23 @@
       });
     </script>
     
+    <!-- API 端口重定向和CORS修复 -->
+    <script>
+      (function() {
+        // 拦截fetch请求，将5000端口改为8000
+        const originalFetch = window.fetch;
+        window.fetch = function(url, options) {
+          if (typeof url === 'string' && url.includes('localhost:5000')) {
+            const newUrl = url.replace('localhost:5000', 'localhost:8000');
+            console.log('🔀 API重定向:', url, '->', newUrl);
+            return originalFetch.call(this, newUrl, options);
+          }
+          return originalFetch.apply(this, arguments);
+        };
+        console.log('✅ API端口重定向已激活');
+      })();
+    </script>
+
     <!-- 项目数量API响应修复 -->
     <script>
       // 项目数量响应修复工具
@@ -220,8 +237,8 @@
         console.log('已安装项目数量API响应修复和性能优化');
       })();
     </script>
-    <script type="module" crossorigin src="/assets/index-CYnt8VTw.js"></script>
-    <link rel="stylesheet" crossorigin href="/assets/index-B1I95z9F.css">
+    <script type="module" crossorigin src="/assets/index-DOuCMhYs.js"></script>
+    <link rel="stylesheet" crossorigin href="/assets/index-CmALJHbX.css">
   </head>
 
   <body>

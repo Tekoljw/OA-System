@@ -32,6 +32,11 @@ class AuthMiddleware {
             return null;
         }
 
+        // 映射 JWT 标准字段到业务字段
+        if (isset($payload['sub'])) {
+            $payload['id'] = $payload['sub'];
+        }
+
         return $payload;
     }
 }
