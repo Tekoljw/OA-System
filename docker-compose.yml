@@ -26,7 +26,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: oa-system-redis
-    command: redis-server --requirepass ${REDIS_PASSWORD:-oasys_redis_2026}
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD 环境变量必须设置}
     ports:
       - "6380:6379"
     volumes:

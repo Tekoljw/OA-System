@@ -55,7 +55,7 @@ class Database {
             $this->conn->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
             $this->conn->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
         } catch (PDOException $e) {
-            echo "数据库连接失败: " . $e->getMessage();
+            error_log("数据库连接失败: " . $e->getMessage());
         }
 
         return $this->conn;
