@@ -477,12 +477,17 @@ try {
                     Response::error('权限不足，仅管理员或本人可修改用户信息', 'FORBIDDEN', 403);
                 }
                 $body = JsonMiddleware::getRequestBody();
-                unset($body['password']); // 不允许通过此接口修改密码
-                // 非管理员不允许修改 role 字段
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    unset($body['role']);
+                // 字段白名单：仅允许修改安全的字段
+                $allowedFields = ['full_name', 'email'];
+                // 管理员额外可修改 role 和 is_active
+                if (($currentUser['role'] ?? '') === 'admin') {
+                    $allowedFields = array_merge($allowedFields, ['role', 'is_active', 'username']);
                 }
-                $user = $userRepo->update((int)$resourceId, $body);
+                $safeBody = array_intersect_key($body, array_flip($allowedFields));
+                if (empty($safeBody)) {
+                    Response::error('无有效的可修改字段', 'VALIDATION_ERROR');
+                }
+                $user = $userRepo->update((int)$resourceId, $safeBody);
                 if ($user) {
                     unset($user['password']);
                     Response::success($user, '用户更新成功');
