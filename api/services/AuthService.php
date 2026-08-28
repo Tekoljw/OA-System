@@ -103,16 +103,27 @@ class AuthService {
     }
 
     // ===== 登录限流 =====
-    private const MAX_ATTEMPTS = 5;         // 最多失败次数
-    private const LOCKOUT_MINUTES = 15;     // 锁定时长（分钟）
+    private const MAX_ATTEMPTS_PER_IP = 5;       // 单IP+用户名 最多失败次数
+    private const MAX_ATTEMPTS_PER_USER = 20;    // 纯用户名 最多失败次数（防IP伪造绕过）
+    private const LOCKOUT_MINUTES = 15;          // 锁定时长（分钟）
 
     private function getLoginKey(string $username): string {
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
         return md5($ip . ':' . strtolower($username));
     }
 
+    private function getUserLoginKey(string $username): string {
+        return md5('user:' . strtolower($username));
+    }
+
     private function checkLoginAttempts(string $username): void {
-        $key = $this->getLoginKey($username);
+        // 检查 IP+用户名 维度
+        $this->checkAttemptKey($this->getLoginKey($username), self::MAX_ATTEMPTS_PER_IP);
+        // 检查纯用户名维度（防止换 IP 暴力破解）
+        $this->checkAttemptKey($this->getUserLoginKey($username), self::MAX_ATTEMPTS_PER_USER);
+    }
+
+    private function checkAttemptKey(string $key, int $maxAttempts): void {
         $stmt = $this->db->prepare(
             "SELECT attempts, last_attempt FROM login_attempts WHERE attempt_key = ?"
         );
@@ -120,30 +131,36 @@ class AuthService {
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         if (!$row) return;
 
-        if ((int)$row['attempts'] >= self::MAX_ATTEMPTS) {
+        if ((int)$row['attempts'] >= $maxAttempts) {
             $lockUntil = strtotime($row['last_attempt']) + (self::LOCKOUT_MINUTES * 60);
             if (time() < $lockUntil) {
                 $remaining = (int)ceil(($lockUntil - time()) / 60);
                 throw new \RuntimeException("登录失败次数过多，请 {$remaining} 分钟后再试");
             }
             // 锁定期已过，清除记录
-            $this->clearLoginAttempts($username);
+            $delStmt = $this->db->prepare("DELETE FROM login_attempts WHERE attempt_key = ?");
+            $delStmt->execute([$key]);
         }
     }
 
     private function recordFailedLogin(string $username): void {
-        $key = $this->getLoginKey($username);
+        // 同时记录两个维度
+        $keys = [$this->getLoginKey($username), $this->getUserLoginKey($username)];
         $stmt = $this->db->prepare(
             "INSERT INTO login_attempts (attempt_key, attempts, last_attempt)
              VALUES (?, 1, NOW())
              ON CONFLICT (attempt_key) DO UPDATE SET attempts = login_attempts.attempts + 1, last_attempt = NOW()"
         );
-        $stmt->execute([$key]);
+        foreach ($keys as $key) {
+            $stmt->execute([$key]);
+        }
     }
 
     private function clearLoginAttempts(string $username): void {
-        $key = $this->getLoginKey($username);
+        $keys = [$this->getLoginKey($username), $this->getUserLoginKey($username)];
         $stmt = $this->db->prepare("DELETE FROM login_attempts WHERE attempt_key = ?");
-        $stmt->execute([$key]);
+        foreach ($keys as $key) {
+            $stmt->execute([$key]);
+        }
     }
 }

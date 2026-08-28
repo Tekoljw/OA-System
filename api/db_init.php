@@ -2,7 +2,13 @@
 /**
  * 数据库初始化脚本
  * 替代原来的db_init.js，用于初始化数据库表结构和基础数据
+ * 仅允许通过 CLI 执行
  */
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => '禁止通过 Web 访问此脚本']);
+    exit();
+}
 
 // 输出信息函数
 function log_message($message) {

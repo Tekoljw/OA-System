@@ -2,7 +2,13 @@
 /**
  * 初始化测试用户
  * 创建测试用户，用于系统测试和演示
+ * 仅允许通过 CLI 执行
  */
+if (php_sapi_name() !== 'cli') {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => '禁止通过 Web 访问此脚本']);
+    exit();
+}
 require_once __DIR__ . '/config/config.php';
 
 // 获取数据库连接
