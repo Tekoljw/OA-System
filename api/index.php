@@ -85,6 +85,22 @@ if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
     }
 }
 
+// 4.6 写操作权限校验 — 以下端点的增删改仅管理员可执行
+// 注意：transactions / users 有更细粒度的规则（见各自分支），不在此处统一拦截
+$adminWriteEndpoints = [
+    'accounts', 'account-types',
+    'subjects', 'subject-types',
+    'asset-types', 'departments',
+    'projects', 'shareholders', 'activity-logs',
+];
+if ($currentUser
+    && in_array($endpoint, $adminWriteEndpoints, true)
+    && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
+    && ($currentUser['role'] ?? '') !== 'admin'
+) {
+    Response::error('权限不足，仅管理员可执行该操作', 'FORBIDDEN', 403);
+}
+
 // 5. 路由分发
 try {
     switch ($endpoint) {
@@ -146,23 +162,14 @@ try {
                 $project = $projectRepo->findById((int)$resourceId);
                 $project ? Response::success($project) : Response::error('项目不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'POST') {
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可创建项目', 'FORBIDDEN', 403);
-                }
                 $body = JsonMiddleware::getRequestBody();
                 $project = $projectRepo->create($body);
                 Response::success($project, '项目创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可修改项目', 'FORBIDDEN', 403);
-                }
                 $body = JsonMiddleware::getRequestBody();
                 $project = $projectRepo->update((int)$resourceId, $body);
                 $project ? Response::success($project, '项目更新成功') : Response::error('项目不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'DELETE' && $resourceId) {
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可删除项目', 'FORBIDDEN', 403);
-                }
                 $assoc = $projectRepo->hasAssociatedData((int)$resourceId);
                 if ($assoc['accounts'] > 0 || $assoc['transactions'] > 0) {
                     Response::error(
@@ -207,25 +214,16 @@ try {
                 }
                 Response::success($shareholder);
             } elseif ($method === 'POST') {
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可管理股东', 'FORBIDDEN', 403);
-                }
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
                 $body['created_by'] = $currentUser['id'];
                 $shareholder = $shareholderService->create($body);
                 Response::success($shareholder, '股东添加成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可管理股东', 'FORBIDDEN', 403);
-                }
                 $body = JsonMiddleware::getRequestBody();
                 $shareholder = $shareholderService->update((int)$resourceId, $body, $projectId);
                 Response::success($shareholder, '股东更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可管理股东', 'FORBIDDEN', 403);
-                }
                 $shareholderService->delete((int)$resourceId, $projectId);
                 Response::success(null, '股东删除成功');
             } else {
@@ -706,10 +704,6 @@ try {
 
                 Response::paginated($logs, $total, $page, $limit);
             } elseif ($method === 'POST') {
-                // 仅管理员可手动创建审计日志
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可创建审计日志', 'FORBIDDEN', 403);
-                }
                 $body = JsonMiddleware::getRequestBody();
                 $stmt = $db->prepare("INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *");
                 $stmt->execute([

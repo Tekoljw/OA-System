@@ -389,6 +389,43 @@ async function run() {
     const userInfoRegular = await request('GET', '/api/user', null, USER_TOKEN);
     assert('普通用户 getUserInfo 正常', userInfoRegular.status === 200);
 
+    // ===== [15] 配置类资源写操作越权防护 =====
+    console.log('\n[15] 配置类资源写操作越权防护');
+
+    const writeCases = [
+        ['科目', 'subjects', { name: '越权科目', code: 'sec-test-subject', type: 'income' }],
+        ['部门', 'departments', { name: '越权部门' }],
+        ['资产类型', 'asset-types', { name: '越权资产类型' }],
+        ['账户类型', 'account-types', { name: '越权账户类型', code: 'sec-test-acct' }],
+        ['账户', 'accounts', { name: '越权账户', currency: 'CNY', account_type: 'cash', balance: 0 }],
+        ['项目', 'projects', { name: '越权项目', code: 'sec-test-proj' }],
+        ['股东', 'shareholders', { name: '越权股东', share_ratio: 1 }],
+        ['审计日志', 'activity-logs', { action: 'hack', description: '越权日志' }],
+    ];
+
+    for (const [label, ep, payload] of writeCases) {
+        const r = await request('POST', `/api/${ep}?projectId=${PROJECT_A}`, payload, USER_TOKEN);
+        assert(`普通用户创建${label}被拒(403)`, r.status === 403, `实际 ${r.status}`);
+        if (r.status === 200 || r.status === 201) {
+            console.log(`     ⚠️ 越权成功，已创建 id=${r.body?.data?.id}，需手动清理`);
+        }
+    }
+
+    for (const [label, ep] of writeCases) {
+        const r = await request('DELETE', `/api/${ep}/1?projectId=${PROJECT_A}`, null, USER_TOKEN);
+        assert(`普通用户删除${label}被拒(403)`, r.status === 403, `实际 ${r.status}`);
+    }
+
+    // 正向验证：守卫没有误伤管理员
+    const adminSubject = await request('POST', `/api/subjects?projectId=${PROJECT_A}`, {
+        name: '守卫正向验证科目', code: 'sec-ok-subject', type: 'income'
+    }, ADMIN_TOKEN);
+    assert('管理员创建科目仍然成功', adminSubject.status === 201, `实际 ${adminSubject.status}`);
+    if (adminSubject.status === 201) {
+        const del = await request('DELETE', `/api/subjects/${adminSubject.body.data.id}?projectId=${PROJECT_A}`, null, ADMIN_TOKEN);
+        assert('管理员删除科目仍然成功', del.status === 200, `实际 ${del.status}`);
+    }
+
     // ===== 汇总 =====
     console.log(`\n${'='.repeat(50)}`);
     console.log(`多角色完整流程测试汇总`);
