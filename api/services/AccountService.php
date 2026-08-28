@@ -11,18 +11,9 @@ class AccountService {
     }
 
     public function getAccounts(int $projectId, int $page = 1, int $limit = 50, ?string $currency = null, ?string $type = null): array {
-        $accounts = $this->repo->findByProject($projectId, $page, $limit);
-        $total = $this->repo->countByProject($projectId);
-
-        // 过滤
-        if ($currency) {
-            $accounts = array_filter($accounts, fn($a) => $a['currency_type'] === $currency);
-        }
-        if ($type) {
-            $accounts = array_filter($accounts, fn($a) => $a['account_type'] === $type);
-        }
-
-        return ['items' => array_values($accounts), 'total' => $total];
+        $accounts = $this->repo->findByProject($projectId, $page, $limit, $currency, $type);
+        $total = $this->repo->countByProject($projectId, $currency, $type);
+        return ['items' => $accounts, 'total' => $total];
     }
 
     public function createAccount(array $data): array {

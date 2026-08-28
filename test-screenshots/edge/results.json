@@ -16,13 +16,13 @@
       "id": "E-03",
       "name": "交易不可编辑(PUT)",
       "status": "PASS",
-      "detail": "PUT /transactions/166: status=405, success=false"
+      "detail": "PUT /transactions/193: status=405, success=false"
     },
     {
       "id": "E-04",
       "name": "交易不可删除(DELETE)",
       "status": "PASS",
-      "detail": "DELETE /transactions/166: status=405, success=false"
+      "detail": "DELETE /transactions/193: status=405, success=false"
     },
     {
       "id": "E-05",
@@ -58,7 +58,7 @@
       "id": "E-10",
       "name": "配置变更自动记日志",
       "status": "PASS",
-      "detail": "创建币种前日志=157, 后=158"
+      "detail": "创建币种前日志=184, 后=185"
     },
     {
       "id": "E-11",

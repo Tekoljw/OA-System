@@ -4,21 +4,39 @@ require_once __DIR__ . '/BaseRepository.php';
 class AccountRepository extends BaseRepository {
     protected string $table = 'accounts';
 
-    public function findByProject(int $projectId, int $page = 1, int $limit = 50): array {
+    public function findByProject(int $projectId, int $page = 1, int $limit = 50, ?string $currency = null, ?string $type = null): array {
         $offset = ($page - 1) * $limit;
-        $stmt = $this->db->prepare("
-            SELECT * FROM accounts
-            WHERE project_id = ? AND (status IS NULL OR status != 'closed')
-            ORDER BY id DESC
-            LIMIT ? OFFSET ?
-        ");
-        $stmt->execute([$projectId, $limit, $offset]);
+        $sql = "SELECT * FROM accounts WHERE project_id = ? AND (status IS NULL OR status != 'closed')";
+        $params = [$projectId];
+        if ($currency) {
+            $sql .= " AND currency_type = ?";
+            $params[] = $currency;
+        }
+        if ($type) {
+            $sql .= " AND account_type = ?";
+            $params[] = $type;
+        }
+        $sql .= " ORDER BY id DESC LIMIT ? OFFSET ?";
+        $params[] = $limit;
+        $params[] = $offset;
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function countByProject(int $projectId): int {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM accounts WHERE project_id = ? AND (status IS NULL OR status != 'closed')");
-        $stmt->execute([$projectId]);
+    public function countByProject(int $projectId, ?string $currency = null, ?string $type = null): int {
+        $sql = "SELECT COUNT(*) FROM accounts WHERE project_id = ? AND (status IS NULL OR status != 'closed')";
+        $params = [$projectId];
+        if ($currency) {
+            $sql .= " AND currency_type = ?";
+            $params[] = $currency;
+        }
+        if ($type) {
+            $sql .= " AND account_type = ?";
+            $params[] = $type;
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
         return (int) $stmt->fetchColumn();
     }
 

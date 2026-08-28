@@ -438,7 +438,7 @@ try {
                 $users = $userRepo->findByProjectId($projectId);
                 Response::success($users, '获取用户列表成功');
             } elseif ($method === 'GET' && $resourceId) {
-                $user = $userRepo->findById((int)$resourceId);
+                $user = $userRepo->findByIdSafe((int)$resourceId);
                 $user ? Response::success($user) : Response::error('用户不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'PUT' && $resourceId) {
                 // 仅管理员或本人可修改用户信息
@@ -452,7 +452,12 @@ try {
                     unset($body['role']);
                 }
                 $user = $userRepo->update((int)$resourceId, $body);
-                $user ? Response::success($user, '用户更新成功') : Response::error('用户不存在', 'NOT_FOUND', 404);
+                if ($user) {
+                    unset($user['password']);
+                    Response::success($user, '用户更新成功');
+                } else {
+                    Response::error('用户不存在', 'NOT_FOUND', 404);
+                }
             } elseif ($method === 'DELETE' && $resourceId) {
                 // 仅管理员可删除用户
                 if (($currentUser['role'] ?? '') !== 'admin') {
@@ -465,6 +470,26 @@ try {
                 $userRepo->delete((int)$resourceId);
                 Response::success(null, '用户删除成功');
             }
+            break;
+
+        // ===== 修改密码 =====
+        case 'change-password':
+            require_once __DIR__ . '/repositories/UserRepository.php';
+            $userRepo = new UserRepository($db);
+            if ($method !== 'POST') {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            $body = JsonMiddleware::getRequestBody();
+            $oldPwd = $body['oldPassword'] ?? '';
+            $newPwd = $body['newPassword'] ?? '';
+            if (empty($oldPwd) || empty($newPwd)) {
+                Response::error('原密码和新密码不能为空', 'VALIDATION_ERROR');
+            }
+            if (strlen($newPwd) < 6) {
+                Response::error('新密码长度不能少于6位', 'VALIDATION_ERROR');
+            }
+            $userRepo->changePassword($currentUser['id'], $oldPwd, $newPwd);
+            Response::success(null, '密码修改成功');
             break;
 
         // ===== 活动日志 =====

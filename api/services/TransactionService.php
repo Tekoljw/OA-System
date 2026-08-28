@@ -46,19 +46,19 @@ class TransactionService {
             $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
         }
 
-        // 支出时校验余额充足性
-        if ($data['type'] === 'expense' && !empty($data['account_id'])) {
-            $balance = $this->getAccountBalance((int)$data['account_id']);
-            if ($balance === null) {
-                throw new \InvalidArgumentException('账户不存在');
-            }
-            if ($balance < (float)$data['amount']) {
-                throw new \InvalidArgumentException(sprintf('账户余额不足（余额 %.2f，需支出 %.2f）', $balance, (float)$data['amount']));
-            }
-        }
-
         $this->db->beginTransaction();
         try {
+            // 支出时在事务内加锁校验余额，防止并发超支
+            if ($data['type'] === 'expense' && !empty($data['account_id'])) {
+                $balance = $this->getAccountBalanceForUpdate((int)$data['account_id']);
+                if ($balance === null) {
+                    throw new \InvalidArgumentException('账户不存在');
+                }
+                if (bccomp((string)$balance, (string)$data['amount'], 2) < 0) {
+                    throw new \InvalidArgumentException(sprintf('账户余额不足（余额 %.2f，需支出 %.2f）', $balance, (float)$data['amount']));
+                }
+            }
+
             $transaction = $this->repo->create($data);
 
             // 自动更新账户余额
@@ -111,22 +111,21 @@ class TransactionService {
         $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
         $this->validateAccountProject((int)$data['target_account_id'], (int)$data['project_id']);
 
-        // 校验转出账户余额充足（amount + fees）
-        $outBalance = $this->getAccountBalance((int)$data['account_id']);
-        if ($outBalance === null) {
-            throw new \InvalidArgumentException('转出账户不存在');
-        }
-        $totalOut = $amount + $fees;
-        if ($outBalance < $totalOut) {
-            throw new \InvalidArgumentException(sprintf('转出账户余额不足（余额 %.2f，需转出 %.2f）', $outBalance, $totalOut));
-        }
-
         if (!isset($data['transaction_date'])) {
             $data['transaction_date'] = date('Y-m-d');
         }
 
         $this->db->beginTransaction();
         try {
+            // 在事务内加锁校验转出账户余额，防止并发超支
+            $outBalance = $this->getAccountBalanceForUpdate((int)$data['account_id']);
+            if ($outBalance === null) {
+                throw new \InvalidArgumentException('转出账户不存在');
+            }
+            $totalOut = bcadd((string)$amount, (string)$fees, 2);
+            if (bccomp((string)$outBalance, $totalOut, 2) < 0) {
+                throw new \InvalidArgumentException(sprintf('转出账户余额不足（余额 %.2f，需转出 %.2f）', $outBalance, $totalOut));
+            }
             // 创建转出记录
             $outData = [
                 'type' => 'transfer',
@@ -201,10 +200,20 @@ class TransactionService {
     }
 
     /**
-     * 查询账户当前余额
+     * 查询账户当前余额（无锁，用于事务外只读场景）
      */
     private function getAccountBalance(int $accountId): ?float {
         $stmt = $this->db->prepare("SELECT balance FROM accounts WHERE id = ?");
+        $stmt->execute([$accountId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? (float)$row['balance'] : null;
+    }
+
+    /**
+     * 在事务内加行锁查询余额，防止并发竞态
+     */
+    private function getAccountBalanceForUpdate(int $accountId): ?float {
+        $stmt = $this->db->prepare("SELECT balance FROM accounts WHERE id = ? FOR UPDATE");
         $stmt->execute([$accountId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ? (float)$row['balance'] : null;
