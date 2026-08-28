@@ -316,6 +316,18 @@ try {
                 $body['project_id'] = $projectId;
                 $body['created_by'] = $currentUser['id'];
 
+                // 股东入资/分红交易仅管理员可操作
+                if (!empty($body['subject_id'])) {
+                    $stmtChk = $db->prepare("SELECT code FROM subjects WHERE id = ?");
+                    $stmtChk->execute([(int)$body['subject_id']]);
+                    $subjectCode = $stmtChk->fetchColumn();
+                    if (in_array($subjectCode, ['income-shareholder', 'expense-dividend'], true)) {
+                        if (($currentUser['role'] ?? '') !== 'admin') {
+                            Response::error('权限不足，仅管理员可操作股东入资/分红', 'FORBIDDEN', 403);
+                        }
+                    }
+                }
+
                 // 内部划款走专用方法
                 if (($body['type'] ?? '') === 'transfer') {
                     $result = $txService->createTransfer($body);
