@@ -89,28 +89,34 @@ class Auth {
         if (empty($token)) {
             return false;
         }
-        
+
         $parts = explode('.', $token);
         if (count($parts) != 3) {
             return false;
         }
-        
+
         list($base64UrlHeader, $base64UrlPayload, $base64UrlSignature) = $parts;
-        
+
+        // 验证 alg header 必须为 HS256，防止 alg=none 绕过
+        $header = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlHeader)), true);
+        if (!$header || ($header['alg'] ?? '') !== 'HS256') {
+            return false;
+        }
+
         $signature = base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlSignature));
         $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: (function(){ throw new \RuntimeException('JWT_SECRET 环境变量未设置'); })(), true);
-        
+
         if (!hash_equals($signature, $expectedSignature)) {
             return false;
         }
-        
+
         $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlPayload)), true);
-        
-        // 检查令牌是否过期
-        if (isset($payload['exp']) && $payload['exp'] < time()) {
+
+        // exp 字段必须存在且未过期，防止移除 exp 实现永不过期
+        if (!isset($payload['exp']) || $payload['exp'] < time()) {
             return false;
         }
-        
+
         return $payload;
     }
     
@@ -331,6 +337,12 @@ function validateToken(string $token): array|false {
 
     [$base64UrlHeader, $base64UrlPayload, $base64UrlSignature] = $parts;
 
+    // 验证 alg header 必须为 HS256，防止 alg=none 绕过
+    $header = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlHeader)), true);
+    if (!$header || ($header['alg'] ?? '') !== 'HS256') {
+        return false;
+    }
+
     $signature = base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlSignature));
     $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: (function(){ throw new \RuntimeException('JWT_SECRET 环境变量未设置'); })(), true);
 
@@ -340,7 +352,8 @@ function validateToken(string $token): array|false {
 
     $payload = json_decode(base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlPayload)), true);
 
-    if (isset($payload['exp']) && $payload['exp'] < time()) {
+    // exp 字段必须存在且未过期
+    if (!isset($payload['exp']) || $payload['exp'] < time()) {
         return false;
     }
 

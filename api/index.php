@@ -58,6 +58,33 @@ if (!in_array($endpoint, $publicRoutes)) {
     $currentUser = AuthMiddleware::handle(true);
 }
 
+// 4.5 项目权限校验 — 需要 projectId 的端点统一检查用户归属
+$projectBoundEndpoints = [
+    'accounts', 'account-types', 'account-summary',
+    'transactions', 'transaction-summary', 'transaction-types',
+    'currency-types', 'subjects', 'subject-types',
+    'asset-types', 'departments', 'dashboard',
+    'dashboard-data', 'income-by-subject', 'expense-by-subject',
+    'expense-by-department', 'recent-transactions', 'project-stats',
+    'activity-logs', 'users',
+];
+if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
+    $requestedProjectId = (int)($_GET['projectId'] ?? $_POST['projectId'] ?? $currentUser['projectId'] ?? 0);
+    if ($requestedProjectId > 0) {
+        // 检查用户是否有权访问该项目
+        require_once __DIR__ . '/repositories/UserRepository.php';
+        $authCheckRepo = new UserRepository($db);
+        $isSuperAdmin = $authCheckRepo->isSuperAdmin((int)$currentUser['id']);
+        if (!$isSuperAdmin) {
+            $userProjects = $authCheckRepo->getUserProjects((int)$currentUser['id'], false);
+            $projectIds = array_column($userProjects, 'id');
+            if (!in_array($requestedProjectId, $projectIds)) {
+                Response::error('无权访问该项目', 'FORBIDDEN', 403);
+            }
+        }
+    }
+}
+
 // 5. 路由分发
 try {
     switch ($endpoint) {
