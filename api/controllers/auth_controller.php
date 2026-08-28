@@ -1,4 +1,10 @@
 <?php
+// 禁止直接访问此文件
+if (basename($_SERVER['SCRIPT_FILENAME'] ?? '') === basename(__FILE__)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => '禁止直接访问']);
+    exit();
+}
 /**
  * 身份验证控制器
  * 处理登录、注册、用户信息和项目切换

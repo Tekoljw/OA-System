@@ -198,7 +198,8 @@ try {
         case 'account-summary':
             require_once __DIR__ . '/services/AccountService.php';
             $accountService = new AccountService($db);
-            $projectId = (int)($_GET['projectId'] ?? 0);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
             Response::success($accountService->getAccountSummary($projectId), '获取账户摘要成功');
             break;
 
@@ -244,8 +245,12 @@ try {
         case 'transaction-summary':
             require_once __DIR__ . '/services/TransactionService.php';
             $txService = new TransactionService($db);
-            $projectId = (int)($_GET['projectId'] ?? 0);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
             $period = $_GET['period'] ?? 'month';
+            if (!in_array($period, ['month', 'year'], true)) {
+                Response::error('无效的时间段参数，仅支持 month 或 year', 'VALIDATION_ERROR');
+            }
             Response::success($txService->getTransactionSummary($projectId, $period), '获取交易摘要成功');
             break;
 
@@ -360,6 +365,9 @@ try {
             $accountService = new AccountService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
             $period = $_GET['period'] ?? 'month';
+            if (!in_array($period, ['month', 'year'], true)) {
+                Response::error('无效的时间段参数，仅支持 month 或 year', 'VALIDATION_ERROR');
+            }
 
             $dashboardEndpoint = $resourceId ?? '';
 
@@ -406,7 +414,11 @@ try {
             $txService = new TransactionService($db);
             $accountService = new AccountService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
             $period = $_GET['period'] ?? 'month';
+            if (!in_array($period, ['month', 'year'], true)) {
+                Response::error('无效的时间段参数，仅支持 month 或 year', 'VALIDATION_ERROR');
+            }
 
             switch ($endpoint) {
                 case 'income-by-subject':

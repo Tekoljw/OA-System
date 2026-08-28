@@ -10,7 +10,7 @@ class Response {
             'success' => true,
             'message' => $message,
             'data' => $data
-        ], JSON_UNESCAPED_UNICODE);
+        ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT);
         exit;
     }
 
@@ -26,7 +26,7 @@ class Response {
                 'limit' => $limit,
                 'pages' => $limit > 0 ? ceil($total / $limit) : 0
             ]
-        ], JSON_UNESCAPED_UNICODE);
+        ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT);
         exit;
     }
 
@@ -39,7 +39,7 @@ class Response {
                 'code' => $code,
                 'message' => $message
             ]
-        ], JSON_UNESCAPED_UNICODE);
+        ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_QUOT);
         exit;
     }
 }

@@ -22,9 +22,12 @@ class TransactionService {
      * 创建交易并自动更新账户余额
      */
     public function createTransaction(array $data): array {
-        // 金额验证：必须为正数
+        // 金额验证：必须为正数，且不超过合理范围
         if (!isset($data['amount']) || !is_numeric($data['amount']) || (float)$data['amount'] <= 0) {
             throw new \InvalidArgumentException('金额必须大于0');
+        }
+        if (!is_finite((float)$data['amount']) || (float)$data['amount'] > 999999999.99) {
+            throw new \InvalidArgumentException('金额超出有效范围（最大9.99亿）');
         }
         if (empty($data['type'])) throw new \InvalidArgumentException('类型不能为空');
         // 交易类型白名单校验
@@ -95,6 +98,9 @@ class TransactionService {
     public function createTransfer(array $data): array {
         if (!isset($data['amount']) || !is_numeric($data['amount']) || (float)$data['amount'] <= 0) {
             throw new \InvalidArgumentException('划款金额必须大于0');
+        }
+        if (!is_finite((float)$data['amount']) || (float)$data['amount'] > 999999999.99) {
+            throw new \InvalidArgumentException('划款金额超出有效范围（最大9.99亿）');
         }
         if (empty($data['account_id'])) throw new \InvalidArgumentException('转出账户不能为空');
         if (empty($data['target_account_id'])) throw new \InvalidArgumentException('转入账户不能为空');

@@ -1,4 +1,10 @@
 <?php
+// 禁止直接访问此文件
+if (basename($_SERVER['SCRIPT_FILENAME'] ?? '') === basename(__FILE__)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => '禁止直接访问']);
+    exit();
+}
 /**
  * 配置控制器
  * 处理系统配置项的查询和管理，包括币种、账户类型、资产类型和科目

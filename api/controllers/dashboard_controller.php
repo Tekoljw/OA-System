@@ -1,4 +1,10 @@
 <?php
+// 禁止直接访问此文件
+if (basename($_SERVER['SCRIPT_FILENAME'] ?? '') === basename(__FILE__)) {
+    http_response_code(403);
+    echo json_encode(['success' => false, 'message' => '禁止直接访问']);
+    exit();
+}
 /**
  * 仪表盘控制器
  * 处理仪表盘数据相关的API请求
