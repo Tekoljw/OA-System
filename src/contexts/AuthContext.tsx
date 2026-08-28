@@ -125,7 +125,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 处理服务器可能返回的多种响应格式
         let userData = null;
         
-        if (response && response.success && response.user) {
+        // 后端统一响应信封为 { success, message, data }，必须优先识别 data
+        if (response && response.success && response.data) {
+          userData = response.data;
+        } else if (response && response.success && response.user) {
           userData = response.user;
         } else if (response && response.username) {
           userData = response;
@@ -175,11 +178,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             localStorage.setItem("token", newToken);
           }
         } else {
-          // 服务器没有返回有效用户，清除本地状态
-          localStorage.removeItem("token");
-          localStorage.removeItem("user");
-          setUser(null);
-          setIsLoggedIn(false);
+          // 会话真正失效时后端返回 401，已由 apiRequest 统一跳转登录页。
+          // 走到这里说明是 200 响应但前端未能解析，属于前端问题，
+          // 不能因此清除 token（否则一次解析不兼容就会导致全站登出）。
+          console.warn('无法从 /api/user 响应中解析用户信息，保留本地登录态', response);
         }
       } catch (error) {
         // 服务器验证失败，但保留本地用户状态以保持UI响应

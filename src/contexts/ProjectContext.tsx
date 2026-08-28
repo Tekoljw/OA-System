@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext, useEffect, ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import axios from 'axios';
+import { apiRequest } from '../api/client';
 import { useToast } from '../hooks/use-toast'; // 导入通知组件
 
 interface Project {
@@ -102,14 +102,9 @@ export const ProjectProvider: React.FC<{ children: ReactNode }> = ({ children })
       
       // 如果本地存储没有用户项目数据，再尝试从API获取
       try {
-        // 使用axios发起请求
-        console.log('从API获取项目列表');
-        const response = await axios.get('/api/projects');
-        
-        // 检查响应数据结构
-        const data = response.data;
-        console.log('API返回的项目数据:', data);
-        
+        // 走统一客户端，裸 axios 不带 Authorization 头会被 401
+        const data = await apiRequest('GET', '/api/projects');
+
         if (Array.isArray(data)) {
           setProjects(data);
         } else if (data && Array.isArray(data.data)) {

@@ -41,6 +41,7 @@ import PageLayout from "@/components/layout/PageLayout";
 import { useIsMobile } from "@/hooks/use-mobile";
 import LoadMoreButton from "@/components/common/LoadMoreButton";
 import { getCurrencyTypes } from "@/utils/config-api";
+import { apiRequest } from "@/api/client";
 
 // 币种图标映射
 const getCurrencyIcon = (currency: string) => {
@@ -113,10 +114,9 @@ const fetchTransactions = async (
       params.append('date', dateFilter);
     }
     
-    // 发送API请求
-    const response = await fetch(`/api/transactions?${params.toString()}`);
-    const result = await response.json();
-    
+    // 走统一客户端，自动附带 Authorization 和 projectId
+    const result = await apiRequest('GET', `/api/transactions?${params.toString()}`);
+
     if (!result.success) {
       throw new Error(result.message || '获取划款记录失败');
     }

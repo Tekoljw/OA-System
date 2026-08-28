@@ -1,9 +1,16 @@
 /**
- * 批量页面错误检测 — 登录后逐页访问，收集所有 console.error 和网络错误
+ * 批量页面错误检测
+ * 三重检测：
+ *   1. console.error
+ *   2. API 网络请求失败（>=400 或返回非 JSON）
+ *   3. ★ 页面 DOM 中渲染出的错误文案（上一版遗漏的关键项）
  */
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
+const fs = require('fs');
 
 const BASE = 'http://localhost:8000';
+const SHOT_DIR = './test-screenshots';
+
 const PAGES = [
     { name: '财务仪表盘', path: '/' },
     { name: '账户管理', path: '/accounts' },
@@ -26,87 +33,132 @@ const PAGES = [
     { name: '操作日志', path: '/personnel/activity-logs' },
 ];
 
+// 页面上出现即判定为故障的文案
+const ERROR_PATTERNS = [
+    'Unexpected token',
+    'is not valid JSON',
+    '<!DOCTYPE',
+    '获取数据失败',
+    '加载失败',
+    '获取失败',
+    '请求失败',
+    '数据库操作失败',
+    'Failed to fetch',
+    'NetworkError',
+    'undefined is not',
+    'Cannot read',
+    '出错了',
+    '404',
+];
+
 (async () => {
+    if (!fs.existsSync(SHOT_DIR)) fs.mkdirSync(SHOT_DIR, { recursive: true });
+
     const browser = await chromium.launch({ headless: true });
-    const context = await browser.newContext();
+    const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const page = await context.newPage();
 
-    // 登录
     await page.goto(`${BASE}/login`);
     await page.fill('input[placeholder*="用户名"]', 'admin');
     await page.fill('input[placeholder*="密码"]', 'admin123');
     await page.click('button:has-text("登录")');
-    await page.waitForURL('**/');
+    await page.waitForTimeout(2500);
+
+    // 必须真正离开登录页，且 token 已落地，否则后续扫描的全是登录页（会假绿）
+    const token = await page.evaluate(() => localStorage.getItem('token') || localStorage.getItem('authToken'));
+    if (new URL(page.url()).pathname.startsWith('/login') || !token) {
+        console.error(`❌ 登录失败，当前 URL=${page.url()} token=${token ? '有' : '无'}`);
+        await page.screenshot({ path: `${SHOT_DIR}/00-login-failed.png` });
+        await browser.close();
+        process.exit(1);
+    }
     console.log('✅ 登录成功\n');
 
-    let totalErrors = 0;
+    const broken = [];
+    let idx = 0;
 
     for (const p of PAGES) {
-        const errors = [];
-        const failedRequests = [];
+        idx++;
+        const consoleErrors = [];
+        const apiFailures = [];
 
-        // 收集 console.error
-        const onError = msg => {
-            if (msg.type() === 'error') {
-                errors.push(msg.text());
-            }
-        };
-        page.on('console', onError);
-
-        // 收集失败的网络请求 (非200的API请求)
-        const onResponse = resp => {
+        const onConsole = msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); };
+        const onResponse = async resp => {
             const url = resp.url();
-            if (url.includes('/api/') && resp.status() >= 400) {
-                failedRequests.push(`${resp.status()} ${url.replace(BASE, '')}`);
+            if (!url.includes('/api/')) return;
+            if (resp.status() >= 400) {
+                apiFailures.push(`HTTP ${resp.status()} ${url.replace(BASE, '')}`);
+                return;
+            }
+            // 200 但返回 HTML —— 正是 "Unexpected token '<'" 的根源
+            const ct = resp.headers()['content-type'] || '';
+            if (!ct.includes('json')) {
+                apiFailures.push(`非JSON响应 (${ct.split(';')[0] || '未知'}) ${url.replace(BASE, '')}`);
             }
         };
-        page.on('response', onResponse);
-
-        // 收集 JSON parse 错误的请求 (返回HTML的)
         const onRequestFailed = req => {
-            if (req.url().includes('/api/')) {
-                failedRequests.push(`FAILED ${req.url().replace(BASE, '')}`);
-            }
+            if (req.url().includes('/api/')) apiFailures.push(`请求中断 ${req.url().replace(BASE, '')}`);
         };
+
+        page.on('console', onConsole);
+        page.on('response', onResponse);
         page.on('requestfailed', onRequestFailed);
 
         try {
-            await page.goto(`${BASE}${p.path}`, { waitUntil: 'networkidle', timeout: 10000 });
+            await page.goto(`${BASE}${p.path}`, { waitUntil: 'networkidle', timeout: 15000 });
         } catch (e) {
-            errors.push(`Navigation timeout: ${e.message}`);
+            consoleErrors.push(`导航超时: ${e.message}`);
         }
+        await page.waitForTimeout(1200);
 
-        // 额外等待一下让异步请求完成
-        await page.waitForTimeout(1500);
+        // ★ 读取页面实际渲染的文本
+        let bodyText = '';
+        try {
+            bodyText = await page.evaluate(() => document.body.innerText || '');
+        } catch { /* ignore */ }
+        const uiErrors = ERROR_PATTERNS
+            .filter(kw => bodyText.includes(kw))
+            .map(kw => {
+                const i = bodyText.indexOf(kw);
+                return bodyText.slice(Math.max(0, i - 30), i + 90).replace(/\s+/g, ' ').trim();
+            });
 
-        page.off('console', onError);
+        page.off('console', onConsole);
         page.off('response', onResponse);
         page.off('requestfailed', onRequestFailed);
 
-        const hasIssue = errors.length > 0 || failedRequests.length > 0;
-        const icon = hasIssue ? '❌' : '✅';
-        console.log(`${icon} ${p.name} (${p.path})`);
+        const issues = [
+            ...uiErrors.map(t => ['页面错误文案', t]),
+            ...apiFailures.map(t => ['API', t]),
+            ...consoleErrors.map(t => ['console', t.length > 160 ? t.slice(0, 160) + '…' : t]),
+        ];
 
-        if (failedRequests.length > 0) {
-            for (const fr of failedRequests) {
-                console.log(`   🔴 API失败: ${fr}`);
-            }
-        }
-        if (errors.length > 0) {
-            for (const e of errors) {
-                // 截断长错误
-                const short = e.length > 150 ? e.substring(0, 150) + '...' : e;
-                console.log(`   🔴 console.error: ${short}`);
-            }
-        }
+        const shot = `${SHOT_DIR}/${String(idx).padStart(2, '0')}-${p.path.replace(/\//g, '_') || '_root'}.png`;
+        await page.screenshot({ path: shot, fullPage: false });
 
-        totalErrors += errors.length + failedRequests.length;
+        if (issues.length === 0) {
+            console.log(`✅ ${p.name} (${p.path})`);
+        } else {
+            console.log(`❌ ${p.name} (${p.path})`);
+            const seen = new Set();
+            for (const [type, msg] of issues) {
+                const key = type + msg;
+                if (seen.has(key)) continue;
+                seen.add(key);
+                console.log(`   🔴 [${type}] ${msg}`);
+            }
+            console.log(`   📷 ${shot}`);
+            broken.push({ ...p, issues });
+        }
     }
 
-    console.log(`\n${'='.repeat(55)}`);
-    console.log(`页面扫描完成: ${PAGES.length} 页 | 总问题数: ${totalErrors}`);
-    console.log(`${'='.repeat(55)}`);
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`扫描 ${PAGES.length} 页 | 正常 ${PAGES.length - broken.length} | 故障 ${broken.length}`);
+    if (broken.length) {
+        console.log(`故障页面: ${broken.map(b => b.name).join('、')}`);
+    }
+    console.log(`${'='.repeat(60)}`);
 
     await browser.close();
-    process.exit(totalErrors > 0 ? 1 : 0);
+    process.exit(broken.length > 0 ? 1 : 0);
 })();

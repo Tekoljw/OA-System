@@ -12,9 +12,17 @@ RUN npm install
 COPY src ./src
 COPY public ./public
 COPY vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json index.html ./
+# postcss/tailwind 配置必须一起复制，否则 Vite 不会处理 @tailwind 指令，
+# 产物中将不含任何工具类，页面完全失去样式
+COPY postcss.config.js tailwind.config.ts ./
 
 # Build frontend
 RUN npm run build
+
+# 构建产物必须包含 Tailwind 工具类，否则视为构建失败
+RUN grep -q '@tailwind' dist/assets/*.css \
+    && echo "ERROR: Tailwind 指令未被处理，检查 postcss.config.js 是否存在" && exit 1 \
+    || echo "OK: Tailwind 构建正常"
 
 # Stage 2: Build PHP runtime
 FROM php:8.2-fpm-bullseye
