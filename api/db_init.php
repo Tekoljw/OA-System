@@ -133,7 +133,7 @@ function create_tables($db) {
             balance DECIMAL(15, 2) DEFAULT 0,
             status VARCHAR(20) DEFAULT 'active',
             open_date DATE,
-            project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+            project_id INTEGER REFERENCES projects(id) ON DELETE RESTRICT,
             created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -161,11 +161,11 @@ function create_tables($db) {
             type VARCHAR(20) NOT NULL,
             amount DECIMAL(15, 2) NOT NULL,
             description TEXT,
-            account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+            account_id INTEGER REFERENCES accounts(id) ON DELETE RESTRICT,
             subject_id INTEGER REFERENCES subjects(id) ON DELETE SET NULL,
             department_id INTEGER REFERENCES departments(id) ON DELETE SET NULL,
             status VARCHAR(20) DEFAULT 'completed',
-            project_id INTEGER REFERENCES projects(id) ON DELETE CASCADE,
+            project_id INTEGER REFERENCES projects(id) ON DELETE RESTRICT,
             created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP

@@ -57,7 +57,7 @@ class TransactionService {
                 if ($balance === null) {
                     throw new \InvalidArgumentException('账户不存在');
                 }
-                if (bccomp((string)$balance, (string)$data['amount'], 2) < 0) {
+                if ((int)round($balance * 100) < (int)round((float)$data['amount'] * 100)) {
                     throw new \InvalidArgumentException(sprintf('账户余额不足（余额 %.2f，需支出 %.2f）', $balance, (float)$data['amount']));
                 }
             }
@@ -128,8 +128,8 @@ class TransactionService {
             if ($outBalance === null) {
                 throw new \InvalidArgumentException('转出账户不存在');
             }
-            $totalOut = bcadd((string)$amount, (string)$fees, 2);
-            if (bccomp((string)$outBalance, $totalOut, 2) < 0) {
+            $totalOut = round($amount + $fees, 2);
+            if ((int)round($outBalance * 100) < (int)round($totalOut * 100)) {
                 throw new \InvalidArgumentException(sprintf('转出账户余额不足（余额 %.2f，需转出 %.2f）', $outBalance, $totalOut));
             }
             // 创建转出记录

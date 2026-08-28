@@ -73,7 +73,7 @@ class Auth {
         $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
         $base64UrlPayload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
         
-        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: 'your_secret_key', true);
+        $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: (function(){ throw new \RuntimeException('JWT_SECRET 环境变量未设置'); })(), true);
         $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
         
         return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
@@ -98,7 +98,7 @@ class Auth {
         list($base64UrlHeader, $base64UrlPayload, $base64UrlSignature) = $parts;
         
         $signature = base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlSignature));
-        $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: 'your_secret_key', true);
+        $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: (function(){ throw new \RuntimeException('JWT_SECRET 环境变量未设置'); })(), true);
         
         if (!hash_equals($signature, $expectedSignature)) {
             return false;
@@ -310,7 +310,7 @@ function generateToken(array $user): string {
     $base64UrlHeader = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($header));
     $base64UrlPayload = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($payload));
 
-    $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: 'your_secret_key', true);
+    $signature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: (function(){ throw new \RuntimeException('JWT_SECRET 环境变量未设置'); })(), true);
     $base64UrlSignature = str_replace(['+', '/', '='], ['-', '_', ''], base64_encode($signature));
 
     return $base64UrlHeader . "." . $base64UrlPayload . "." . $base64UrlSignature;
@@ -332,7 +332,7 @@ function validateToken(string $token): array|false {
     [$base64UrlHeader, $base64UrlPayload, $base64UrlSignature] = $parts;
 
     $signature = base64_decode(str_replace(['-', '_'], ['+', '/'], $base64UrlSignature));
-    $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: 'your_secret_key', true);
+    $expectedSignature = hash_hmac('sha256', $base64UrlHeader . "." . $base64UrlPayload, getenv('JWT_SECRET') ?: (function(){ throw new \RuntimeException('JWT_SECRET 环境变量未设置'); })(), true);
 
     if (!hash_equals($signature, $expectedSignature)) {
         return false;
