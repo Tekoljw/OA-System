@@ -56,6 +56,9 @@ class TransactionService {
         $this->validateRefBelongsToProject('subjects', 'subject_id', $data, '科目');
         $this->validateRefBelongsToProject('departments', 'department_id', $data, '部门');
 
+        // 股东入资/分红科目必须关联股东
+        $this->validateShareholderRequired($data);
+
         $this->db->beginTransaction();
         try {
             // 支出时在事务内加锁校验余额，防止并发超支
@@ -213,8 +216,33 @@ class TransactionService {
     }
 
     /**
-     * 校验账户归属指定项目
+     * 股东入资/分红科目必须关联股东，且股东属于当前项目
      */
+    private function validateShareholderRequired(array $data): void {
+        if (empty($data['subject_id'])) return;
+        $stmt = $this->db->prepare("SELECT code FROM subjects WHERE id = ?");
+        $stmt->execute([(int)$data['subject_id']]);
+        $code = $stmt->fetchColumn();
+        if (!$code) return;
+
+        $shareholderCodes = ['income-shareholder', 'expense-dividend'];
+        if (in_array($code, $shareholderCodes, true)) {
+            if (empty($data['shareholder_id'])) {
+                throw new \InvalidArgumentException('股东入资/分红交易必须选择对应的股东');
+            }
+            // 校验股东存在且属于当前项目
+            $stmt2 = $this->db->prepare("SELECT project_id FROM shareholders WHERE id = ?");
+            $stmt2->execute([(int)$data['shareholder_id']]);
+            $row = $stmt2->fetch(\PDO::FETCH_ASSOC);
+            if (!$row) {
+                throw new \InvalidArgumentException('股东不存在');
+            }
+            if ((int)$row['project_id'] !== (int)($data['project_id'] ?? 0)) {
+                throw new \InvalidArgumentException('所选股东不属于当前项目');
+            }
+        }
+    }
+
     /**
      * 校验 subject_id / department_id 等引用字段归属当前项目
      */

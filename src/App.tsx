@@ -28,6 +28,7 @@ import DepartmentManagement from "./pages/configurations/DepartmentManagement";
 import PermissionManagement from "./pages/personnel/PermissionManagement";
 import ActivityLogs from "./pages/personnel/ActivityLogs";
 import UserManagement from "./pages/personnel/UserManagement";
+import ShareholderManagement from "./pages/ShareholderManagement";
 import Login from "./pages/Login";
 
 const queryClient = new QueryClient();
@@ -109,6 +110,13 @@ const App = () => {
                   </ProtectedSidebarPage>
                 } />
                 
+                {/* 股东管理 */}
+                <Route path="/shareholders" element={
+                  <ProtectedSidebarPage>
+                    <ShareholderManagement />
+                  </ProtectedSidebarPage>
+                } />
+
                 {/* 交易管理 */}
                 <Route path="/transactions/external" element={
                   <ProtectedSidebarPage>

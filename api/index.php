@@ -66,7 +66,7 @@ $projectBoundEndpoints = [
     'asset-types', 'departments', 'dashboard',
     'dashboard-data', 'income-by-subject', 'expense-by-subject',
     'expense-by-department', 'recent-transactions', 'project-stats',
-    'activity-logs', 'users',
+    'activity-logs', 'users', 'shareholders',
 ];
 if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
     $requestedProjectId = (int)($_GET['projectId'] ?? $_POST['projectId'] ?? $currentUser['projectId'] ?? 0);
@@ -172,6 +172,62 @@ try {
                 }
                 $projectRepo->delete((int)$resourceId);
                 Response::success(null, '项目删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        // ===== 股东管理 =====
+        case 'shareholders':
+            require_once __DIR__ . '/services/ShareholderService.php';
+            $shareholderService = new ShareholderService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+
+            if ($projectId <= 0) {
+                Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+            }
+
+            // 子路由处理
+            $subAction = $_GET['action'] ?? '';
+
+            if ($subAction === 'contribution-summary') {
+                $result = $shareholderService->getContributionAnalysis($projectId);
+                Response::success($result, '入资汇总');
+            } elseif ($subAction === 'dividend-summary') {
+                $result = $shareholderService->getDividendCalculation($projectId);
+                Response::success($result, '分红计算');
+            } elseif ($method === 'GET' && !$resourceId) {
+                $shareholders = $shareholderService->getShareholders($projectId);
+                Response::success($shareholders, '获取股东列表成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                $repo = new ShareholderRepository($db);
+                $shareholder = $repo->findById((int)$resourceId);
+                if (!$shareholder || (int)$shareholder['project_id'] !== $projectId) {
+                    Response::error('股东不存在', 'NOT_FOUND', 404);
+                }
+                Response::success($shareholder);
+            } elseif ($method === 'POST') {
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可管理股东', 'FORBIDDEN', 403);
+                }
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'];
+                $shareholder = $shareholderService->create($body);
+                Response::success($shareholder, '股东添加成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可管理股东', 'FORBIDDEN', 403);
+                }
+                $body = JsonMiddleware::getRequestBody();
+                $shareholder = $shareholderService->update((int)$resourceId, $body, $projectId);
+                Response::success($shareholder, '股东更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可管理股东', 'FORBIDDEN', 403);
+                }
+                $shareholderService->delete((int)$resourceId, $projectId);
+                Response::success(null, '股东删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
