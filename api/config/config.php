@@ -3,9 +3,10 @@
  * 应用程序全局配置
  */
 
-// 错误报告配置
+// 错误报告配置 — 生产环境禁止向前端输出错误
 error_reporting(E_ALL);
-ini_set('display_errors', 1);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
 
 // 设置时区
 date_default_timezone_set('Asia/Shanghai');

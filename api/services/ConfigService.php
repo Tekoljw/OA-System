@@ -26,7 +26,7 @@ class ConfigService {
     }
 
     public function updateCurrencyType(int $id, array $data): ?array {
-        $result = $this->repo->updateItem('currency_types', $id, $data);
+        $result = $this->repo->updateItem('currency_types', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'currency_types', $id,
                 sprintf('更新币种 #%d', $id),
@@ -36,7 +36,7 @@ class ConfigService {
     }
 
     public function deleteCurrencyType(int $id, int $projectId = 0): bool {
-        $ok = $this->repo->deleteItem('currency_types', $id);
+        $ok = $this->repo->deleteItem('currency_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'currency_types', $id,
                 sprintf('删除币种 #%d', $id), null, $projectId);
@@ -59,7 +59,7 @@ class ConfigService {
     }
 
     public function updateAccountType(int $id, array $data): ?array {
-        $result = $this->repo->updateItem('account_types', $id, $data);
+        $result = $this->repo->updateItem('account_types', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'account_types', $id,
                 sprintf('更新账户类型 #%d', $id),
@@ -69,7 +69,7 @@ class ConfigService {
     }
 
     public function deleteAccountType(int $id, int $projectId = 0): bool {
-        $ok = $this->repo->deleteItem('account_types', $id);
+        $ok = $this->repo->deleteItem('account_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'account_types', $id,
                 sprintf('删除账户类型 #%d', $id), null, $projectId);
@@ -93,7 +93,7 @@ class ConfigService {
     }
 
     public function updateSubject(int $id, array $data): ?array {
-        $result = $this->repo->updateItem('subjects', $id, $data);
+        $result = $this->repo->updateItem('subjects', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'subjects', $id,
                 sprintf('更新科目 #%d', $id),
@@ -103,7 +103,7 @@ class ConfigService {
     }
 
     public function deleteSubject(int $id, int $projectId = 0): bool {
-        $ok = $this->repo->deleteItem('subjects', $id);
+        $ok = $this->repo->deleteItem('subjects', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'subjects', $id,
                 sprintf('删除科目 #%d', $id), null, $projectId);
@@ -126,7 +126,7 @@ class ConfigService {
     }
 
     public function updateAssetType(int $id, array $data): ?array {
-        $result = $this->repo->updateItem('asset_types', $id, $data);
+        $result = $this->repo->updateItem('asset_types', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'asset_types', $id,
                 sprintf('更新资产类型 #%d', $id),
@@ -136,7 +136,7 @@ class ConfigService {
     }
 
     public function deleteAssetType(int $id, int $projectId = 0): bool {
-        $ok = $this->repo->deleteItem('asset_types', $id);
+        $ok = $this->repo->deleteItem('asset_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'asset_types', $id,
                 sprintf('删除资产类型 #%d', $id), null, $projectId);
@@ -159,7 +159,7 @@ class ConfigService {
     }
 
     public function updateDepartment(int $id, array $data): ?array {
-        $result = $this->repo->updateItem('departments', $id, $data);
+        $result = $this->repo->updateItem('departments', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'departments', $id,
                 sprintf('更新部门 #%d', $id),
@@ -169,7 +169,7 @@ class ConfigService {
     }
 
     public function deleteDepartment(int $id, int $projectId = 0): bool {
-        $ok = $this->repo->deleteItem('departments', $id);
+        $ok = $this->repo->deleteItem('departments', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'departments', $id,
                 sprintf('删除部门 #%d', $id), null, $projectId);

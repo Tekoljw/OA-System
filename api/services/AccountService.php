@@ -40,9 +40,13 @@ class AccountService {
         return $account;
     }
 
-    public function updateAccount(int $id, array $data): array {
+    public function updateAccount(int $id, array $data, int $currentProjectId = 0): array {
         $existing = $this->repo->findById($id);
         if (!$existing) throw new \RuntimeException('账户不存在');
+        // 跨项目越权校验
+        if ($currentProjectId > 0 && (int)$existing['project_id'] !== $currentProjectId) {
+            throw new \RuntimeException('无权操作其他项目的账户');
+        }
         $result = $this->repo->update($id, $data);
         if (!$result) throw new \RuntimeException('更新失败');
 
@@ -53,9 +57,13 @@ class AccountService {
         return $result;
     }
 
-    public function deleteAccount(int $id): void {
+    public function deleteAccount(int $id, int $currentProjectId = 0): void {
         $existing = $this->repo->findById($id);
         if (!$existing) throw new \RuntimeException('账户不存在');
+        // 跨项目越权校验
+        if ($currentProjectId > 0 && (int)$existing['project_id'] !== $currentProjectId) {
+            throw new \RuntimeException('无权操作其他项目的账户');
+        }
 
         // 检查是否有关联交易，禁止删除有交易记录的账户
         $stmt = $this->db->prepare("SELECT COUNT(*) FROM transactions WHERE account_id = ?");

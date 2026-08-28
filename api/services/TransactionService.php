@@ -41,6 +41,11 @@ class TransactionService {
             $data['status'] = 'completed';
         }
 
+        // 校验 account_id 归属当前项目
+        if (!empty($data['account_id'])) {
+            $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
+        }
+
         // 支出时校验余额充足性
         if ($data['type'] === 'expense' && !empty($data['account_id'])) {
             $balance = $this->getAccountBalance((int)$data['account_id']);
@@ -101,6 +106,10 @@ class TransactionService {
         $amount = (float)$data['amount'];
         $toAmount = isset($data['to_amount']) ? (float)$data['to_amount'] : $amount;
         $fees = isset($data['fees']) ? (float)$data['fees'] : 0;
+
+        // 校验转出/转入账户归属当前项目
+        $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
+        $this->validateAccountProject((int)$data['target_account_id'], (int)$data['project_id']);
 
         // 校验转出账户余额充足（amount + fees）
         $outBalance = $this->getAccountBalance((int)$data['account_id']);
@@ -173,6 +182,21 @@ class TransactionService {
         } catch (\Exception $e) {
             $this->db->rollBack();
             throw $e;
+        }
+    }
+
+    /**
+     * 校验账户归属指定项目
+     */
+    private function validateAccountProject(int $accountId, int $projectId): void {
+        $stmt = $this->db->prepare("SELECT project_id FROM accounts WHERE id = ?");
+        $stmt->execute([$accountId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new \InvalidArgumentException('账户不存在');
+        }
+        if ((int)$row['project_id'] !== $projectId) {
+            throw new \InvalidArgumentException('不能操作其他项目的账户');
         }
     }
 

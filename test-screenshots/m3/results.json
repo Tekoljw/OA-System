@@ -35,13 +35,13 @@
       "id": "M3-06",
       "name": "API创建收入",
       "status": "PASS",
-      "detail": "ID=126"
+      "detail": "ID=153"
     },
     {
       "id": "M3-07",
       "name": "API创建支出",
       "status": "PASS",
-      "detail": "ID=127"
+      "detail": "ID=154"
     },
     {
       "id": "M3-08",

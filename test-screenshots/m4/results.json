@@ -5,13 +5,13 @@
       "id": "M4-01",
       "name": "transfer类型交易可查询",
       "status": "PASS",
-      "detail": "返回23条transfer记录"
+      "detail": "返回31条transfer记录"
     },
     {
       "id": "M4-02",
       "name": "API同币种划款",
       "status": "PASS",
-      "detail": "out_id=130, in_id=131"
+      "detail": "out_id=157, in_id=158"
     },
     {
       "id": "M4-03",

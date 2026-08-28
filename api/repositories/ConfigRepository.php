@@ -70,18 +70,35 @@ class ConfigRepository extends BaseRepository {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function updateItem(string $table, int $id, array $data): ?array {
+    public function updateItem(string $table, int $id, array $data, int $projectId = 0): ?array {
+        // 移除不应直接更新的字段
+        unset($data['project_id'], $data['created_by']);
+        if (empty($data)) return null;
         $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($data)));
-        $stmt = $this->db->prepare("UPDATE $table SET $sets, updated_at = NOW() WHERE id = ? RETURNING *");
+        // 加 project_id 约束，防止跨项目操作
+        $sql = "UPDATE $table SET $sets, updated_at = NOW() WHERE id = ?";
         $values = array_values($data);
         $values[] = $id;
+        if ($projectId > 0) {
+            $sql .= " AND project_id = ?";
+            $values[] = $projectId;
+        }
+        $sql .= " RETURNING *";
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($values);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
     }
 
-    public function deleteItem(string $table, int $id): bool {
-        $stmt = $this->db->prepare("DELETE FROM $table WHERE id = ?");
-        return $stmt->execute([$id]);
+    public function deleteItem(string $table, int $id, int $projectId = 0): bool {
+        $sql = "DELETE FROM $table WHERE id = ?";
+        $params = [$id];
+        if ($projectId > 0) {
+            $sql .= " AND project_id = ?";
+            $params[] = $projectId;
+        }
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->rowCount() > 0;
     }
 }

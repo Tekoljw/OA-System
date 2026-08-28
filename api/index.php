@@ -119,14 +119,23 @@ try {
                 $project = $projectRepo->findById((int)$resourceId);
                 $project ? Response::success($project) : Response::error('项目不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'POST') {
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可创建项目', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 $project = $projectRepo->create($body);
                 Response::success($project, '项目创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可修改项目', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 $project = $projectRepo->update((int)$resourceId, $body);
                 $project ? Response::success($project, '项目更新成功') : Response::error('项目不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'DELETE' && $resourceId) {
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可删除项目', 'FORBIDDEN', 403);
+                }
                 $projectRepo->delete((int)$resourceId);
                 Response::success(null, '项目删除成功');
             } else {
@@ -155,10 +164,10 @@ try {
                 Response::success($account, '账户创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
-                $account = $accountService->updateAccount((int)$resourceId, $body);
+                $account = $accountService->updateAccount((int)$resourceId, $body, $projectId);
                 Response::success($account, '账户更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $accountService->deleteAccount((int)$resourceId);
+                $accountService->deleteAccount((int)$resourceId, $projectId);
                 Response::success(null, '账户删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -431,11 +440,27 @@ try {
                 $user = $userRepo->findById((int)$resourceId);
                 $user ? Response::success($user) : Response::error('用户不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'PUT' && $resourceId) {
+                // 仅管理员或本人可修改用户信息
+                if (($currentUser['role'] ?? '') !== 'admin' && (int)$resourceId !== (int)$currentUser['id']) {
+                    Response::error('权限不足，仅管理员或本人可修改用户信息', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 unset($body['password']); // 不允许通过此接口修改密码
+                // 非管理员不允许修改 role 字段
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    unset($body['role']);
+                }
                 $user = $userRepo->update((int)$resourceId, $body);
                 $user ? Response::success($user, '用户更新成功') : Response::error('用户不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'DELETE' && $resourceId) {
+                // 仅管理员可删除用户
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可删除用户', 'FORBIDDEN', 403);
+                }
+                // 禁止删除自己
+                if ((int)$resourceId === (int)$currentUser['id']) {
+                    Response::error('不能删除自己的账户', 'VALIDATION_ERROR', 400);
+                }
                 $userRepo->delete((int)$resourceId);
                 Response::success(null, '用户删除成功');
             }
