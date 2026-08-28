@@ -571,6 +571,45 @@ try {
             }
             break;
 
+        // ===== 角色管理（系统预定义角色） =====
+        case 'roles':
+            $allPermissions = [
+                'view_dashboard', 'view_accounts', 'verify_accounts',
+                'view_transactions', 'view_assets', 'manage_assets',
+                'manage_my_applications', 'manage_pending_approvals',
+                'manage_pending_accounting', 'manage_pending_execution',
+                'manage_configurations', 'manage_personnel',
+            ];
+            $roles = [
+                [
+                    'id' => '1',
+                    'name' => '管理员',
+                    'description' => '拥有系统全部权限，可管理用户、配置和所有业务数据',
+                    'permissions' => $allPermissions,
+                ],
+                [
+                    'id' => '2',
+                    'name' => '普通用户',
+                    'description' => '可查看仪表盘、账户、交易和资产，可提交申请',
+                    'permissions' => [
+                        'view_dashboard', 'view_accounts', 'view_transactions',
+                        'view_assets', 'manage_my_applications',
+                    ],
+                ],
+            ];
+            if ($method === 'GET' && !$resourceId) {
+                Response::success($roles, '获取角色列表成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                $found = null;
+                foreach ($roles as $r) {
+                    if ($r['id'] === (string)$resourceId) { $found = $r; break; }
+                }
+                $found ? Response::success($found) : Response::error('角色不存在', 'NOT_FOUND', 404);
+            } else {
+                Response::error('系统预定义角色不支持修改', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
         // ===== 用户管理 =====
         case 'users':
             require_once __DIR__ . '/repositories/UserRepository.php';

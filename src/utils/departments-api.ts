@@ -22,19 +22,24 @@ export interface Department {
  */
 export async function getDepartments() {
   try {
-    // 直接从本地数据文件获取部门信息
-    const response = await fetch('/departments-data.json');
+    const token = localStorage.getItem('token');
+    const projectData = localStorage.getItem('currentProject');
+    const projectId = projectData ? JSON.parse(projectData).id : 1;
+    const response = await fetch(`/api/departments?projectId=${projectId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
     const result = await response.json();
-    
-    console.log('加载部门列表成功:', result.departments);
-    
-    if (result && result.success && result.departments) {
+
+    if (result && result.success) {
       return {
         success: true,
-        departments: result.departments
+        departments: result.data || []
       };
     } else {
-      throw new Error('部门数据格式错误');
+      throw new Error(result.error?.message || '部门数据格式错误');
     }
   } catch (error: any) {
     console.error('获取部门列表错误:', error);

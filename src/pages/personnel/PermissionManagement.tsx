@@ -44,39 +44,36 @@ export default function PermissionManagement() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [roleToDelete, setRoleToDelete] = useState<string | null>(null);
 
-  // 从真实PostgreSQL数据库获取角色数据
+  // 从后端API获取角色数据
   const fetchRoles = async () => {
     setIsLoading(true);
     setError(null);
     try {
-      console.log('正在加载真实PostgreSQL角色数据...');
-      
-      const response = await fetch('/roles-data.json');
-      const data = await response.json();
-      
-      if (data.success && data.roles && Array.isArray(data.roles)) {
-        console.log('成功加载角色列表:', data.roles);
-        
-        // 转换角色数据为组件所需格式
-        const processedRoles = data.roles.map(role => ({
+      const token = localStorage.getItem('token');
+      if (!token) throw new Error('未授权，请先登录');
+
+      const response = await fetch('/api/roles', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`获取角色数据失败: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+      if (result.success && Array.isArray(result.data)) {
+        const processedRoles = result.data.map((role: any) => ({
           ...role,
           id: String(role.id),
           permissions: role.permissions || []
         }));
-        
-        // 检查是否有新创建的角色在localStorage中
-        const newRoles = JSON.parse(localStorage.getItem('newRoles') || '[]');
-        if (newRoles.length > 0) {
-          // 合并新角色到现有列表
-          const allRoles = [...processedRoles, ...newRoles];
-          setRoles(allRoles);
-          console.log('合并新创建的角色:', allRoles);
-        } else {
-          setRoles(processedRoles);
-        }
+        setRoles(processedRoles);
       } else {
-        throw new Error('角色数据格式错误');
-        console.error('角色数据格式错误:', data);
+        throw new Error(result.error?.message || '角色数据格式错误');
       }
     } catch (error) {
       console.error('获取角色列表失败:', error);

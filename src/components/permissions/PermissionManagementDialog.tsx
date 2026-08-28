@@ -50,36 +50,22 @@ export function PermissionManagementDialog({ role, onSaved }: Props) {
   const fetchPermissions = async () => {
     setIsLoading(true);
     try {
-      console.log('正在加载真实PostgreSQL权限数据...');
-      
-      // 从本地数据文件获取权限列表
-      const response = await fetch('/permissions-data.json');
-      const result = await response.json();
-      
-      console.log('获取权限列表成功:', result);
-      
-      if (result.success && Array.isArray(result.permissions)) {
-        // 转换权限数据为组件需要的格式
-        const formattedPermissions = result.permissions.map((p: any) => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description,
-          key: p.key || p.code as PermissionKey
-        }));
-        setPermissions(formattedPermissions);
-      } else if (result.success && Array.isArray(result.data)) {
-        // 兼容旧的API格式
-        const formattedPermissions = result.data.map((p: any) => ({
-          id: p.id.toString(),
-          name: p.name,
-          description: p.description,
-          key: p.key || p.code as PermissionKey
-        }));
-        setPermissions(formattedPermissions);
-      } else {
-        console.warn('API响应格式不符合预期:', result);
-        throw new Error('无效的权限数据格式');
-      }
+      // 系统预定义权限列表
+      const predefinedPermissions: Permission[] = [
+        { id: '1', name: '查看仪表盘', description: '查看财务仪表盘和统计数据', key: 'view_dashboard' },
+        { id: '2', name: '查看账户', description: '查看账户列表和详情', key: 'view_accounts' },
+        { id: '3', name: '审核账户', description: '审核和验证账户信息', key: 'verify_accounts' },
+        { id: '4', name: '查看交易', description: '查看交易记录', key: 'view_transactions' },
+        { id: '5', name: '查看资产', description: '查看资产记录', key: 'view_assets' },
+        { id: '6', name: '管理资产', description: '创建、编辑和删除资产', key: 'manage_assets' },
+        { id: '7', name: '我的申请', description: '提交和管理个人申请', key: 'manage_my_applications' },
+        { id: '8', name: '审批管理', description: '审批他人提交的申请', key: 'manage_pending_approvals' },
+        { id: '9', name: '归帐管理', description: '处理待归帐记录', key: 'manage_pending_accounting' },
+        { id: '10', name: '执行管理', description: '执行已审批的操作', key: 'manage_pending_execution' },
+        { id: '11', name: '配置管理', description: '管理系统配置项', key: 'manage_configurations' },
+        { id: '12', name: '人员管理', description: '管理用户和权限', key: 'manage_personnel' },
+      ];
+      setPermissions(predefinedPermissions);
     } catch (error: any) {
       console.error('获取权限列表失败:', error);
       toast({

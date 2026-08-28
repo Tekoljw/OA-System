@@ -114,16 +114,26 @@ export function DepartmentDialog({ department, onSaved }: DepartmentDialogProps)
     setError(null);
     
     try {
-      console.log('正在加载真实PostgreSQL管理者数据...');
-      
-      const response = await fetch('/managers-data.json');
+      const token = localStorage.getItem('token');
+      const projectData = localStorage.getItem('currentProject');
+      const projectId = projectData ? JSON.parse(projectData).id : 1;
+      const response = await fetch(`/api/users?projectId=${projectId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
       const data = await response.json();
-      
-      if (data.success && Array.isArray(data.managers)) {
-        console.log('成功加载管理者列表:', data.managers);
-        setManagers(data.managers);
+
+      if (data.success && Array.isArray(data.data)) {
+        const managers = data.data.map((u: any) => ({
+          id: u.id,
+          name: u.full_name || u.username,
+          username: u.username,
+        }));
+        setManagers(managers);
       } else {
-        throw new Error('管理者数据格式错误');
+        throw new Error(data.error?.message || '管理者数据格式错误');
       }
     } catch (err: any) {
       console.error('获取管理者列表失败:', err);

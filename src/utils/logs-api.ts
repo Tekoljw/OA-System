@@ -37,75 +37,69 @@ export interface LogsQueryParams {
  */
 export const getActivityLogs = async (params: LogsQueryParams = {}) => {
   try {
-    console.log('正在加载真实PostgreSQL活动日志数据...');
-    
-    const response = await fetch('/activity-logs-data.json');
-    const data = await response.json();
-    
-    if (!data.success || !Array.isArray(data.logs)) {
-      throw new Error('活动日志数据格式错误');
-    }
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('未授权，请先登录');
 
-    let filteredLogs = [...data.logs];
-    
-    // 应用操作类型过滤
+    const projectId = getCurrentProjectId();
+    const queryParams = new URLSearchParams();
+    queryParams.append('projectId', String(projectId));
+    queryParams.append('page', String(params.page || 1));
+    queryParams.append('limit', String(params.limit || 20));
     if (params.action && params.action !== 'all') {
-      filteredLogs = filteredLogs.filter(log => log.action === params.action);
+      queryParams.append('action', params.action);
     }
-    
-    // 应用搜索过滤
     if (params.search) {
-      const searchTerm = params.search.toLowerCase();
-      filteredLogs = filteredLogs.filter(log => 
-        log.details.toLowerCase().includes(searchTerm) ||
-        log.action.toLowerCase().includes(searchTerm)
-      );
+      queryParams.append('search', params.search);
     }
-    
-    // 应用日期过滤
     if (params.dateFilter) {
-      const filterDate = params.dateFilter;
-      filteredLogs = filteredLogs.filter(log => 
-        log.created_at.startsWith(filterDate)
-      );
+      queryParams.append('dateFilter', params.dateFilter);
     }
 
-    // 计算分页
-    const page = params.page || 1;
-    const limit = params.limit || 20;
-    const total = filteredLogs.length;
-    const totalPages = Math.ceil(total / limit);
-    const startIndex = (page - 1) * limit;
-    const endIndex = startIndex + limit;
-    const pagedLogs = filteredLogs.slice(startIndex, endIndex);
+    const response = await fetch(`/api/activity-logs?${queryParams.toString()}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(`获取活动日志失败: ${response.status}`);
+    }
+
+    const result = await response.json();
+
+    if (!result.success) {
+      throw new Error(result.error?.message || '获取活动日志失败');
+    }
+
+    const rawLogs = result.data || [];
+    const pagination = result.pagination || { total: rawLogs.length, page: 1, pages: 1, limit: 20 };
 
     // 转换数据格式
-    const logs = pagedLogs.map(log => ({
-      id: log.id.toString(),
+    const logs = rawLogs.map((log: any) => ({
+      id: String(log.id),
       timestamp: log.created_at,
-      username: `用户${log.user_id}`,
+      username: log.username || `用户${log.user_id}`,
       action: log.action,
-      details: log.details,
-      entityType: log.entity_type,
-      entityId: log.entity_id,
+      details: log.description || log.details || '',
+      entityType: log.target_type || log.entity_type,
+      entityId: log.target_id || log.entity_id,
       ipAddress: log.ip_address,
-      userAgent: log.user_agent
+      userAgent: log.user_agent,
     }));
-    
+
     // 获取所有唯一的操作类型
-    const actions = [...new Set(data.logs.map(log => log.action))];
-    
-    console.log('成功加载活动日志:', logs.length, '条记录');
-    
+    const actions = [...new Set(rawLogs.map((log: any) => log.action))];
+
     return {
       logs,
       pagination: {
-        total,
-        page,
-        totalPages,
-        pageSize: limit
+        total: pagination.total,
+        page: pagination.page,
+        totalPages: pagination.pages,
+        pageSize: pagination.limit,
       },
-      actions
+      actions,
     };
   } catch (error) {
     console.error('获取活动日志失败:', error);
@@ -139,7 +133,7 @@ export const addActivityLog = async (logData: Omit<ActivityLog, 'id' | 'timestam
     }
 
     const data = await response.json();
-    
+
     if (!data.success) {
       throw new Error(data.message || '添加活动日志失败');
     }

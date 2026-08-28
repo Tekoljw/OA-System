@@ -155,16 +155,21 @@ export function AccountManagementDialog({ account, onSubmit: externalOnSubmit, i
     const fetchRoles = async () => {
       setIsLoadingRoles(true);
       try {
-        const response = await fetch('/roles-data.json');
+        const token = localStorage.getItem('token');
+        const response = await fetch('/api/roles', {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
         const result = await response.json();
-        if (result.success && result.roles) {
-          setRoles(result.roles);
-          console.log("Loaded roles:", result.roles);
+        if (result.success && result.data) {
+          setRoles(result.data);
         } else {
-          console.error("Failed to load roles:", result.message);
+          console.error("Failed to load roles:", result.error?.message);
           toast({
             variant: "destructive",
-            description: t('common.error') + ": " + (result.message || t('common.unknownError'))
+            description: t('common.error') + ": " + (result.error?.message || t('common.unknownError'))
           });
         }
       } catch (error) {
@@ -177,16 +182,23 @@ export function AccountManagementDialog({ account, onSubmit: externalOnSubmit, i
     const fetchDepartments = async () => {
       setIsLoadingDepartments(true);
       try {
-        const response = await fetch('/departments-data.json');
+        const token = localStorage.getItem('token');
+        const projectData = localStorage.getItem('currentProject');
+        const projectId = projectData ? JSON.parse(projectData).id : 1;
+        const response = await fetch(`/api/departments?projectId=${projectId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
         const result = await response.json();
-        if (result.success && result.departments) {
-          setDepartments(result.departments);
-          console.log("加载部门列表成功:", result.departments);
+        if (result.success && result.data) {
+          setDepartments(result.data);
         } else {
-          console.error("加载部门列表失败:", result.message);
+          console.error("加载部门列表失败:", result.error?.message);
           toast({
             variant: "destructive",
-            description: t('common.error') + ": " + (result.message || t('common.unknownError'))
+            description: t('common.error') + ": " + (result.error?.message || t('common.unknownError'))
           });
         }
       } catch (error) {
