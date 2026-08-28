@@ -191,14 +191,14 @@ const EditProjectForm: React.FC<{
     
     try {
       // 调用API更新项目
-      const response = await apiRequest('PUT', `/api/projects/${project.id}`, formData);
-      const updatedProject = await response.json();
-      
+      const result = await apiRequest('PUT', `/api/projects/${project.id}`, formData);
+      const updatedProject = result.data || result;
+
       toast({
         title: "更新成功",
         description: `项目"${updatedProject.name}"已更新成功`
       });
-      
+
       onSuccess(updatedProject);
       onClose();
     } catch (error: any) {

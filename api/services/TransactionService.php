@@ -30,10 +30,10 @@ class TransactionService {
             throw new \InvalidArgumentException('金额超出有效范围（最大9.99亿）');
         }
         if (empty($data['type'])) throw new \InvalidArgumentException('类型不能为空');
-        // 交易类型白名单校验
-        $allowedTypes = ['income', 'expense', 'transfer'];
+        // 交易类型白名单校验（transfer 必须通过 createTransfer() 走专用逻辑）
+        $allowedTypes = ['income', 'expense'];
         if (!in_array($data['type'], $allowedTypes)) {
-            throw new \InvalidArgumentException('交易类型无效，仅支持: income, expense, transfer');
+            throw new \InvalidArgumentException('交易类型无效，仅支持: income, expense（划款请使用专用接口）');
         }
         if (empty($data['project_id'])) throw new \InvalidArgumentException('项目ID不能为空');
 
@@ -107,7 +107,7 @@ class TransactionService {
         }
         if (empty($data['account_id'])) throw new \InvalidArgumentException('转出账户不能为空');
         if (empty($data['target_account_id'])) throw new \InvalidArgumentException('转入账户不能为空');
-        if ($data['account_id'] == $data['target_account_id']) {
+        if ((int)$data['account_id'] === (int)$data['target_account_id']) {
             throw new \InvalidArgumentException('转出和转入账户不能相同');
         }
         if (empty($data['project_id'])) throw new \InvalidArgumentException('项目ID不能为空');

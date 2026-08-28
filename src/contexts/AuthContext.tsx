@@ -170,8 +170,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           
           localStorage.setItem("user", JSON.stringify(userData));
-          const newToken = userData.token || response.token || "1";
-          localStorage.setItem("token", newToken);
+          const newToken = userData.token || response.token;
+          if (newToken) {
+            localStorage.setItem("token", newToken);
+          }
         } else {
           // 服务器没有返回有效用户，清除本地状态
           localStorage.removeItem("token");
@@ -319,7 +321,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           localStorage.setItem("currentProject", JSON.stringify(currentProj));
         }
 
-        localStorage.setItem("token", userData.token || "1");
+        if (userData.token) {
+          localStorage.setItem("token", userData.token);
+        }
         localStorage.setItem("user", JSON.stringify(userData));
 
         toast({
