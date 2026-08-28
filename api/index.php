@@ -62,7 +62,7 @@ if (!in_array($endpoint, $publicRoutes)) {
 $projectBoundEndpoints = [
     'accounts', 'account-types', 'account-summary',
     'transactions', 'transaction-summary', 'transaction-types',
-    'currency-types', 'subjects', 'subject-types',
+    'currency-types', 'currency-stats', 'subjects', 'subject-types',
     'assets', 'loans', 'asset-types', 'departments', 'dashboard',
     'dashboard-data', 'income-by-subject', 'expense-by-subject',
     'expense-by-department', 'recent-transactions', 'project-stats',
@@ -359,6 +359,16 @@ try {
                 Response::error('无效的时间段参数，仅支持 month 或 year', 'VALIDATION_ERROR');
             }
             Response::success($txService->getTransactionSummary($projectId, $period), '获取交易摘要成功');
+            break;
+
+        // 按币种统计收支与余额 — /api/currency-stats/{CODE}
+        case 'currency-stats':
+            require_once __DIR__ . '/services/TransactionService.php';
+            $txService = new TransactionService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+            if (!$resourceId) Response::error('币种代码不能为空', 'VALIDATION_ERROR');
+            Response::success($txService->getCurrencyStats($projectId, $resourceId), '获取币种统计成功');
             break;
 
         // ===== 配置管理 =====

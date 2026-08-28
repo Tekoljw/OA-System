@@ -315,6 +315,39 @@ class TransactionService {
         return $this->repo->getTransactionSummary($projectId, $period);
     }
 
+    /**
+     * 币种维度统计，环比上月算涨跌幅，供出入金页各币种 Tab 使用
+     */
+    public function getCurrencyStats(int $projectId, string $currency): array {
+        $currency = strtoupper(trim($currency));
+        if (!preg_match('/^[A-Z]{3,10}$/', $currency)) {
+            throw new \InvalidArgumentException('币种代码无效');
+        }
+
+        $s = $this->repo->getCurrencyStats($projectId, $currency);
+
+        // 上月为 0 时无法计算百分比，返回 0，避免除零得到 Infinity
+        $change = function (float $now, float $prev): array {
+            $value = $prev > 0 ? round((($now - $prev) / $prev) * 100, 1) : 0.0;
+            return ['value' => abs($value), 'isPositive' => $value >= 0];
+        };
+
+        $surplus     = $s['monthIncome'] - $s['monthExpense'];
+        $prevSurplus = $s['prevIncome'] - $s['prevExpense'];
+
+        return [
+            'currency'       => $currency,
+            'monthlyIncome'  => $s['monthIncome'],
+            'monthlyExpense' => $s['monthExpense'],
+            'monthlySurplus' => $surplus,
+            'currentBalance' => $s['currentBalance'],
+            'incomeChange'   => $change($s['monthIncome'], $s['prevIncome']),
+            'expenseChange'  => $change($s['monthExpense'], $s['prevExpense']),
+            'surplusChange'  => $change($surplus, $prevSurplus),
+            'balanceChange'  => ['value' => 0.0, 'isPositive' => true],
+        ];
+    }
+
     public function getIncomeBySubject(int $projectId, string $period = 'month'): array {
         return $this->repo->getBySubject($projectId, 'income', $period);
     }

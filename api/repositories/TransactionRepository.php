@@ -94,6 +94,48 @@ class TransactionRepository extends BaseRepository {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * 按币种统计本月/上月收支及当前余额。
+     * 币种记录在 accounts 表上，transactions 无 currency 字段，故需 join。
+     */
+    public function getCurrencyStats(int $projectId, string $currency): array {
+        $stmt = $this->db->prepare("
+            SELECT
+                COALESCE(SUM(CASE WHEN t.type = 'income'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS month_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS month_expense,
+                COALESCE(SUM(CASE WHEN t.type = 'income'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+                    AND t.transaction_date <  date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS prev_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+                    AND t.transaction_date <  date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS prev_expense
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE t.project_id = ? AND a.currency_type = ? AND t.status = 'completed'
+        ");
+        $stmt->execute([$projectId, $currency]);
+        $tx = $stmt->fetch(PDO::FETCH_ASSOC) ?: [];
+
+        $balStmt = $this->db->prepare(
+            "SELECT COALESCE(SUM(balance), 0) FROM accounts WHERE project_id = ? AND currency_type = ?"
+        );
+        $balStmt->execute([$projectId, $currency]);
+
+        return [
+            'monthIncome'   => (float)($tx['month_income'] ?? 0),
+            'monthExpense'  => (float)($tx['month_expense'] ?? 0),
+            'prevIncome'    => (float)($tx['prev_income'] ?? 0),
+            'prevExpense'   => (float)($tx['prev_expense'] ?? 0),
+            'currentBalance' => (float)$balStmt->fetchColumn(),
+        ];
+    }
+
     public function getByDepartment(int $projectId, string $period = 'month'): array {
         $dateCondition = $period === 'month'
             ? "AND t.transaction_date >= date_trunc('month', CURRENT_DATE)"
