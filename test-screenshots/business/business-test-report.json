@@ -1,0 +1,406 @@
+{
+  "timestamp": "2026-08-28T02:41:48.612Z",
+  "summary": {
+    "total": 58,
+    "pass": 41,
+    "fail": 7,
+    "bug": 6,
+    "warn": 4
+  },
+  "results": [
+    {
+      "module": "认证",
+      "testName": "空表单提交拦截",
+      "status": "PASS",
+      "detail": "未跳转，正确拦截"
+    },
+    {
+      "module": "认证",
+      "testName": "错误密码拒绝登录",
+      "status": "PASS",
+      "detail": "拒绝登录，正确"
+    },
+    {
+      "module": "认证",
+      "testName": "错误密码显示错误提示",
+      "status": "PASS",
+      "detail": "显示了错误提示"
+    },
+    {
+      "module": "认证",
+      "testName": "正确凭据成功登录",
+      "status": "PASS",
+      "detail": "跳转到 https://oa.starway.sg/"
+    },
+    {
+      "module": "认证",
+      "testName": "JWT Token 存储",
+      "status": "PASS",
+      "detail": "token长度=179"
+    },
+    {
+      "module": "认证",
+      "testName": "项目ID存储",
+      "status": "PASS",
+      "detail": "projectId=1"
+    },
+    {
+      "module": "认证",
+      "testName": "无效Token返回401",
+      "status": "PASS",
+      "detail": "返回状态码: 401"
+    },
+    {
+      "module": "认证",
+      "testName": "无Token返回401",
+      "status": "PASS",
+      "detail": "返回状态码: 401"
+    },
+    {
+      "module": "账户管理",
+      "testName": "API创建账户",
+      "status": "PASS",
+      "detail": "ID=6"
+    },
+    {
+      "module": "账户管理",
+      "testName": "API查询验证账户存在",
+      "status": "FAIL",
+      "detail": "未找到创建的账户"
+    },
+    {
+      "module": "账户管理",
+      "testName": "API更新账户",
+      "status": "PASS",
+      "detail": "新名称=测试账户_已修改"
+    },
+    {
+      "module": "账户管理",
+      "testName": "空名称验证",
+      "status": "PASS",
+      "detail": "正确拒绝空名称"
+    },
+    {
+      "module": "账户管理",
+      "testName": "UI页面显示账户数据",
+      "status": "WARN",
+      "detail": "页面未显示测试账户（可能需要滚动或筛选）"
+    },
+    {
+      "module": "账户管理",
+      "testName": "UI添加账户按钮存在",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "module": "交易管理",
+      "testName": "API获取科目列表",
+      "status": "PASS",
+      "detail": "收入科目: 工资收入, 支出科目: 餐饮支出"
+    },
+    {
+      "module": "交易管理",
+      "testName": "API创建收入交易",
+      "status": "PASS",
+      "detail": "ID=21, 金额=10000"
+    },
+    {
+      "module": "交易管理",
+      "testName": "API创建支出交易",
+      "status": "PASS",
+      "detail": "ID=22, 金额=3000"
+    },
+    {
+      "module": "交易管理",
+      "testName": "⭐交易后账户余额自动更新",
+      "status": "BUG",
+      "detail": "交易前=0, 交易后实际=0, 期望=7000"
+    },
+    {
+      "module": "交易管理",
+      "testName": "负数金额验证",
+      "status": "BUG",
+      "detail": "负数金额竟然创建成功，ID=23"
+    },
+    {
+      "module": "交易管理",
+      "testName": "零金额验证",
+      "status": "PASS",
+      "detail": "正确拒绝零金额"
+    },
+    {
+      "module": "交易管理",
+      "testName": "无效交易类型验证",
+      "status": "BUG",
+      "detail": "无效类型竟然创建成功"
+    },
+    {
+      "module": "交易管理",
+      "testName": "API查询交易列表",
+      "status": "FAIL",
+      "detail": "共0条交易记录"
+    },
+    {
+      "module": "交易管理",
+      "testName": "API按类型筛选(income)",
+      "status": "FAIL",
+      "detail": "返回0条，全部为income: undefined"
+    },
+    {
+      "module": "交易管理",
+      "testName": "UI出入金页面显示数据",
+      "status": "WARN",
+      "detail": "页面未显示交易数据"
+    },
+    {
+      "module": "交易管理",
+      "testName": "⭐内部划款(transfer)功能",
+      "status": "BUG",
+      "detail": "内部划款创建失败: 后端未实现transfer类型支持"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API创建币种",
+      "status": "PASS",
+      "detail": "ID=7, code=TST"
+    },
+    {
+      "module": "配置管理",
+      "testName": "重复币种代码验证",
+      "status": "PASS",
+      "detail": "正确拒绝重复代码"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API更新币种",
+      "status": "PASS",
+      "detail": "新名称=测试币已修改"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API创建收入科目",
+      "status": "PASS",
+      "detail": "ID=10"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API科目按类型筛选",
+      "status": "PASS",
+      "detail": "返回4条，全部为income: true"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API创建部门",
+      "status": "PASS",
+      "detail": "ID=7"
+    },
+    {
+      "module": "配置管理",
+      "testName": "重复部门代码验证",
+      "status": "PASS",
+      "detail": "正确拒绝重复部门代码"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API查询账户类型",
+      "status": "PASS",
+      "detail": "共4种账户类型"
+    },
+    {
+      "module": "配置管理",
+      "testName": "API查询资产类型",
+      "status": "PASS",
+      "detail": "共5种资产类型"
+    },
+    {
+      "module": "配置管理",
+      "testName": "UI币种管理页面加载",
+      "status": "FAIL",
+      "detail": "未加载币种数据"
+    },
+    {
+      "module": "仪表板",
+      "testName": "API获取仪表板数据",
+      "status": "PASS",
+      "detail": "数据结构完整"
+    },
+    {
+      "module": "仪表板",
+      "testName": "账户摘要数据存在",
+      "status": "PASS",
+      "detail": "2种币种的账户汇总"
+    },
+    {
+      "module": "仪表板",
+      "testName": "交易摘要数据存在",
+      "status": "PASS",
+      "detail": "3种交易类型汇总"
+    },
+    {
+      "module": "仪表板",
+      "testName": "收入科目分析数据",
+      "status": "PASS",
+      "detail": "3个收入科目"
+    },
+    {
+      "module": "仪表板",
+      "testName": "支出科目分析数据",
+      "status": "PASS",
+      "detail": "5个支出科目"
+    },
+    {
+      "module": "仪表板",
+      "testName": "部门支出分析数据",
+      "status": "PASS",
+      "detail": "3个部门"
+    },
+    {
+      "module": "仪表板",
+      "testName": "⭐收入汇总与实际记录数一致",
+      "status": "BUG",
+      "detail": "汇总=6, 实际本月收入=0"
+    },
+    {
+      "module": "仪表板",
+      "testName": "UI无NaN/undefined/null显示",
+      "status": "PASS",
+      "detail": "无异常值显示"
+    },
+    {
+      "module": "仪表板",
+      "testName": "UI统计卡片数量",
+      "status": "WARN",
+      "detail": "检测到1个卡片组件"
+    },
+    {
+      "module": "人员管理",
+      "testName": "API查询用户列表",
+      "status": "PASS",
+      "detail": "共2个用户"
+    },
+    {
+      "module": "人员管理",
+      "testName": "管理员用户存在",
+      "status": "PASS",
+      "detail": "ID=1, role=admin"
+    },
+    {
+      "module": "人员管理",
+      "testName": "⭐API不暴露密码字段",
+      "status": "PASS",
+      "detail": "密码字段已隐藏"
+    },
+    {
+      "module": "人员管理",
+      "testName": "API查询部门列表",
+      "status": "PASS",
+      "detail": "共5个部门"
+    },
+    {
+      "module": "人员管理",
+      "testName": "UI用户管理页面加载",
+      "status": "FAIL",
+      "detail": "未加载用户数据"
+    },
+    {
+      "module": "人员管理",
+      "testName": "UI部门管理页面加载",
+      "status": "FAIL",
+      "detail": "未加载部门数据"
+    },
+    {
+      "module": "数据安全",
+      "testName": "项目数据隔离(不存在的项目)",
+      "status": "PASS",
+      "detail": "projectId=99999 返回 0 条数据"
+    },
+    {
+      "module": "数据安全",
+      "testName": "SQL注入防护(projectId)",
+      "status": "PASS",
+      "detail": "使用参数化查询(PDO)，注入无效"
+    },
+    {
+      "module": "数据安全",
+      "testName": "XSS存储防护",
+      "status": "WARN",
+      "detail": "API存储了原始HTML标签（前端需做转义渲染）"
+    },
+    {
+      "module": "数据安全",
+      "testName": "PUT /users 禁止修改密码",
+      "status": "PASS",
+      "detail": "index.php 中 unset($body[\"password\"]) 防止密码被修改"
+    },
+    {
+      "module": "活动日志",
+      "testName": "API查询活动日志",
+      "status": "PASS",
+      "detail": "共0条日志"
+    },
+    {
+      "module": "活动日志",
+      "testName": "API创建活动日志",
+      "status": "PASS",
+      "detail": "日志ID=2"
+    },
+    {
+      "module": "活动日志",
+      "testName": "⭐业务操作自动记录日志",
+      "status": "BUG",
+      "detail": "创建账户/交易后未自动生成活动日志"
+    },
+    {
+      "module": "UI交互",
+      "testName": "移动端无水平溢出",
+      "status": "PASS",
+      "detail": "移动端布局正常"
+    }
+  ],
+  "bugs": [
+    {
+      "module": "交易管理",
+      "testName": "⭐交易后账户余额自动更新",
+      "severity": "高",
+      "desc": "创建交易后账户余额未自动更新。期望余额=7000，实际余额=0。TransactionService.createTransaction 只做INSERT，未调用账户余额更新逻辑。"
+    },
+    {
+      "module": "交易管理",
+      "testName": "负数金额验证",
+      "severity": "高",
+      "desc": "交易允许负数金额，应当验证 amount > 0"
+    },
+    {
+      "module": "交易管理",
+      "testName": "无效交易类型验证",
+      "severity": "中",
+      "desc": "交易类型未校验，允许了income/expense之外的值"
+    },
+    {
+      "module": "交易管理",
+      "testName": "⭐内部划款(transfer)功能",
+      "severity": "高",
+      "desc": "内部划款功能未在新架构（TransactionService/Repository）中实现。旧Transaction.php model有transfer逻辑但未被路由使用。"
+    },
+    {
+      "module": "仪表板",
+      "testName": "⭐收入汇总与实际记录数一致",
+      "severity": "中",
+      "desc": "仪表板收入汇总count与实际本月交易记录数不一致"
+    },
+    {
+      "module": "活动日志",
+      "testName": "⭐业务操作自动记录日志",
+      "severity": "中",
+      "desc": "创建账户、交易等业务操作后，系统未自动在activity_logs中记录操作日志。需要在Service层增加日志记录逻辑。"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 400 ()",
+    "404 Error: User attempted to access non-existent route: /asset-records",
+    "404 Error: User attempted to access non-existent route: /external-transactions",
+    "404 Error: User attempted to access non-existent route: /internal-transactions",
+    "404 Error: User attempted to access non-existent route: /configurations/currency"
+  ],
+  "networkErrors": []
+}

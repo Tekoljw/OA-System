@@ -1,0 +1,176 @@
+[
+  {
+    "module": "登录",
+    "testName": "登录页面渲染",
+    "status": "PASS",
+    "detail": "用户名输入框:true 密码输入框:true 登录按钮:true"
+  },
+  {
+    "module": "登录",
+    "testName": "空表单提交拦截",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "登录",
+    "testName": "错误密码拒绝登录",
+    "status": "PASS",
+    "detail": "未跳转到首页"
+  },
+  {
+    "module": "登录",
+    "testName": "正确密码成功登录",
+    "status": "PASS",
+    "detail": "URL: https://oa.starway.sg/"
+  },
+  {
+    "module": "仪表板",
+    "testName": "财务概览卡片（4项）",
+    "status": "PASS",
+    "detail": "总资产:true 总负债:true 净资产:true 运营现金:true"
+  },
+  {
+    "module": "仪表板",
+    "testName": "无 NaN 显示",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "仪表板",
+    "testName": "交易摘要区块",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "仪表板",
+    "testName": "日报/月报切换按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "仪表板",
+    "testName": "成本分析区块",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "账户管理",
+    "testName": "账户列表加载",
+    "status": "PASS",
+    "detail": "检测到账户数据"
+  },
+  {
+    "module": "账户管理",
+    "testName": "币种筛选 Tab",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "账户管理",
+    "testName": "账户类型筛选 Tab",
+    "status": "PASS",
+    "detail": "检测到账户类型选项"
+  },
+  {
+    "module": "账户管理",
+    "testName": "添加账户按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "流水管理",
+    "testName": "出入金记录列表",
+    "status": "PASS",
+    "detail": "检测到交易记录"
+  },
+  {
+    "module": "流水管理",
+    "testName": "搜索功能",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "流水管理",
+    "testName": "收入/支出筛选按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "流水管理",
+    "testName": "内部划款页面加载",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "流水管理",
+    "testName": "新建划款按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "配置管理",
+    "testName": "币种管理数据加载",
+    "status": "PASS",
+    "detail": "CNY/USD/EUR/JPY"
+  },
+  {
+    "module": "配置管理",
+    "testName": "添加币种按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "配置管理",
+    "testName": "资产分类数据加载",
+    "status": "PASS",
+    "detail": "5种资产类型"
+  },
+  {
+    "module": "配置管理",
+    "testName": "收入科目分类",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "配置管理",
+    "testName": "支出科目分类",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "人员管理",
+    "testName": "部门列表加载",
+    "status": "PASS",
+    "detail": "财务部/市场部/技术部/人事部"
+  },
+  {
+    "module": "人员管理",
+    "testName": "添加部门按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "人员管理",
+    "testName": "用户列表加载",
+    "status": "PASS",
+    "detail": "检测到 admin 用户"
+  },
+  {
+    "module": "人员管理",
+    "testName": "添加用户按钮",
+    "status": "PASS",
+    "detail": ""
+  },
+  {
+    "module": "导航",
+    "testName": "侧边栏菜单完整性",
+    "status": "PASS",
+    "detail": "7个一级菜单全部存在"
+  },
+  {
+    "module": "API",
+    "testName": "API 请求错误",
+    "status": "WARN",
+    "detail": "https://oa.starway.sg/api/login → 400 | https://oa.starway.sg/api/transactions → 401"
+  }
+]
