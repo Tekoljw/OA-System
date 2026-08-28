@@ -103,6 +103,8 @@ class ConfigService {
     }
 
     public function deleteSubject(int $id, int $projectId = 0): bool {
+        // 检查是否有关联交易
+        $this->checkTransactionReference('subject_id', $id, '科目');
         $ok = $this->repo->deleteItem('subjects', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'subjects', $id,
@@ -169,12 +171,30 @@ class ConfigService {
     }
 
     public function deleteDepartment(int $id, int $projectId = 0): bool {
+        // 检查是否有关联交易
+        $this->checkTransactionReference('department_id', $id, '部门');
         $ok = $this->repo->deleteItem('departments', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'departments', $id,
                 sprintf('删除部门 #%d', $id), null, $projectId);
         }
         return $ok;
+    }
+
+    /**
+     * 检查配置项是否被交易引用，有引用则禁止删除
+     */
+    private function checkTransactionReference(string $column, int $id, string $label): void {
+        // 列名白名单防止注入
+        $allowed = ['subject_id', 'department_id'];
+        if (!in_array($column, $allowed, true)) return;
+
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM transactions WHERE $column = ?");
+        $stmt->execute([$id]);
+        $count = (int)$stmt->fetchColumn();
+        if ($count > 0) {
+            throw new \RuntimeException(sprintf('该%s下有 %d 条交易记录，无法删除', $label, $count));
+        }
     }
 
     private function logActivity(string $action, string $targetType, int $targetId, string $description, ?int $userId, int $projectId): void {

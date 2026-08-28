@@ -70,14 +70,34 @@ class ConfigRepository extends BaseRepository {
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
+    // 各表允许更新的列名白名单，防止 SQL 注入
+    private const ALLOWED_COLUMNS = [
+        'currency_types' => ['name', 'code', 'description', 'symbol'],
+        'account_types'  => ['name', 'code', 'type', 'description'],
+        'subjects'       => ['name', 'code', 'type', 'description'],
+        'asset_types'    => ['name', 'description', 'depreciation_rate', 'useful_life'],
+        'departments'    => ['name', 'code', 'description'],
+    ];
+
     public function updateItem(string $table, int $id, array $data, int $projectId = 0): ?array {
         // 移除不应直接更新的字段
         unset($data['project_id'], $data['created_by']);
         if (empty($data)) return null;
-        $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($data)));
+
+        // 仅保留白名单中的列，防止通过 JSON key 注入 SQL
+        $allowed = self::ALLOWED_COLUMNS[$table] ?? [];
+        $safeData = [];
+        foreach ($data as $k => $v) {
+            if (in_array($k, $allowed, true)) {
+                $safeData[$k] = $v;
+            }
+        }
+        if (empty($safeData)) return null;
+
+        $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($safeData)));
         // 加 project_id 约束，防止跨项目操作
         $sql = "UPDATE $table SET $sets, updated_at = NOW() WHERE id = ?";
-        $values = array_values($data);
+        $values = array_values($safeData);
         $values[] = $id;
         if ($projectId > 0) {
             $sql .= " AND project_id = ?";

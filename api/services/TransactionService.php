@@ -113,6 +113,17 @@ class TransactionService {
         $toAmount = isset($data['to_amount']) ? (float)$data['to_amount'] : $amount;
         $fees = isset($data['fees']) ? (float)$data['fees'] : 0;
 
+        // 验证 fees 和 to_amount 不能为负数
+        if ($fees < 0) {
+            throw new \InvalidArgumentException('手续费不能为负数');
+        }
+        if ($toAmount <= 0 || !is_finite($toAmount) || $toAmount > 999999999.99) {
+            throw new \InvalidArgumentException('转入金额无效');
+        }
+        if (!is_finite($fees) || $fees > 999999999.99) {
+            throw new \InvalidArgumentException('手续费超出有效范围');
+        }
+
         // 校验转出/转入账户归属当前项目
         $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
         $this->validateAccountProject((int)$data['target_account_id'], (int)$data['project_id']);

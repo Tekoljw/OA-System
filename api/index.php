@@ -150,8 +150,8 @@ try {
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
 
             if ($method === 'GET' && !$resourceId) {
-                $page = (int)($_GET['page'] ?? 1);
-                $limit = (int)($_GET['limit'] ?? 50);
+                $page = max(1, (int)($_GET['page'] ?? 1));
+                $limit = min(200, max(1, (int)($_GET['limit'] ?? 50)));
                 $currency = $_GET['currency'] ?? null;
                 $type = $_GET['type'] ?? null;
                 $result = $accountService->getAccounts($projectId, $page, $limit, $currency, $type);
@@ -212,8 +212,8 @@ try {
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
 
             if ($method === 'GET' && !$resourceId) {
-                $page = (int)($_GET['page'] ?? 1);
-                $limit = (int)($_GET['limit'] ?? 50);
+                $page = max(1, (int)($_GET['page'] ?? 1));
+                $limit = min(200, max(1, (int)($_GET['limit'] ?? 50)));
                 $filters = array_filter([
                     'type' => $_GET['type'] ?? null,
                     'status' => $_GET['status'] ?? null,
@@ -238,7 +238,12 @@ try {
                 require_once __DIR__ . '/repositories/TransactionRepository.php';
                 $repo = new TransactionRepository($db);
                 $tx = $repo->findById((int)$resourceId);
-                $tx ? Response::success($tx) : Response::error('交易不存在', 'NOT_FOUND', 404);
+                if (!$tx) Response::error('交易不存在', 'NOT_FOUND', 404);
+                // 校验交易归属当前项目，防止越权查看
+                if ((int)$tx['project_id'] !== $projectId) {
+                    Response::error('无权查看该交易', 'FORBIDDEN', 403);
+                }
+                Response::success($tx);
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
@@ -377,6 +382,7 @@ try {
             $txService = new TransactionService($db);
             $accountService = new AccountService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
             $period = $_GET['period'] ?? 'month';
             if (!in_array($period, ['month', 'year'], true)) {
                 Response::error('无效的时间段参数，仅支持 month 或 year', 'VALIDATION_ERROR');
@@ -529,8 +535,8 @@ try {
         case 'activity-logs':
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
             if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
-            $page = (int)($_GET['page'] ?? 1);
-            $limit = (int)($_GET['limit'] ?? 20);
+            $page = max(1, (int)($_GET['page'] ?? 1));
+            $limit = min(200, max(1, (int)($_GET['limit'] ?? 20)));
             $offset = ($page - 1) * $limit;
 
             if ($method === 'GET') {
