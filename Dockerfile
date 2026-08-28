@@ -11,7 +11,7 @@ RUN npm install
 # Copy source code
 COPY src ./src
 COPY public ./public
-COPY vite.config.ts tsconfig.json tsconfig.app.json index.html ./
+COPY vite.config.ts tsconfig.json tsconfig.app.json tsconfig.node.json index.html ./
 
 # Build frontend
 RUN npm run build
@@ -29,6 +29,7 @@ RUN apt-get update && apt-get install -y \
     unzip \
     default-mysql-client \
     postgresql-client \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions
@@ -40,7 +41,6 @@ COPY --from=frontend-builder /build/dist /var/www/oa-system/public/dist
 # Copy backend files
 COPY api /var/www/oa-system/api
 COPY src /var/www/oa-system/src
-COPY index.php /var/www/oa-system/
 
 # Set working directory
 WORKDIR /var/www/oa-system
@@ -49,7 +49,8 @@ WORKDIR /var/www/oa-system
 RUN echo "opcache.enable=1" >> /usr/local/etc/php/conf.d/opcache.ini
 RUN echo "opcache.memory_consumption=256" >> /usr/local/etc/php/conf.d/opcache.ini
 
-# Configure Nginx
+# Configure Nginx - remove default site to avoid conflict
+RUN rm -f /etc/nginx/sites-enabled/default /etc/nginx/sites-available/default
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Configure Supervisor
