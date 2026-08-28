@@ -40,8 +40,11 @@ class TransactionService {
         if (!isset($data['transaction_date'])) {
             $data['transaction_date'] = date('Y-m-d');
         }
+        $allowedStatuses = ['completed', 'pending', 'cancelled'];
         if (!isset($data['status'])) {
             $data['status'] = 'completed';
+        } elseif (!in_array($data['status'], $allowedStatuses, true)) {
+            throw new \InvalidArgumentException('交易状态无效，仅支持: completed, pending, cancelled');
         }
 
         // 校验 account_id 归属当前项目

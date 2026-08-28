@@ -163,6 +163,13 @@ try {
                 if (($currentUser['role'] ?? '') !== 'admin') {
                     Response::error('权限不足，仅管理员可删除项目', 'FORBIDDEN', 403);
                 }
+                $assoc = $projectRepo->hasAssociatedData((int)$resourceId);
+                if ($assoc['accounts'] > 0 || $assoc['transactions'] > 0) {
+                    Response::error(
+                        sprintf('该项目下有 %d 个账户和 %d 条交易记录，无法删除', $assoc['accounts'], $assoc['transactions']),
+                        'CONFLICT', 409
+                    );
+                }
                 $projectRepo->delete((int)$resourceId);
                 Response::success(null, '项目删除成功');
             } else {
