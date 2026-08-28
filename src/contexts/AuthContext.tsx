@@ -71,7 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // 如果本地没有任何数据，快速设置为未登录并结束处理
       if (!token || !storedUser) {
-        console.log('本地存储中没有用户数据或token，设置为未登录状态');
+        // 无本地凭证，设置为未登录
         setIsLoggedIn(false);
         setUser(null);
         setIsLoading(false);
@@ -82,16 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // 如果有本地存储的用户，先用它设置状态，这样UI可以快速渲染
       try {
         const userData = JSON.parse(storedUser);
-        console.log('从localStorage加载的用户数据:', {
-          username: userData.username,
-          id: userData.id,
-          isSuperAdmin: userData.isSuperAdmin || userData.is_super_admin,
-          projectsCount: userData.projectsList?.length || 0,
-          hasProjects: !!userData.projectsList,
-          projectsData: userData.projectsList && userData.projectsList.length > 0 
-            ? userData.projectsList[0].name
-            : '无项目'
-        });
+        // 从本地存储恢复用户状态
         
         // 确保处理后端字段名差异
         if (userData.is_super_admin !== undefined && userData.isSuperAdmin === undefined) {
@@ -104,22 +95,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         // 设置项目相关状态
         if (userData.projectsList && userData.projectsList.length > 0) {
-          console.log('设置项目列表状态:', userData.projectsList);
           setAvailableProjects(userData.projectsList);
-          
+
           // 设置当前项目 (使用当前项目ID、currentProject或第一个项目)
-          const currentProj = userData.currentProject || 
-            userData.projectsList.find(p => p.id === userData.projectId) || 
+          const currentProj = userData.currentProject ||
+            userData.projectsList.find(p => p.id === userData.projectId) ||
             userData.projectsList[0];
-          
-          console.log('设置当前项目:', currentProj);
+
           setCurrentProject(currentProj);
-          
+
           // 确保currentProject存储到localStorage，让axios拦截器能获取到项目ID
           localStorage.setItem('currentProject', JSON.stringify(currentProj));
-          console.log('已更新localStorage中的currentProject:', currentProj);
         } else {
-          console.log('用户数据中没有有效的项目列表');
+          // 用户数据中没有有效的项目列表
         }
       } catch (e) {
         localStorage.removeItem("token");
@@ -132,9 +120,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       // 设置本地状态后，后台验证服务器会话
       try {
-        console.log('开始从服务器获取最新用户数据');
         const response = await apiRequest('GET', AUTH_API.USER);
-        console.log('服务器返回用户数据:', response);
         
         // 处理服务器可能返回的多种响应格式
         let userData = null;
@@ -151,12 +137,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // 处理后端字段名差异 - is_super_admin 转换为 isSuperAdmin
           if (userData.is_super_admin !== undefined && userData.isSuperAdmin === undefined) {
             userData.isSuperAdmin = userData.is_super_admin;
-            console.log(`初始化时从is_super_admin映射超级管理员状态: ${userData.isSuperAdmin}`);
           }
-          
+
           // 处理projectsList字段 - 检查不同的可能字段名
           if (!userData.projectsList) {
-            console.log('尝试从其他字段获取项目列表');
             if (response.projectsList) {
               userData.projectsList = response.projectsList;
             } else if (userData.projects) {
@@ -167,13 +151,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
           
           // 确认项目列表格式正确
-          console.log('处理后的项目列表:', userData.projectsList);
-          
-          console.log('初始化用户数据:', {
-            username: userData.username,
-            isSuperAdmin: userData.isSuperAdmin,
-            projectsCount: userData.projectsList?.length || 0
-          });
           
           // 更新状态和本地存储
           setUser(userData);
@@ -181,20 +158,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           
           // 设置项目相关状态
           if (userData.projectsList && userData.projectsList.length > 0) {
-            console.log('从服务器获取到的完整项目列表:', userData.projectsList);
             setAvailableProjects(userData.projectsList);
-            
+
             // 设置当前项目 (使用当前项目ID或第一个项目)
-            const currentProj = userData.projectsList.find(p => p.id === userData.projectId) 
+            const currentProj = userData.projectsList.find(p => p.id === userData.projectId)
               || userData.projectsList[0];
-            console.log('设置当前项目:', currentProj);
             setCurrentProject(currentProj);
-            
-            // 关键修复：确保currentProject存储到localStorage，让axios拦截器能获取到项目ID
+
+            // 确保currentProject存储到localStorage，让axios拦截器能获取到项目ID
             localStorage.setItem('currentProject', JSON.stringify(currentProj));
-            console.log('已更新localStorage中的currentProject:', currentProj);
-          } else {
-            console.log('服务器返回的数据中没有项目列表或为空');
           }
           
           localStorage.setItem("user", JSON.stringify(userData));
@@ -222,18 +194,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // 退出登录
   const logout = async (): Promise<void> => {
     setIsLoading(true);
-    console.log("AuthContext: 开始退出登录流程");
-
     try {
-      // 调用退出登录API
-      console.log(`AuthContext: 调用API退出登录，地址: ${AUTH_API.LOGOUT}`);
       await apiRequest('POST', AUTH_API.LOGOUT);
-      console.log("AuthContext: 退出登录API请求成功");
     } catch (error) {
-      console.error("AuthContext: 退出登录请求出错:", error);
+      // 退出登录请求失败不影响本地清理
     } finally {
-      // 清除本地存储的用户信息
-      console.log("AuthContext: 清除本地存储的认证数据");
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       localStorage.removeItem("auth_token");
@@ -253,11 +218,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const switchProject = async (projectId: number): Promise<boolean> => {
     try {
       setIsLoading(true);
-      console.log('发送API请求: POST /api/switch-project');
-      
       // 通过API请求项目切换
       const response = await apiRequest('POST', AUTH_API.SWITCH_PROJECT, { projectId });
-      console.log('项目切换响应数据:', response);
       
       // 新的后端API响应格式处理
       if (response && response.success) {
@@ -267,17 +229,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // 从response.data中获取项目信息（新的API格式）
         if (response.data && response.data.id) {
           selectedProject = response.data;
-          console.log('使用响应中的项目数据:', selectedProject);
+          // 使用响应中的项目数据
         }
         
         // 如果有选择的项目，更新状态
         if (selectedProject) {
-          console.log('切换到新项目:', selectedProject);
           setCurrentProject(selectedProject);
-          
+
           // 更新本地存储的项目信息
           localStorage.setItem("currentProject", JSON.stringify(selectedProject));
-          console.log('已更新localStorage中的currentProject:', selectedProject);
           
           // 更新用户数据中的projectId
           if (user) {
@@ -314,7 +274,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return false;
     } catch (error: any) {
-      console.error('项目切换过程中出错:', error);
       toast({
         title: "项目切换错误",
         description: error.message || "切换项目时发生错误",
@@ -336,10 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loginData.projectId = projectId;
       }
 
-      console.log('发送登录请求:', { username, hasProjectId: !!projectId });
-
       const response = await apiRequest('POST', AUTH_API.LOGIN, loginData);
-      console.log('登录响应数据:', response);
 
       // 统一API返回格式: { success: true, data: {...} }
       const userData = response?.data || response;
@@ -416,7 +372,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
       return newProject;
     } catch (error: any) {
-      console.error('创建项目过程中出错:', error);
       toast({
         title: "创建失败",
         description: error.message || "创建项目时发生错误",

@@ -278,30 +278,18 @@ const ProjectSwitcher: React.FC = () => {
   const { toast } = useToast();
   const { t } = useTranslation();
   
-  // 记录当前状态用于调试
-  console.log('项目切换器状态:', {
-    isSuperAdmin: user?.isSuperAdmin,
-    // 只使用标准字段，is_super_admin是后端字段名
-    projectsCount: availableProjects?.length || 0,
-    项目列表: availableProjects
-  });
-  
   // 如果不是超级管理员，不显示项目切换器
-  // 超级管理员始终显示项目切换器，即使只有一个项目
   if (!user?.isSuperAdmin) {
-    console.log('不显示项目切换器: 用户不是超级管理员');
     return null;
   }
-  
+
   if (!availableProjects || availableProjects.length === 0) {
-    console.log('不显示项目切换器: 没有可用项目');
     // 尝试从服务器获取最新项目列表
     const refreshProjects = async () => {
       try {
-        const response = await apiRequest('GET', AUTH_API.USER);
-        console.log('从服务器获取到的用户数据:', response);
+        await apiRequest('GET', AUTH_API.USER);
       } catch (error) {
-        console.error('获取用户项目列表失败:', error);
+        // 获取失败静默处理
       }
     };
     
@@ -326,7 +314,7 @@ const ProjectSwitcher: React.FC = () => {
         throw new Error("项目不存在");
       }
       
-      console.log('开始直接切换到项目:', selectedProject);
+      // 开始切换到选定项目
       
       // 直接在前端切换项目，不依赖后端API
       // 1. 更新本地存储中的当前项目
@@ -350,15 +338,18 @@ const ProjectSwitcher: React.FC = () => {
       
       // 使用无刷新切换技术
       try {
-        console.log('使用无刷新切换项目技术...');
+        // 使用无刷新切换项目技术
         
         // 显示标准加载指示器
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'app-loading fade-in';
-        loadingDiv.innerHTML = `
-          <div class="app-loading-spinner"></div>
-          <div class="app-loading-text">快速切换到项目: ${selectedProject.name}</div>
-        `;
+        const spinner = document.createElement('div');
+        spinner.className = 'app-loading-spinner';
+        const text = document.createElement('div');
+        text.className = 'app-loading-text';
+        text.textContent = `快速切换到项目: ${selectedProject.name}`;
+        loadingDiv.appendChild(spinner);
+        loadingDiv.appendChild(text);
         document.body.appendChild(loadingDiv);
         
         // 预先更新所有本地状态到新项目
@@ -390,10 +381,13 @@ const ProjectSwitcher: React.FC = () => {
         // 出错时执行最简单的直接导航
         const loadingDiv = document.createElement('div');
         loadingDiv.className = 'app-loading fade-in';
-        loadingDiv.innerHTML = `
-          <div class="app-loading-spinner"></div>
-          <div class="app-loading-text">正在切换项目...</div>
-        `;
+        const spinner2 = document.createElement('div');
+        spinner2.className = 'app-loading-spinner';
+        const text2 = document.createElement('div');
+        text2.className = 'app-loading-text';
+        text2.textContent = '正在切换项目...';
+        loadingDiv.appendChild(spinner2);
+        loadingDiv.appendChild(text2);
         document.body.appendChild(loadingDiv);
         
         window.location.href = '/';
