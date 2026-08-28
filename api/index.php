@@ -192,6 +192,8 @@ try {
             } elseif ($method === 'DELETE' && $resourceId) {
                 $configService->deleteAccountType((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
@@ -273,6 +275,8 @@ try {
             } elseif ($method === 'DELETE' && $resourceId) {
                 $configService->deleteCurrencyType((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
@@ -296,6 +300,8 @@ try {
             } elseif ($method === 'DELETE' && $resourceId) {
                 $configService->deleteSubject((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
@@ -318,6 +324,8 @@ try {
             } elseif ($method === 'DELETE' && $resourceId) {
                 $configService->deleteAssetType((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
@@ -339,6 +347,8 @@ try {
             } elseif ($method === 'DELETE' && $resourceId) {
                 $configService->deleteDepartment((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
@@ -347,6 +357,9 @@ try {
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
 
+            if ($method !== 'GET') {
+                Response::error('不支持的请求方法，流水类型请通过科目接口管理', 'METHOD_NOT_ALLOWED', 405);
+            }
             // 流水类型通过科目表的 type 字段区分
             if ($resourceId === 'income') {
                 Response::success($configService->getSubjects($projectId, 'income'), '获取收入类型成功');
@@ -506,9 +519,8 @@ try {
 
         // ===== 活动日志 =====
         case 'activity-logs':
-            require_once __DIR__ . '/repositories/BaseRepository.php';
-            // 简单实现
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
             $page = (int)($_GET['page'] ?? 1);
             $limit = (int)($_GET['limit'] ?? 20);
             $offset = ($page - 1) * $limit;
@@ -524,6 +536,10 @@ try {
 
                 Response::paginated($logs, $total, $page, $limit);
             } elseif ($method === 'POST') {
+                // 仅管理员可手动创建审计日志
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可创建审计日志', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 $stmt = $db->prepare("INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *");
                 $stmt->execute([
@@ -536,6 +552,8 @@ try {
                 ]);
                 $log = $stmt->fetch(PDO::FETCH_ASSOC);
                 Response::success($log, '日志记录成功', 201);
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 

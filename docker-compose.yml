@@ -26,6 +26,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: oa-system-redis
+    command: redis-server --requirepass ${REDIS_PASSWORD:-oasys_redis_2026}
     ports:
       - "6380:6379"
     volumes:
@@ -52,7 +53,7 @@ services:
       PGPASSWORD: ${DB_PASSWORD:-postgres}
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      JWT_SECRET: ${JWT_SECRET:-oa_system_jwt_secret_2026}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 环境变量必须设置}
     ports:
       - "8000:80"
       - "8001:9000"
