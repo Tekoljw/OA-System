@@ -3,8 +3,10 @@ require_once __DIR__ . '/../repositories/AccountRepository.php';
 
 class AccountService {
     private AccountRepository $repo;
+    private PDO $db;
 
     public function __construct(PDO $db) {
+        $this->db = $db;
         $this->repo = new AccountRepository($db);
     }
 
@@ -29,7 +31,13 @@ class AccountService {
         if (empty($data['currency_type'])) throw new \InvalidArgumentException('币种不能为空');
         if (empty($data['project_id'])) throw new \InvalidArgumentException('项目ID不能为空');
 
-        return $this->repo->create($data);
+        $account = $this->repo->create($data);
+
+        $this->logActivity('create', 'accounts', (int)$account['id'],
+            sprintf('创建账户「%s」(%s %s)', $data['name'], $data['currency_type'], $data['account_type']),
+            $data['created_by'] ?? null, (int)$data['project_id']);
+
+        return $account;
     }
 
     public function updateAccount(int $id, array $data): array {
@@ -37,6 +45,11 @@ class AccountService {
         if (!$existing) throw new \RuntimeException('账户不存在');
         $result = $this->repo->update($id, $data);
         if (!$result) throw new \RuntimeException('更新失败');
+
+        $this->logActivity('update', 'accounts', $id,
+            sprintf('更新账户 #%d', $id),
+            null, (int)$existing['project_id']);
+
         return $result;
     }
 
@@ -44,9 +57,20 @@ class AccountService {
         $existing = $this->repo->findById($id);
         if (!$existing) throw new \RuntimeException('账户不存在');
         $this->repo->delete($id);
+
+        $this->logActivity('delete', 'accounts', $id,
+            sprintf('删除账户「%s」', $existing['name']),
+            null, (int)$existing['project_id']);
     }
 
     public function getAccountSummary(int $projectId): array {
         return $this->repo->getAccountSummary($projectId);
+    }
+
+    private function logActivity(string $action, string $targetType, int $targetId, string $description, ?int $userId, int $projectId): void {
+        $stmt = $this->db->prepare(
+            "INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id) VALUES (?, ?, ?, ?, ?, ?)"
+        );
+        $stmt->execute([$action, $targetType, $targetId, $description, $userId, $projectId]);
     }
 }

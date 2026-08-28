@@ -212,8 +212,15 @@ try {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
                 $body['created_by'] = $currentUser['id'];
-                $tx = $txService->createTransaction($body);
-                Response::success($tx, '交易创建成功', 201);
+
+                // 内部划款走专用方法
+                if (($body['type'] ?? '') === 'transfer') {
+                    $result = $txService->createTransfer($body);
+                    Response::success($result, '内部划款成功', 201);
+                } else {
+                    $tx = $txService->createTransaction($body);
+                    Response::success($tx, '交易创建成功', 201);
+                }
             } elseif ($method === 'GET' && $resourceId) {
                 require_once __DIR__ . '/repositories/TransactionRepository.php';
                 $repo = new TransactionRepository($db);
