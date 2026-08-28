@@ -1,0 +1,58 @@
+{
+  "module": "M10",
+  "results": [
+    {
+      "id": "M10-01",
+      "name": "侧边栏导航完整",
+      "status": "PASS",
+      "detail": "找到4/6: 仪表,资产,配置,人员"
+    },
+    {
+      "id": "M10-02",
+      "name": "导航跳转正确",
+      "status": "FAIL",
+      "detail": "0/2个导航正确"
+    },
+    {
+      "id": "M10-03",
+      "name": "移动端无水平溢出",
+      "status": "PASS",
+      "detail": "布局正常"
+    },
+    {
+      "id": "M10-04",
+      "name": "移动端菜单按钮",
+      "status": "FAIL",
+      "detail": "未找到菜单切换按钮"
+    },
+    {
+      "id": "M10-05",
+      "name": "空状态/数据展示",
+      "status": "FAIL",
+      "detail": "页面有内容展示"
+    },
+    {
+      "id": "M10-06",
+      "name": "加载状态",
+      "status": "PASS",
+      "detail": "页面加载完成，未卡死"
+    },
+    {
+      "id": "M10-07",
+      "name": "Toast提示",
+      "status": "PASS",
+      "detail": "已在M1-03验证，错误登录显示toast"
+    },
+    {
+      "id": "M10-08",
+      "name": "对话框ESC关闭",
+      "status": "FAIL",
+      "detail": "未找到添加按钮"
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "pass": 4,
+    "fail": 4
+  }
+}

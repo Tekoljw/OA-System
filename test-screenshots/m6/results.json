@@ -1,0 +1,106 @@
+{
+  "module": "M6",
+  "results": [
+    {
+      "id": "M6-01",
+      "name": "查看币种列表",
+      "status": "PASS",
+      "detail": "4种: CNY,USD,EUR,JPY"
+    },
+    {
+      "id": "M6-02",
+      "name": "创建币种",
+      "status": "PASS",
+      "detail": "ID=9"
+    },
+    {
+      "id": "M6-03",
+      "name": "重复代码拒绝",
+      "status": "PASS",
+      "detail": "正确拒绝"
+    },
+    {
+      "id": "M6-04",
+      "name": "更新币种",
+      "status": "PASS",
+      "detail": "name=M6已修改"
+    },
+    {
+      "id": "M6-05",
+      "name": "删除币种",
+      "status": "PASS",
+      "detail": "已删除"
+    },
+    {
+      "id": "M6-06",
+      "name": "查看账户类型列表",
+      "status": "PASS",
+      "detail": "4种"
+    },
+    {
+      "id": "M6-07",
+      "name": "创建账户类型",
+      "status": "PASS",
+      "detail": "ID=5"
+    },
+    {
+      "id": "M6-08",
+      "name": "查看全部科目",
+      "status": "PASS",
+      "detail": "8个科目"
+    },
+    {
+      "id": "M6-09",
+      "name": "按类型筛选科目(income)",
+      "status": "PASS",
+      "detail": "3个, 全income=true"
+    },
+    {
+      "id": "M6-10",
+      "name": "创建收入科目",
+      "status": "PASS",
+      "detail": "ID=11"
+    },
+    {
+      "id": "M6-11",
+      "name": "创建支出科目",
+      "status": "PASS",
+      "detail": "ID=12"
+    },
+    {
+      "id": "M6-12",
+      "name": "API收入科目筛选",
+      "status": "PASS",
+      "detail": "全部为income"
+    },
+    {
+      "id": "M6-13",
+      "name": "API支出科目筛选",
+      "status": "PASS",
+      "detail": "6个, 全expense=true"
+    },
+    {
+      "id": "M6-14",
+      "name": "查看部门列表",
+      "status": "PASS",
+      "detail": "4个: 财务部,市场部,技术部,人事部"
+    },
+    {
+      "id": "M6-15",
+      "name": "创建部门",
+      "status": "PASS",
+      "detail": "ID=9"
+    },
+    {
+      "id": "M6-16",
+      "name": "重复部门代码拒绝",
+      "status": "PASS",
+      "detail": "正确拒绝"
+    }
+  ],
+  "summary": {
+    "total": 16,
+    "pass": 16,
+    "fail": 0
+  }
+}

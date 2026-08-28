@@ -1,0 +1,94 @@
+{
+  "module": "M2",
+  "results": [
+    {
+      "id": "M2-01",
+      "name": "页面加载",
+      "status": "FAIL",
+      "detail": "页面无账户数据"
+    },
+    {
+      "id": "M2-02",
+      "name": "账户信息完整",
+      "status": "PASS",
+      "detail": "5个账户, 首个: 投资理财户"
+    },
+    {
+      "id": "M2-03",
+      "name": "按币种筛选(API)",
+      "status": "PASS",
+      "detail": "4个CNY账户, 全部CNY=true"
+    },
+    {
+      "id": "M2-04",
+      "name": "按类型筛选Tab存在",
+      "status": "FAIL",
+      "detail": "检测到0个类型Tab"
+    },
+    {
+      "id": "M2-05",
+      "name": "打开创建表单",
+      "status": "FAIL",
+      "detail": "未找到添加按钮"
+    },
+    {
+      "id": "M2-06",
+      "name": "必填验证(空名称)",
+      "status": "PASS",
+      "detail": "正确拒绝: 账户名称不能为空"
+    },
+    {
+      "id": "M2-07",
+      "name": "正常创建账户",
+      "status": "PASS",
+      "detail": "ID=7"
+    },
+    {
+      "id": "M2-08",
+      "name": "API空名称拒绝",
+      "status": "PASS",
+      "detail": "账户名称不能为空"
+    },
+    {
+      "id": "M2-09",
+      "name": "币种/类型下拉数据",
+      "status": "PASS",
+      "detail": "币种=4个, 账户类型=4个"
+    },
+    {
+      "id": "M2-10",
+      "name": "编辑账户",
+      "status": "PASS",
+      "detail": "新名称=M2测试已修改"
+    },
+    {
+      "id": "M2-11",
+      "name": "编辑回显",
+      "status": "PASS",
+      "detail": "查到名称=M2测试已修改"
+    },
+    {
+      "id": "M2-12",
+      "name": "删除账户",
+      "status": "PASS",
+      "detail": "删除成功"
+    },
+    {
+      "id": "M2-13",
+      "name": "删除确认弹窗",
+      "status": "FAIL",
+      "detail": "页面上未找到删除按钮"
+    },
+    {
+      "id": "M2-14",
+      "name": "删除不存在账户",
+      "status": "PASS",
+      "detail": "status=400, msg=账户不存在"
+    }
+  ],
+  "summary": {
+    "total": 14,
+    "pass": 10,
+    "fail": 4
+  }
+}

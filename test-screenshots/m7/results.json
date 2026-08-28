@@ -1,0 +1,58 @@
+{
+  "module": "M7",
+  "results": [
+    {
+      "id": "M7-01",
+      "name": "用户列表加载",
+      "status": "PASS",
+      "detail": "2个用户"
+    },
+    {
+      "id": "M7-02",
+      "name": "管理员存在",
+      "status": "PASS",
+      "detail": "role=admin"
+    },
+    {
+      "id": "M7-03",
+      "name": "⭐不暴露密码",
+      "status": "PASS",
+      "detail": "密码已隐藏"
+    },
+    {
+      "id": "M7-04",
+      "name": "编辑用户",
+      "status": "PASS",
+      "detail": "full_name→M7测试修改"
+    },
+    {
+      "id": "M7-05",
+      "name": "⭐禁止修改密码",
+      "status": "PASS",
+      "detail": "原密码仍有效(未被修改)"
+    },
+    {
+      "id": "M7-06",
+      "name": "部门列表UI",
+      "status": "FAIL",
+      "detail": "页面包含部门数据"
+    },
+    {
+      "id": "M7-07",
+      "name": "添加部门按钮",
+      "status": "FAIL",
+      "detail": ""
+    },
+    {
+      "id": "M7-08",
+      "name": "UI用户管理页面",
+      "status": "PASS",
+      "detail": ""
+    }
+  ],
+  "summary": {
+    "total": 8,
+    "pass": 6,
+    "fail": 2
+  }
+}

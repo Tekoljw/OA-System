@@ -1,0 +1,70 @@
+{
+  "module": "M5",
+  "results": [
+    {
+      "id": "M5-01",
+      "name": "页面加载",
+      "status": "FAIL",
+      "detail": "页面文本长度=31"
+    },
+    {
+      "id": "M5-02",
+      "name": "无NaN/undefined显示",
+      "status": "PASS",
+      "detail": "无异常值"
+    },
+    {
+      "id": "M5-03",
+      "name": "财务概览卡片",
+      "status": "FAIL",
+      "detail": "1个卡片组件"
+    },
+    {
+      "id": "M5-04",
+      "name": "日报/月报切换按钮",
+      "status": "FAIL",
+      "detail": "0个切换按钮"
+    },
+    {
+      "id": "M5-05",
+      "name": "⭐账户摘要交叉验证",
+      "status": "PASS",
+      "detail": "CNY: dash=786000, real=786000; USD: dash=53500, real=53500"
+    },
+    {
+      "id": "M5-06",
+      "name": "⭐交易摘要数据存在",
+      "status": "PASS",
+      "detail": "4种交易类型"
+    },
+    {
+      "id": "M5-07",
+      "name": "收入科目分析",
+      "status": "PASS",
+      "detail": "3个收入科目"
+    },
+    {
+      "id": "M5-08",
+      "name": "支出科目分析",
+      "status": "PASS",
+      "detail": "5个支出科目"
+    },
+    {
+      "id": "M5-09",
+      "name": "部门支出分析",
+      "status": "PASS",
+      "detail": "3个部门"
+    },
+    {
+      "id": "M5-10",
+      "name": "API综合仪表板数据",
+      "status": "PASS",
+      "detail": "5个维度数据完整"
+    }
+  ],
+  "summary": {
+    "total": 10,
+    "pass": 7,
+    "fail": 3
+  }
+}

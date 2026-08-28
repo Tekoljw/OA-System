@@ -1,0 +1,106 @@
+{
+  "module": "M3",
+  "results": [
+    {
+      "id": "M3-01",
+      "name": "页面加载",
+      "status": "FAIL",
+      "detail": "页面包含出入金相关内容"
+    },
+    {
+      "id": "M3-02",
+      "name": "币种Tab切换",
+      "status": "FAIL",
+      "detail": "检测到0个币种Tab"
+    },
+    {
+      "id": "M3-03",
+      "name": "收入/支出筛选按钮",
+      "status": "FAIL",
+      "detail": "0个筛选按钮"
+    },
+    {
+      "id": "M3-04",
+      "name": "搜索功能",
+      "status": "FAIL",
+      "detail": "未找到搜索框"
+    },
+    {
+      "id": "M3-05",
+      "name": "月度统计卡片",
+      "status": "FAIL",
+      "detail": "无统计卡片"
+    },
+    {
+      "id": "M3-06",
+      "name": "API创建收入",
+      "status": "PASS",
+      "detail": "ID=29"
+    },
+    {
+      "id": "M3-07",
+      "name": "API创建支出",
+      "status": "PASS",
+      "detail": "ID=30"
+    },
+    {
+      "id": "M3-08",
+      "name": "⭐收入后余额增加",
+      "status": "PASS",
+      "detail": "前=490000, 后=495000, 期望=495000, 差=0"
+    },
+    {
+      "id": "M3-09",
+      "name": "⭐支出后余额减少",
+      "status": "PASS",
+      "detail": "收入后期望=498000, 实际=495000(减了3000支出)"
+    },
+    {
+      "id": "M3-10",
+      "name": "交易出现在列表",
+      "status": "PASS",
+      "detail": "列表含5条, 找到测试交易=true"
+    },
+    {
+      "id": "M3-11",
+      "name": "金额为空拒绝",
+      "status": "PASS",
+      "detail": "金额必须大于0"
+    },
+    {
+      "id": "M3-12",
+      "name": "金额为0拒绝",
+      "status": "PASS",
+      "detail": "金额必须大于0"
+    },
+    {
+      "id": "M3-13",
+      "name": "负数金额拒绝",
+      "status": "PASS",
+      "detail": "金额必须大于0"
+    },
+    {
+      "id": "M3-14",
+      "name": "无效交易类型拒绝",
+      "status": "PASS",
+      "detail": "交易类型无效，仅支持: income, expense, transfer"
+    },
+    {
+      "id": "M3-15",
+      "name": "缺少type拒绝",
+      "status": "PASS",
+      "detail": "类型不能为空"
+    },
+    {
+      "id": "M3-16",
+      "name": "日期自动填充",
+      "status": "PASS",
+      "detail": "自动日期=2026-08-28, 今天=2026-08-28"
+    }
+  ],
+  "summary": {
+    "total": 16,
+    "pass": 11,
+    "fail": 5
+  }
+}

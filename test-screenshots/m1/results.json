@@ -1,0 +1,82 @@
+{
+  "module": "M1",
+  "results": [
+    {
+      "id": "M1-01",
+      "name": "空表单提交",
+      "status": "PASS",
+      "detail": "URL=https://oa.starway.sg/login"
+    },
+    {
+      "id": "M1-02",
+      "name": "仅输入用户名",
+      "status": "PASS",
+      "detail": "URL=https://oa.starway.sg/login"
+    },
+    {
+      "id": "M1-03",
+      "name": "错误密码拒绝登录",
+      "status": "PASS",
+      "detail": "错误提示: 有"
+    },
+    {
+      "id": "M1-04",
+      "name": "不存在的用户",
+      "status": "PASS",
+      "detail": "URL=https://oa.starway.sg/login"
+    },
+    {
+      "id": "M1-05",
+      "name": "正确登录",
+      "status": "PASS",
+      "detail": "跳转到 https://oa.starway.sg/"
+    },
+    {
+      "id": "M1-06",
+      "name": "Token存储",
+      "status": "PASS",
+      "detail": "token长度=179"
+    },
+    {
+      "id": "M1-07",
+      "name": "项目信息存储",
+      "status": "PASS",
+      "detail": "projectId=1"
+    },
+    {
+      "id": "M1-08",
+      "name": "无效Token返回401",
+      "status": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "id": "M1-09",
+      "name": "无Token返回401",
+      "status": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "id": "M1-10",
+      "name": "Token过期/伪造返回401",
+      "status": "PASS",
+      "detail": "status=401"
+    },
+    {
+      "id": "M1-11",
+      "name": "正常登出",
+      "status": "FAIL",
+      "detail": "未找到退出按钮或登出流程异常"
+    },
+    {
+      "id": "M1-12",
+      "name": "登出后重定向到登录页",
+      "status": "PASS",
+      "detail": "URL=https://oa.starway.sg/login"
+    }
+  ],
+  "summary": {
+    "total": 12,
+    "pass": 11,
+    "fail": 1
+  }
+}
