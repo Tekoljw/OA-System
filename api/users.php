@@ -1,5 +1,13 @@
 <?php
+/**
+ * 遗留文件 — 已废弃，请使用 /api/users 端点（统一走 index.php 认证）
+ */
 header('Content-Type: application/json');
+http_response_code(403);
+echo json_encode(['success' => false, 'error' => '此端点已废弃，请使用 /api/users']);
+exit();
+
+// ===== 以下为旧代码，已禁用 =====
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With');

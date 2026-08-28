@@ -1,18 +1,17 @@
 <?php
 /**
- * 资产数据API端点
- * 从数据库获取资产数据
+ * 遗留文件 — 已废弃，请使用 /api/assets 端点（统一走 index.php 认证）
  */
-
-// 设置内容类型为JSON
 header('Content-Type: application/json');
+http_response_code(403);
+echo json_encode(['success' => false, 'error' => '此端点已废弃，请使用 /api/assets']);
+exit();
 
-// 允许跨域请求
+// ===== 以下为旧代码，已禁用 =====
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Origin, Content-Type, X-Auth-Token, Authorization, X-Requested-With');
 
-// 如果是预检请求，直接返回
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit(0);
 }

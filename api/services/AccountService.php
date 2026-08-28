@@ -65,10 +65,12 @@ class AccountService {
             throw new \RuntimeException(sprintf('该账户下有 %d 条交易记录，无法删除。请先处理相关交易。', $txCount));
         }
 
-        $this->repo->delete($id);
+        // 软删除：将状态改为 closed，保留历史数据
+        $stmt = $this->db->prepare("UPDATE accounts SET status = 'closed', updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$id]);
 
         $this->logActivity('delete', 'accounts', $id,
-            sprintf('删除账户「%s」', $existing['name']),
+            sprintf('关闭账户「%s」', $existing['name']),
             null, (int)$existing['project_id']);
     }
 

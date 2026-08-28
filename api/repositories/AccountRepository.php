@@ -8,7 +8,7 @@ class AccountRepository extends BaseRepository {
         $offset = ($page - 1) * $limit;
         $stmt = $this->db->prepare("
             SELECT * FROM accounts
-            WHERE project_id = ?
+            WHERE project_id = ? AND (status IS NULL OR status != 'closed')
             ORDER BY id DESC
             LIMIT ? OFFSET ?
         ");
@@ -17,7 +17,7 @@ class AccountRepository extends BaseRepository {
     }
 
     public function countByProject(int $projectId): int {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM accounts WHERE project_id = ?");
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM accounts WHERE project_id = ? AND (status IS NULL OR status != 'closed')");
         $stmt->execute([$projectId]);
         return (int) $stmt->fetchColumn();
     }
@@ -29,7 +29,7 @@ class AccountRepository extends BaseRepository {
                 COUNT(*) as account_count,
                 COALESCE(SUM(balance), 0) as total_balance
             FROM accounts
-            WHERE project_id = ?
+            WHERE project_id = ? AND (status IS NULL OR status != 'closed')
             GROUP BY currency_type
         ");
         $stmt->execute([$projectId]);

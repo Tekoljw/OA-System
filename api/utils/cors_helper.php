@@ -11,9 +11,20 @@ class CorsHelper {
      * @param string $allowOrigin 允许的来源域名，默认为*
      * @return void
      */
-    public static function setCorsHeaders($allowOrigin = '*') {
-        // 允许的源
-        header("Access-Control-Allow-Origin: $allowOrigin");
+    private static array $allowedOrigins = [
+        'https://oa.starway.sg',
+        'https://www.starway.sg',
+    ];
+
+    public static function setCorsHeaders($allowOrigin = null) {
+        // 使用白名单校验
+        if ($allowOrigin === null || $allowOrigin === '*') {
+            $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+            $allowOrigin = in_array($origin, self::$allowedOrigins, true) ? $origin : '';
+        }
+        if ($allowOrigin) {
+            header("Access-Control-Allow-Origin: $allowOrigin");
+        }
         
         // 允许的HTTP方法
         header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS");
@@ -40,7 +51,7 @@ class CorsHelper {
      * @param string $allowOrigin 允许的来源域名，默认为*
      * @return void
      */
-    public static function handleRequest($allowOrigin = '*') {
+    public static function handleRequest($allowOrigin = null) {
         // 设置CORS头信息
         self::setCorsHeaders($allowOrigin);
         

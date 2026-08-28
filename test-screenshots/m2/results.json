@@ -11,13 +11,13 @@
       "id": "M2-02",
       "name": "账户信息完整",
       "status": "PASS",
-      "detail": "5个账户, 首个: 投资理财户"
+      "detail": "8个账户, 首个: 关联删除测试"
     },
     {
       "id": "M2-03",
       "name": "按币种筛选(API)",
       "status": "PASS",
-      "detail": "4个CNY账户, 全部CNY=true"
+      "detail": "7个CNY账户, 全部CNY=true"
     },
     {
       "id": "M2-04",
@@ -41,7 +41,7 @@
       "id": "M2-07",
       "name": "正常创建账户",
       "status": "PASS",
-      "detail": "ID=7"
+      "detail": "ID=18"
     },
     {
       "id": "M2-08",
