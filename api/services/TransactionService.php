@@ -52,6 +52,10 @@ class TransactionService {
             $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
         }
 
+        // 校验 subject_id / department_id 归属当前项目
+        $this->validateRefBelongsToProject('subjects', 'subject_id', $data, '科目');
+        $this->validateRefBelongsToProject('departments', 'department_id', $data, '部门');
+
         $this->db->beginTransaction();
         try {
             // 支出时在事务内加锁校验余额，防止并发超支
@@ -131,6 +135,10 @@ class TransactionService {
         $this->validateAccountProject((int)$data['account_id'], (int)$data['project_id']);
         $this->validateAccountProject((int)$data['target_account_id'], (int)$data['project_id']);
 
+        // 校验 subject_id / department_id 归属当前项目
+        $this->validateRefBelongsToProject('subjects', 'subject_id', $data, '科目');
+        $this->validateRefBelongsToProject('departments', 'department_id', $data, '部门');
+
         if (!isset($data['transaction_date'])) {
             $data['transaction_date'] = date('Y-m-d');
         }
@@ -207,6 +215,24 @@ class TransactionService {
     /**
      * 校验账户归属指定项目
      */
+    /**
+     * 校验 subject_id / department_id 等引用字段归属当前项目
+     */
+    private function validateRefBelongsToProject(string $table, string $field, array $data, string $label): void {
+        $allowedTables = ['subjects', 'departments'];
+        if (!in_array($table, $allowedTables, true)) return;
+        if (empty($data[$field])) return;
+        $stmt = $this->db->prepare("SELECT project_id FROM $table WHERE id = ?");
+        $stmt->execute([(int)$data[$field]]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$row) {
+            throw new \InvalidArgumentException("{$label}不存在");
+        }
+        if ((int)$row['project_id'] !== (int)($data['project_id'] ?? 0)) {
+            throw new \InvalidArgumentException("所选{$label}不属于当前项目");
+        }
+    }
+
     private function validateAccountProject(int $accountId, int $projectId): void {
         $stmt = $this->db->prepare("SELECT project_id FROM accounts WHERE id = ?");
         $stmt->execute([$accountId]);

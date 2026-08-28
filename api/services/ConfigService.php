@@ -85,6 +85,10 @@ class ConfigService {
     public function createSubject(array $data): array {
         if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
         if (empty($data['type'])) throw new \InvalidArgumentException('类型不能为空');
+        $allowedSubjectTypes = ['income', 'expense'];
+        if (!in_array($data['type'], $allowedSubjectTypes, true)) {
+            throw new \InvalidArgumentException('科目类型无效，仅支持: income, expense');
+        }
         $result = $this->repo->createSubject($data);
         $this->logActivity('create', 'subjects', (int)$result['id'],
             sprintf('创建科目「%s」(%s)', $data['name'], $data['type']),

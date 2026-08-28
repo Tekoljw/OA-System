@@ -65,13 +65,16 @@ export function AccountManagementDialog({ account, onSubmit: externalOnSubmit, i
   };
   
   // 表单验证
+  const isEditMode = !!account;
   const form = useForm<AccountFormValues>({
     resolver: zodResolver(
       z.object({
-        username: z.string().min(3),
-        password: z.string().optional(),
-        fullName: z.string().min(2),
-        role: z.string().min(1),
+        username: z.string().min(3, '用户名至少3个字符'),
+        password: isEditMode
+          ? z.string().optional()
+          : z.string().min(6, '密码至少6个字符'),
+        fullName: z.string().min(2, '姓名至少2个字符'),
+        role: z.string().min(1, '请选择角色'),
         notes: z.string().optional(),
         department: z.string().optional(),
       })
