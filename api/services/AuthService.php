@@ -66,7 +66,7 @@ class AuthService {
     }
 
     public function getUserInfo(int $userId): array {
-        $user = $this->userRepo->findById($userId);
+        $user = $this->userRepo->findByIdSafe($userId);
         if (!$user) {
             throw new \RuntimeException('用户不存在');
         }

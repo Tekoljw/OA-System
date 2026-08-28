@@ -492,8 +492,16 @@ try {
                 if ((int)$resourceId === (int)$currentUser['id']) {
                     Response::error('不能删除自己的账户', 'VALIDATION_ERROR', 400);
                 }
+                // 校验被删用户是否属于当前项目
+                $checkStmt = $db->prepare("SELECT 1 FROM user_projects WHERE user_id = ? AND project_id = ?");
+                $checkStmt->execute([(int)$resourceId, $projectId]);
+                if (!$checkStmt->fetch()) {
+                    Response::error('用户不属于当前项目，无权删除', 'FORBIDDEN', 403);
+                }
                 $userRepo->delete((int)$resourceId);
                 Response::success(null, '用户删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
