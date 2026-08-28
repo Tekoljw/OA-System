@@ -187,9 +187,10 @@ try {
                 Response::success($configService->createAccountType($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
                 Response::success($configService->updateAccountType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteAccountType((int)$resourceId);
+                $configService->deleteAccountType((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
             }
             break;

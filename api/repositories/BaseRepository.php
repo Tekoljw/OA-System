@@ -23,6 +23,7 @@ abstract class BaseRepository {
         $params = [];
 
         if (!empty($conditions)) {
+            $conditions = $this->sanitizeColumnNames($conditions);
             $clauses = [];
             foreach ($conditions as $key => $value) {
                 $clauses[] = "$key = ?";
@@ -45,6 +46,7 @@ abstract class BaseRepository {
         $params = [];
 
         if (!empty($conditions)) {
+            $conditions = $this->sanitizeColumnNames($conditions);
             $clauses = [];
             foreach ($conditions as $key => $value) {
                 $clauses[] = "$key = ?";
@@ -58,7 +60,23 @@ abstract class BaseRepository {
         return (int) $stmt->fetchColumn();
     }
 
+    /**
+     * 校验列名合法性，防止 SQL 注入
+     */
+    protected function sanitizeColumnNames(array $data): array {
+        $safe = [];
+        foreach ($data as $key => $value) {
+            if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $key)) {
+                continue; // 跳过非法列名
+            }
+            $safe[$key] = $value;
+        }
+        return $safe;
+    }
+
     public function create(array $data): array {
+        $data = $this->sanitizeColumnNames($data);
+        if (empty($data)) throw new \InvalidArgumentException('无有效字段');
         $columns = implode(', ', array_keys($data));
         $placeholders = implode(', ', array_fill(0, count($data), '?'));
         $stmt = $this->db->prepare("INSERT INTO {$this->table} ($columns) VALUES ($placeholders) RETURNING *");
@@ -67,6 +85,8 @@ abstract class BaseRepository {
     }
 
     public function update(int $id, array $data): ?array {
+        $data = $this->sanitizeColumnNames($data);
+        if (empty($data)) throw new \InvalidArgumentException('无有效字段');
         $sets = implode(', ', array_map(fn($k) => "$k = ?", array_keys($data)));
         $stmt = $this->db->prepare("UPDATE {$this->table} SET $sets, updated_at = NOW() WHERE id = ? RETURNING *");
         $values = array_values($data);
