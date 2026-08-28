@@ -141,25 +141,26 @@ const AssetRecordsContent: React.FC = () => {
       
       console.log('使用项目ID:', projectId);
       
-      // 直接从数据库获取真实资产数据
-      console.log('直接从数据库获取资产数据');
-      
-      // 使用简单直接的PHP端点，从数据库获取真实数据
-      const response = await fetch('/simple-asset-api.php');
-      
+      // 从API获取资产数据
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/assets?projectId=${projectId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
       if (!response.ok) {
         throw new Error(`获取资产数据失败: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      console.log('数据库返回的资产数据:', result);
-      
+
       if (result && result.success) {
         // 获取资产数据
-        const assetsData = result.data?.assets || [];
-        
-        if (assetsData.length === 0) {
-          console.log('数据库中没有资产数据');
+        const assetsData = result.data?.assets || result.data || [];
+
+        if (!Array.isArray(assetsData) || assetsData.length === 0) {
           setAssets([]);
         } else {
           // 转换为前端需要的格式

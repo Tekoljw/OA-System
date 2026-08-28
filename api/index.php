@@ -63,7 +63,7 @@ $projectBoundEndpoints = [
     'accounts', 'account-types', 'account-summary',
     'transactions', 'transaction-summary', 'transaction-types',
     'currency-types', 'subjects', 'subject-types',
-    'asset-types', 'departments', 'dashboard',
+    'assets', 'loans', 'asset-types', 'departments', 'dashboard',
     'dashboard-data', 'income-by-subject', 'expense-by-subject',
     'expense-by-department', 'recent-transactions', 'project-stats',
     'activity-logs', 'users', 'shareholders',
@@ -410,6 +410,16 @@ try {
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
+            break;
+
+        // ===== 资产记录（暂未实现，返回空数据） =====
+        case 'assets':
+            Response::success([], '资产记录功能开发中');
+            break;
+
+        // ===== 借贷记录（暂未实现，返回空数据） =====
+        case 'loans':
+            Response::success(['loans' => [], 'total' => 0], '借贷记录功能开发中');
             break;
 
         case 'asset-types':
