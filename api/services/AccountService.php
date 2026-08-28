@@ -56,6 +56,15 @@ class AccountService {
     public function deleteAccount(int $id): void {
         $existing = $this->repo->findById($id);
         if (!$existing) throw new \RuntimeException('账户不存在');
+
+        // 检查是否有关联交易，禁止删除有交易记录的账户
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM transactions WHERE account_id = ?");
+        $stmt->execute([$id]);
+        $txCount = (int)$stmt->fetchColumn();
+        if ($txCount > 0) {
+            throw new \RuntimeException(sprintf('该账户下有 %d 条交易记录，无法删除。请先处理相关交易。', $txCount));
+        }
+
         $this->repo->delete($id);
 
         $this->logActivity('delete', 'accounts', $id,

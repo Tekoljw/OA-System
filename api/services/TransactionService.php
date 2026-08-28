@@ -41,6 +41,17 @@ class TransactionService {
             $data['status'] = 'completed';
         }
 
+        // 支出时校验余额充足性
+        if ($data['type'] === 'expense' && !empty($data['account_id'])) {
+            $balance = $this->getAccountBalance((int)$data['account_id']);
+            if ($balance === null) {
+                throw new \InvalidArgumentException('账户不存在');
+            }
+            if ($balance < (float)$data['amount']) {
+                throw new \InvalidArgumentException(sprintf('账户余额不足（余额 %.2f，需支出 %.2f）', $balance, (float)$data['amount']));
+            }
+        }
+
         $this->db->beginTransaction();
         try {
             $transaction = $this->repo->create($data);
@@ -90,6 +101,16 @@ class TransactionService {
         $amount = (float)$data['amount'];
         $toAmount = isset($data['to_amount']) ? (float)$data['to_amount'] : $amount;
         $fees = isset($data['fees']) ? (float)$data['fees'] : 0;
+
+        // 校验转出账户余额充足（amount + fees）
+        $outBalance = $this->getAccountBalance((int)$data['account_id']);
+        if ($outBalance === null) {
+            throw new \InvalidArgumentException('转出账户不存在');
+        }
+        $totalOut = $amount + $fees;
+        if ($outBalance < $totalOut) {
+            throw new \InvalidArgumentException(sprintf('转出账户余额不足（余额 %.2f，需转出 %.2f）', $outBalance, $totalOut));
+        }
 
         if (!isset($data['transaction_date'])) {
             $data['transaction_date'] = date('Y-m-d');
@@ -153,6 +174,16 @@ class TransactionService {
             $this->db->rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * 查询账户当前余额
+     */
+    private function getAccountBalance(int $accountId): ?float {
+        $stmt = $this->db->prepare("SELECT balance FROM accounts WHERE id = ?");
+        $stmt->execute([$accountId]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+        return $row ? (float)$row['balance'] : null;
     }
 
     /**

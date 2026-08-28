@@ -253,9 +253,10 @@ try {
                 Response::success($configService->createCurrencyType($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
                 Response::success($configService->updateCurrencyType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteCurrencyType((int)$resourceId);
+                $configService->deleteCurrencyType((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
             }
             break;
@@ -275,9 +276,10 @@ try {
                 Response::success($configService->createSubject($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
                 Response::success($configService->updateSubject((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteSubject((int)$resourceId);
+                $configService->deleteSubject((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
             }
             break;
@@ -296,9 +298,10 @@ try {
                 Response::success($configService->createAssetType($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
                 Response::success($configService->updateAssetType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteAssetType((int)$resourceId);
+                $configService->deleteAssetType((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
             }
             break;
@@ -316,9 +319,10 @@ try {
                 Response::success($configService->createDepartment($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
+                $body['project_id'] = $projectId;
                 Response::success($configService->updateDepartment((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteDepartment((int)$resourceId);
+                $configService->deleteDepartment((int)$resourceId, $projectId);
                 Response::success(null, '删除成功');
             }
             break;
