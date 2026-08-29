@@ -67,6 +67,7 @@ $projectBoundEndpoints = [
     'dashboard-data', 'income-by-subject', 'expense-by-subject',
     'expense-by-department', 'recent-transactions', 'project-stats',
     'activity-logs', 'users', 'shareholders',
+    'applications', 'transfers', 'approval-rules',
 ];
 if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
     $requestedProjectId = (int)($_GET['projectId'] ?? $_POST['projectId'] ?? $currentUser['projectId'] ?? 0);
@@ -91,7 +92,7 @@ $adminWriteEndpoints = [
     'accounts', 'account-types',
     'subjects', 'subject-types',
     'asset-types', 'departments',
-    'projects', 'shareholders', 'activity-logs',
+    'projects', 'shareholders', 'activity-logs', 'approval-rules',
 ];
 if ($currentUser
     && in_array($endpoint, $adminWriteEndpoints, true)
@@ -371,6 +372,198 @@ try {
             Response::success($txService->getCurrencyStats($projectId, $resourceId), '获取币种统计成功');
             break;
 
+        // ===== 审批规则配置（仅管理员，由 4.6 守卫统一拦截写操作）=====
+        case 'approval-rules':
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+
+            if ($method === 'GET') {
+                $stmt = $db->prepare(
+                    "SELECT r.*,
+                            COALESCE(json_agg(json_build_object(
+                                'id', n.id, 'step_order', n.step_order,
+                                'approver_type', n.approver_type, 'approver_role', n.approver_role,
+                                'required_count', n.required_count
+                            ) ORDER BY n.step_order) FILTER (WHERE n.id IS NOT NULL), '[]') AS nodes
+                     FROM approval_rules r
+                     LEFT JOIN approval_rule_nodes n ON n.rule_id = r.id
+                     WHERE r.project_id = ?
+                     GROUP BY r.id ORDER BY r.priority, r.min_amount"
+                );
+                $stmt->execute([$projectId]);
+                $rules = array_map(function ($r) {
+                    $r['nodes'] = json_decode($r['nodes'], true);
+                    return $r;
+                }, $stmt->fetchAll(PDO::FETCH_ASSOC));
+                Response::success($rules, '获取审批规则成功');
+
+            } elseif ($method === 'POST' || ($method === 'PUT' && $resourceId)) {
+                $body = JsonMiddleware::getRequestBody();
+                if (empty($body['name'])) Response::error('规则名称不能为空', 'VALIDATION_ERROR');
+                $nodes = $body['nodes'] ?? [];
+                if (!is_array($nodes) || !$nodes) {
+                    Response::error('至少需要配置一个审批节点', 'VALIDATION_ERROR');
+                }
+                foreach ($nodes as $n) {
+                    if (!in_array($n['approver_type'] ?? '', ['applicant_dept_manager', 'role'], true)) {
+                        Response::error('审批人类型无效', 'VALIDATION_ERROR');
+                    }
+                    if (($n['approver_type'] === 'role') && empty($n['approver_role'])) {
+                        Response::error('角色型审批节点必须指定角色', 'VALIDATION_ERROR');
+                    }
+                    if ((int)($n['required_count'] ?? 1) < 1) {
+                        Response::error('会签人数至少为 1', 'VALIDATION_ERROR');
+                    }
+                }
+
+                $db->beginTransaction();
+                try {
+                    if ($method === 'POST') {
+                        $st = $db->prepare(
+                            "INSERT INTO approval_rules
+                                (project_id, name, application_type, min_amount, max_amount, amount_scope, priority, active)
+                             VALUES (?,?,?,?,?,?,?,?) RETURNING *"
+                        );
+                        $st->execute([
+                            $projectId, $body['name'], $body['application_type'] ?? null,
+                            (float)($body['min_amount'] ?? 0),
+                            isset($body['max_amount']) && $body['max_amount'] !== '' ? (float)$body['max_amount'] : null,
+                            $body['amount_scope'] ?? 'daily',
+                            (int)($body['priority'] ?? 0),
+                            array_key_exists('active', $body) ? (bool)$body['active'] : true,
+                        ]);
+                        $rule = $st->fetch(PDO::FETCH_ASSOC);
+                    } else {
+                        $st = $db->prepare(
+                            "UPDATE approval_rules SET name=?, application_type=?, min_amount=?, max_amount=?,
+                             amount_scope=?, priority=?, active=?, updated_at=NOW()
+                             WHERE id=? AND project_id=? RETURNING *"
+                        );
+                        $st->execute([
+                            $body['name'], $body['application_type'] ?? null,
+                            (float)($body['min_amount'] ?? 0),
+                            isset($body['max_amount']) && $body['max_amount'] !== '' ? (float)$body['max_amount'] : null,
+                            $body['amount_scope'] ?? 'daily',
+                            (int)($body['priority'] ?? 0),
+                            array_key_exists('active', $body) ? (bool)$body['active'] : true,
+                            (int)$resourceId, $projectId,
+                        ]);
+                        $rule = $st->fetch(PDO::FETCH_ASSOC);
+                        if (!$rule) { $db->rollBack(); Response::error('规则不存在', 'NOT_FOUND', 404); }
+                        $db->prepare("DELETE FROM approval_rule_nodes WHERE rule_id = ?")->execute([(int)$rule['id']]);
+                    }
+
+                    $ins = $db->prepare(
+                        "INSERT INTO approval_rule_nodes (rule_id, step_order, approver_type, approver_role, required_count)
+                         VALUES (?,?,?,?,?)"
+                    );
+                    $order = 1;
+                    foreach ($nodes as $n) {
+                        $ins->execute([
+                            (int)$rule['id'], (int)($n['step_order'] ?? $order),
+                            $n['approver_type'], $n['approver_role'] ?? null,
+                            (int)($n['required_count'] ?? 1),
+                        ]);
+                        $order++;
+                    }
+                    $db->commit();
+                } catch (\Exception $e) {
+                    $db->rollBack();
+                    throw $e;
+                }
+                Response::success($rule, $method === 'POST' ? '规则创建成功' : '规则更新成功', $method === 'POST' ? 201 : 200);
+
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $st = $db->prepare("DELETE FROM approval_rules WHERE id = ? AND project_id = ?");
+                $st->execute([(int)$resourceId, $projectId]);
+                $st->rowCount() ? Response::success(null, '规则删除成功')
+                                : Response::error('规则不存在', 'NOT_FOUND', 404);
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        // ===== 申请单（审批工作流）=====
+        case 'applications':
+            require_once __DIR__ . '/services/ApplicationService.php';
+            $appService = new ApplicationService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+
+            if ($method === 'GET' && !$resourceId) {
+                Response::success($appService->getApplications($projectId, $_GET), '获取申请列表成功');
+            } elseif ($method === 'GET' && $resourceId && $subEndpoint === 'approvals') {
+                require_once __DIR__ . '/services/ApprovalService.php';
+                $approvalSvc = new ApprovalService($db);
+                Response::success($approvalSvc->getApprovals('application_id', (int)$resourceId), '获取审批进度成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                Response::success($appService->getApplication((int)$resourceId, $projectId), '获取申请详情成功');
+            } elseif ($method === 'POST') {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id']   = $projectId;
+                $body['submitter_id'] = $body['submitterId'] ?? $currentUser['id'];
+                $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
+                $body['related_party'] = $body['relatedParty'] ?? null;
+                $body['due_date']      = $body['dueDate'] ?? null;
+                $body['type']          = $body['applicationType'] ?? $body['type'] ?? null;
+                Response::success($appService->create($body), '申请提交成功', 201);
+            } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'status') {
+                $body = JsonMiddleware::getRequestBody();
+                $decision = $body['status'] ?? '';
+                Response::success(
+                    $appService->act((int)$resourceId, $projectId, $decision, $body['comment'] ?? '', $currentUser),
+                    '审批完成'
+                );
+            } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'allocate') {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($appService->allocate((int)$resourceId, $projectId, $body, $currentUser), '归帐完成');
+            } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'execute') {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($appService->execute((int)$resourceId, $projectId, $body, $currentUser), '执行完成');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $appService->delete((int)$resourceId, $projectId, $currentUser);
+                Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        // ===== 内部划款单 =====
+        case 'transfers':
+            require_once __DIR__ . '/services/TransferService.php';
+            $trService = new TransferService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+
+            if ($method === 'GET' && !$resourceId) {
+                Response::success($trService->getTransfers($projectId, $_GET), '获取划款列表成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                Response::success($trService->getTransfer((int)$resourceId, $projectId), '获取划款详情成功');
+            } elseif ($method === 'POST' && !$resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id']   = $projectId;
+                $body['submitter_id'] = $currentUser['id'];
+                Response::success($trService->create($body), '划款单提交成功', 201);
+            } elseif ($resourceId && in_array($subEndpoint, ['approve', 'reject'], true)) {
+                $body = JsonMiddleware::getRequestBody();
+                $decision = $subEndpoint === 'approve' ? 'approved' : 'rejected';
+                Response::success(
+                    $trService->act((int)$resourceId, $projectId, $decision, $body['comment'] ?? '', $currentUser),
+                    '审批完成'
+                );
+            } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'status') {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success(
+                    $trService->act((int)$resourceId, $projectId, $body['status'] ?? '', $body['comment'] ?? '', $currentUser),
+                    '审批完成'
+                );
+            } elseif ($resourceId && $subEndpoint === 'execute') {
+                Response::success($trService->execute((int)$resourceId, $projectId, $currentUser), '执行完成');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
         // ===== 配置管理 =====
         case 'currency-types':
             require_once __DIR__ . '/services/ConfigService.php';
@@ -464,10 +657,12 @@ try {
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['manager_id'] = $body['managerId'] ?? $body['manager_id'] ?? null;
                 Response::success($configService->createDepartment($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                if (array_key_exists('managerId', $body)) $body['manager_id'] = $body['managerId'];
                 Response::success($configService->updateDepartment((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
                 $configService->deleteDepartment((int)$resourceId, $projectId);

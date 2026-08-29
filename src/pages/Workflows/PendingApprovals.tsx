@@ -28,7 +28,7 @@ import { Badge } from "../../components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogCancel } from "../../components/ui/alert-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Textarea } from "../../components/ui/textarea";
-import axios from "axios";
+import { apiRequest } from "@/api/client";
 
 // 定义申请类型接口
 interface Application {
@@ -763,9 +763,7 @@ const PendingApprovals = () => {
       
       console.log(`获取应用数据，状态: ${apiStatus}`);
       
-      const response = await axios.get('/api/applications', {
-        params: { status: apiStatus }
-      });
+      const response = { data: await apiRequest('GET', `/api/applications?status=${apiStatus}`) };
       
       // 创建默认的空数组
       let fetchedApps: Application[] = [];

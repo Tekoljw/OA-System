@@ -8,6 +8,25 @@
  * 5. 完整业务流程：创建股东 → 入资 → 查看分析 → 分红 → 查看分红计算
  */
 const http = require('http');
+const { execFileSync } = require('child_process');
+
+/**
+ * 测试自清理：本套用例会在项目1留下股东与交易，且「有交易的股东不可删除」是
+ * 刻意的业务约束，无法用 API 清理。不清理则下一轮因比例占满 100% 必然失败。
+ */
+function resetFixtures() {
+    try {
+        execFileSync('docker', ['compose', 'exec', '-T', 'postgres',
+            'psql', '-U', 'postgres', '-d', 'oa_system', '-c',
+            `DELETE FROM transactions WHERE shareholder_id IN
+               (SELECT id FROM shareholders WHERE project_id = 1 AND name LIKE '多角色股东%');
+             DELETE FROM shareholders WHERE project_id = 1 AND name LIKE '多角色股东%';`
+        ], { stdio: 'pipe' });
+        console.log('  🧹 已清理上轮遗留的测试股东');
+    } catch (e) {
+        console.log('  ⚠️ 清理遗留数据失败，若比例已占满可能导致失败:', String(e.message).slice(0, 80));
+    }
+}
 
 const BASE = 'http://localhost:8000';
 let passed = 0, failed = 0;
@@ -41,6 +60,8 @@ function request(method, path, body = null, token = '') {
 }
 
 async function run() {
+    resetFixtures();
+
     // ===== 登录两个账号 =====
     console.log('\n[0] 登录测试');
 

@@ -1,4 +1,4 @@
-import axios from 'axios';
+import { apiRequest } from '../api/client';
 
 const API_PATH = '/api';
 
@@ -25,10 +25,10 @@ export const approveApplication = async (id: number, status: string, comment: st
     console.log('请求数据:', requestData);
     
     // 使用相对路径，让代理服务器正确处理
-    const response = await axios.put(`${API_PATH}/applications/${id}/status`, requestData);
-    
-    console.log('审批响应:', response.data);
-    return response.data;
+    const response = await apiRequest('PUT', `${API_PATH}/applications/${id}/status`, requestData);
+
+    console.log('审批响应:', response);
+    return response;
   } catch (error) {
     console.error('审批失败:', error);
     throw error;
@@ -46,12 +46,10 @@ export const executeApplication = async (id: number, comment: string = '') => {
     console.log(`发起执行归账请求：ID=${id}, 评论=${comment}`);
     
     // 使用相对路径，让代理服务器正确处理
-    const response = await axios.put(`${API_PATH}/applications/${id}/execute`, {
-      comment
-    });
-    
-    console.log('执行归账响应:', response.data);
-    return response.data;
+    const response = await apiRequest('PUT', `${API_PATH}/applications/${id}/execute`, { comment });
+
+    console.log('执行归账响应:', response);
+    return response;
   } catch (error) {
     console.error('执行归账操作失败:', error);
     throw error;

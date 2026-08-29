@@ -59,7 +59,7 @@ class TransactionService {
         // 股东入资/分红科目必须关联股东
         $this->validateShareholderRequired($data);
 
-        $this->db->beginTransaction();
+        $ownsTx = $this->beginIfNeeded();
         try {
             // 支出时在事务内加锁校验余额，防止并发超支
             if ($data['type'] === 'expense' && !empty($data['account_id'])) {
@@ -94,10 +94,10 @@ class TransactionService {
                 (int)$data['project_id']
             );
 
-            $this->db->commit();
+            if ($ownsTx) $this->db->commit();
             return $transaction;
         } catch (\Exception $e) {
-            $this->db->rollBack();
+            if ($ownsTx) $this->db->rollBack();
             throw $e;
         }
     }
@@ -146,7 +146,7 @@ class TransactionService {
             $data['transaction_date'] = date('Y-m-d');
         }
 
-        $this->db->beginTransaction();
+        $ownsTx = $this->beginIfNeeded();
         try {
             // 在事务内加锁校验转出账户余额，防止并发超支
             $outBalance = $this->getAccountBalanceForUpdate((int)$data['account_id']);
@@ -201,7 +201,7 @@ class TransactionService {
                 (int)$data['project_id']
             );
 
-            $this->db->commit();
+            if ($ownsTx) $this->db->commit();
             return [
                 'out_transaction' => $outTx,
                 'in_transaction' => $inTx,
@@ -210,7 +210,7 @@ class TransactionService {
                 'fees' => $fees,
             ];
         } catch (\Exception $e) {
-            $this->db->rollBack();
+            if ($ownsTx) $this->db->rollBack();
             throw $e;
         }
     }
@@ -299,6 +299,19 @@ class TransactionService {
     private function updateAccountBalance(int $accountId, float $delta): void {
         $stmt = $this->db->prepare("UPDATE accounts SET balance = balance + ?, updated_at = NOW() WHERE id = ?");
         $stmt->execute([$delta, $accountId]);
+    }
+
+    /**
+     * 仅在尚未处于事务中时开启事务。
+     * 本服务会被 ApplicationService / TransferService 在其事务内调用，
+     * PDO 不支持嵌套事务，由最外层负责 commit / rollback。
+     */
+    private function beginIfNeeded(): bool {
+        if ($this->db->inTransaction()) {
+            return false;
+        }
+        $this->db->beginTransaction();
+        return true;
     }
 
     /**

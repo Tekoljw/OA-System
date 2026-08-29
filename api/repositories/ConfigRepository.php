@@ -65,8 +65,12 @@ class ConfigRepository extends BaseRepository {
     }
 
     public function createDepartment(array $data): array {
-        $stmt = $this->db->prepare("INSERT INTO departments (name, code, description, project_id) VALUES (?, ?, ?, ?) RETURNING *");
-        $stmt->execute([$data['name'], $data['code'] ?? '', $data['description'] ?? '', $data['project_id']]);
+        // manager_id 此前被静默丢弃，导致前端选的部门主管从未落库
+        $stmt = $this->db->prepare("INSERT INTO departments (name, code, description, project_id, manager_id) VALUES (?, ?, ?, ?, ?) RETURNING *");
+        $stmt->execute([
+            $data['name'], $data['code'] ?? '', $data['description'] ?? '', $data['project_id'],
+            !empty($data['manager_id']) ? (int)$data['manager_id'] : null,
+        ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
@@ -76,7 +80,7 @@ class ConfigRepository extends BaseRepository {
         'account_types'  => ['name', 'code', 'type', 'description'],
         'subjects'       => ['name', 'code', 'type', 'description'],
         'asset_types'    => ['name', 'description', 'depreciation_rate', 'useful_life'],
-        'departments'    => ['name', 'code', 'description'],
+        'departments'    => ['name', 'code', 'description', 'manager_id'],
     ];
 
     public function updateItem(string $table, int $id, array $data, int $projectId = 0): ?array {
