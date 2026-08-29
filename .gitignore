@@ -36,6 +36,8 @@ Thumbs.db
 
 # Database
 *.sql
+# 迁移脚本必须纳入版本库，否则换环境无法重建表结构
+!db/migrations/*.sql
 *.sqlite
 *.db
 
