@@ -22,6 +22,7 @@ const PAGES = [
     { name: '资产分类', path: '/configurations/asset-categories' },
     { name: '科目分类', path: '/configurations/subject-categories' },
     { name: '流水类型', path: '/configurations/transaction-types' },
+    { name: '审批规则', path: '/configurations/approval-rules' },
     { name: '股东管理', path: '/shareholders' },
     { name: '部门配置', path: '/personnel/departments' },
     { name: '权限管理', path: '/personnel/permissions' },

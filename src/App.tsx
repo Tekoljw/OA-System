@@ -24,6 +24,7 @@ import AccountCategories from "./pages/configurations/AccountCategories";
 import AssetCategories from "./pages/configurations/AssetCategories";
 import SubjectCategories from "./pages/configurations/SubjectCategories";
 import TransactionTypes from "./pages/configurations/TransactionTypes";
+import ApprovalRules from "./pages/configurations/ApprovalRules";
 import DepartmentManagement from "./pages/configurations/DepartmentManagement";
 import PermissionManagement from "./pages/personnel/PermissionManagement";
 import ActivityLogs from "./pages/personnel/ActivityLogs";
@@ -204,6 +205,12 @@ const App = () => {
                 <Route path="/configurations/transaction-types" element={
                   <ProtectedSidebarPage>
                     <TransactionTypes />
+                  </ProtectedSidebarPage>
+                } />
+
+                <Route path="/configurations/approval-rules" element={
+                  <ProtectedSidebarPage>
+                    <ApprovalRules />
                   </ProtectedSidebarPage>
                 } />
                 

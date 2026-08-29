@@ -16,6 +16,7 @@ import {
   User,
   RefreshCw,
   PieChart,
+  ShieldCheck,
 } from "lucide-react";
 import { MenuItem } from "@/types/menu";
 
@@ -68,6 +69,7 @@ export const menuItems: MenuItem[] = [
       { title: "资产分类", path: "/configurations/asset-categories", icon: ChartPie },
       { title: "科目分类", path: "/configurations/subject-categories", icon: FolderClosed },
       { title: "流水类型", path: "/configurations/transaction-types", icon: ArrowDownUp },
+      { title: "审批规则", path: "/configurations/approval-rules", icon: ShieldCheck },
     ],
   },
   {

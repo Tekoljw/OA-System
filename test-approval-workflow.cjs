@@ -3,6 +3,28 @@
  * 覆盖：金额分档、单天累计、串行分级、多人会签、无主管阻断、越权、项目隔离、执行落账
  */
 const http = require('http');
+const { execFileSync } = require('child_process');
+
+/**
+ * 自清理：主管的每日审批额度按天累积，上一轮测试产生的审批记录
+ * 会占用当天额度，导致本轮小额申请被误升级为多级审批。
+ * 且部门主管任命状态也需还原（[4b] 会临时改动市场部主管）。
+ */
+function resetFixtures() {
+    try {
+        execFileSync('docker', ['compose', 'exec', '-T', 'postgres',
+            'psql', '-U', 'postgres', '-d', 'oa_system', '-c',
+            `DELETE FROM application_approvals;
+             DELETE FROM applications WHERE project_id = 1;
+             DELETE FROM transfers    WHERE project_id = 1;
+             UPDATE departments SET manager_id = 3    WHERE id = 1 AND project_id = 1;
+             UPDATE departments SET manager_id = NULL WHERE id = 2 AND project_id = 1;`
+        ], { stdio: 'pipe' });
+        console.log('  🧹 已清理审批记录并还原部门主管');
+    } catch (e) {
+        console.log('  ⚠️ 清理失败，主管当日额度可能已被占用:', String(e.message).slice(0, 90));
+    }
+}
 const BASE = 'http://localhost:8000';
 let passed = 0, failed = 0;
 
@@ -31,6 +53,8 @@ const P = 1, DEPT_FINANCE = 1, DEPT_MARKET = 2;
 const msg = r => r.body?.error?.message || r.body?.message || '';
 
 async function run() {
+    resetFixtures();
+
     console.log('\n[0] 登录');
     const a = await request('POST', '/api/login', { username: 'admin', password: 'admin123' });
     const b = await request('POST', '/api/login', { username: 'phpuser', password: 'php123' });
