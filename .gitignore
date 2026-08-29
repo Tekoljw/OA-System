@@ -58,3 +58,6 @@ coverage/
 .nyc_output/
 node_modules/
 dist/
+
+# 测试产物：浏览器截图，每次跑测试都会重新生成
+test-screenshots/
