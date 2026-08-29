@@ -3,7 +3,7 @@
 -- 设计要点：
 --   * 账本仍在 transactions，申请单在执行前不碰账户余额
 --   * 审批人只有两类：申请人所属部门主管（写死对应关系）、管理员（全局）
---   * 金额按「单天累计」匹配规则档
+--   * 金额按「部门主管当日审批额度累计」匹配规则档
 -- ============================================================
 
 BEGIN;
@@ -99,6 +99,7 @@ CREATE TABLE IF NOT EXISTS approval_rules (
     application_type VARCHAR(30),                      -- NULL = 适用所有类型
     min_amount       NUMERIC(15,2) NOT NULL DEFAULT 0, -- 含
     max_amount       NUMERIC(15,2),                    -- NULL = 无上限；不含
+    -- single=按单笔金额；daily=按该部门主管当日审批额度累计
     amount_scope     VARCHAR(10) NOT NULL DEFAULT 'daily'
                      CHECK (amount_scope IN ('single', 'daily')),
     priority         INTEGER NOT NULL DEFAULT 0,

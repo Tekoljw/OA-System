@@ -3,7 +3,7 @@
  * 审批引擎
  *
  * 职责：
- *   1. 按「单天累计」金额匹配规则档
+ *   1. 按「部门主管当日审批额度累计」匹配规则档
  *   2. 依据规则节点生成审批任务（部门主管 / 管理员会签）
  *   3. 处理单次审批动作，推进串行分级
  *
@@ -14,11 +14,8 @@
 class ApprovalService {
     private PDO $db;
 
-    /** 已提交、尚未被否决的状态，计入当天累计 */
-    private const ACTIVE_STATUSES = [
-        'pending', 'approved', 'ready_for_execution',
-        'to_be_allocated', 'to_be_executed', 'completed',
-    ];
+    /** 已被否决/取消的单据不占用主管的当日审批额度 */
+    private const VOID_STATUSES = ['rejected', 'cancelled'];
 
     public function __construct(PDO $db) {
         $this->db = $db;
@@ -28,30 +25,46 @@ class ApprovalService {
 
     /**
      * 计算用于匹配规则的金额。
-     * daily 档按「同一申请人当天未被拒绝的申请金额合计 + 本次金额」。
-     * 不回溯：已通过的历史申请不因当天后续累计突破档位而重审。
+     *
+     * daily 档的口径是「该部门主管当日已审批通过的金额合计 + 本次金额」——
+     * 即给主管设定每日审批权限额度，超出则本单必须升级到更高一级审批。
+     * 与申请人是谁无关：同一主管审的所有单据共同消耗这一额度。
+     *
+     * 只统计以「部门主管」身份做出的审批。同一个人若同时是管理员，
+     * 其在管理员会签节点上的审批属于另一层权限，不占用主管额度。
      */
     public function resolveMatchAmount(
-        int $projectId, ?int $submitterId, float $amount, string $scope, ?int $excludeId = null
+        int $projectId, ?int $managerId, float $amount, string $scope
     ): float {
-        if ($scope !== 'daily' || !$submitterId) {
+        if ($scope !== 'daily' || !$managerId) {
             return $amount;
         }
-        $place  = implode(',', array_fill(0, count(self::ACTIVE_STATUSES), '?'));
-        $params = array_merge([$projectId, $submitterId], self::ACTIVE_STATUSES);
+        $void  = implode(',', array_fill(0, count(self::VOID_STATUSES), '?'));
+        $today = "ap.acted_at >= date_trunc('day', CURRENT_TIMESTAMP)";
 
-        // 当前这条申请已先行落库，必须排除，否则本次金额被重复计入
-        $exclude = '';
-        if ($excludeId !== null) {
-            $exclude  = ' AND id <> ?';
-            $params[] = $excludeId;
-        }
-        $stmt = $this->db->prepare(
-            "SELECT COALESCE(SUM(amount), 0) FROM applications
-             WHERE project_id = ? AND submitter_id = ?
-               AND created_at >= date_trunc('day', CURRENT_TIMESTAMP)
-               AND status IN ($place)$exclude"
+        // 主管审批的申请单与内部划款单共同占用同一份当日额度
+        $sql = "
+            SELECT COALESCE(SUM(amt), 0) FROM (
+                SELECT a.amount AS amt
+                FROM application_approvals ap
+                JOIN applications a ON a.id = ap.application_id
+                WHERE ap.approver_id = ? AND ap.status = 'approved' AND $today
+                  AND ap.approver_type = 'applicant_dept_manager'
+                  AND a.project_id = ? AND a.status NOT IN ($void)
+                UNION ALL
+                SELECT t.amount AS amt
+                FROM application_approvals ap
+                JOIN transfers t ON t.id = ap.transfer_id
+                WHERE ap.approver_id = ? AND ap.status = 'approved' AND $today
+                  AND ap.approver_type = 'applicant_dept_manager'
+                  AND t.project_id = ? AND t.status NOT IN ($void)
+            ) x";
+
+        $params = array_merge(
+            [$managerId, $projectId], self::VOID_STATUSES,
+            [$managerId, $projectId], self::VOID_STATUSES
         );
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return round((float)$stmt->fetchColumn() + $amount, 2);
     }
@@ -94,11 +107,13 @@ class ApprovalService {
         string $targetCol, int $targetId, int $projectId,
         ?int $departmentId, ?int $submitterId, float $amount, ?string $applicationType
     ): array {
+        // 累计口径挂在部门主管身上，必须先解析出主管才能算额度
+        $managerId = $this->resolveDeptManager($departmentId, $projectId);
+
         // 先用单笔金额粗匹配拿到 scope，再按 scope 决定最终匹配金额
-        $probe = $this->matchRule($projectId, $amount, $applicationType);
-        $scope = $probe['amount_scope'] ?? 'daily';
-        $excludeId   = $targetCol === 'application_id' ? $targetId : null;
-        $matchAmount = $this->resolveMatchAmount($projectId, $submitterId, $amount, $scope, $excludeId);
+        $probe       = $this->matchRule($projectId, $amount, $applicationType);
+        $scope       = $probe['amount_scope'] ?? 'daily';
+        $matchAmount = $this->resolveMatchAmount($projectId, $managerId, $amount, $scope);
         $rule        = $this->matchRule($projectId, $matchAmount, $applicationType);
 
         if (!$rule) {
@@ -123,7 +138,7 @@ class ApprovalService {
             $candidateRole   = null;
 
             if ($node['approver_type'] === 'applicant_dept_manager') {
-                $candidateUserId = $this->resolveDeptManager($departmentId, $projectId);
+                $candidateUserId = $managerId;
             } else { // role
                 $candidateRole = $node['approver_role'];
                 $this->assertRoleHasMembers($candidateRole, (int)$node['required_count'], $projectId);

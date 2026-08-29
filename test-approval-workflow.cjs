@@ -63,13 +63,24 @@ async function run() {
     assert('主管审批通过', ok1.status === 200, `-> ${msg(ok1)}`);
     assert('状态转为待归帐', ok1.body?.data?.status === 'to_be_allocated', `实际 ${ok1.body?.data?.status}`);
 
-    // ---------- 2. 单天累计 ----------
-    console.log('\n[2] 单天累计：已有 50，再提 60 应跨入中额档');
+    // ---------- 2. 主管当日审批额度累计 ----------
+    // 关键语义：额度挂在「审批人」身上，不是申请人。
+    // 主管刚批过 50，其当日额度已用 50；下一单 60 使累计达 110，
+    // 即便换一个申请人提交，也必须升级到中额档需要管理员加签。
+    console.log('\n[2] 主管当日审批额度累计（与申请人无关）');
+
+    const preQuota = await mk(60, DEPT_FINANCE, ADMIN, '换人提交');
+    assert('换成 admin 提交 60 元申请', preQuota.status === 201, `-> ${msg(preQuota)}`);
+    const apQ = preQuota.body?.data?.approvals || [];
+    assert('主管已用额度50 + 本次60 = 110 → 升级为中额档 2 级',
+           apQ.length === 2, `实际 ${apQ.length} 级（若为1级说明仍按申请人累计）`);
+    assert('第2级为管理员', apQ[1]?.candidate_role === 'admin');
+
+    // 同一主管额度是共享的：再来一单同样受影响
     const a2 = await mk(60);
     assert('创建 60 元申请', a2.status === 201, `-> ${msg(a2)}`);
     const ap2 = a2.body?.data?.approvals || [];
-    assert('累计 110 → 匹配中额档，2 级', ap2.length === 2, `实际 ${ap2.length}（单笔60本应只需1级）`);
-    assert('第2级为管理员', ap2[1]?.candidate_role === 'admin');
+    assert('主管额度已超 → 仍为 2 级', ap2.length === 2, `实际 ${ap2.length}`);
 
     // ---------- 3. 串行分级 ----------
     console.log('\n[3] 串行：第一级未过时第二级不可审');
@@ -97,6 +108,21 @@ async function run() {
         const g2 = await request('PUT', `/api/applications/${id3}/status?projectId=${P}`, { status: 'approved' }, ADMIN2);
         assert('第2名管理员通过后完成', g2.body?.data?.status === 'to_be_allocated', `实际 ${g2.body?.data?.status}`);
     }
+
+    // ---------- 4b. 额度按主管隔离 ----------
+    console.log('\n[4b] 不同主管的额度互不影响');
+    const setMgr = await request('PUT', `/api/departments/${DEPT_MARKET}?projectId=${P}`,
+        { managerId: 2 }, ADMIN);   // 市场部主管设为 phpuser(id=2)
+    assert('任命市场部主管', setMgr.status === 200, `-> ${msg(setMgr)}`);
+
+    const otherDept = await mk(50, DEPT_MARKET, ADMIN, '市场部小额');
+    assert('市场部 50 元申请创建成功', otherDept.status === 201, `-> ${msg(otherDept)}`);
+    assert('新主管额度未被占用 → 仍是小额档 1 级',
+           (otherDept.body?.data?.approvals || []).length === 1,
+           `实际 ${(otherDept.body?.data?.approvals || []).length} 级`);
+
+    // 用完再恢复市场部无主管，供下一节验证阻断
+    await request('PUT', `/api/departments/${DEPT_MARKET}?projectId=${P}`, { managerId: null }, ADMIN);
 
     // ---------- 5. 无主管阻断 ----------
     console.log('\n[5] 部门未任命主管应阻断并提示');
