@@ -96,8 +96,14 @@ abstract class BaseRepository {
         return $result ?: null;
     }
 
+    /**
+     * 返回是否真的删到了行。
+     * 注意不能直接返回 execute() —— 它只表示 SQL 执行成功，
+     * 删除 0 行同样返回 true，会让调用方误报「删除成功」。
+     */
     public function delete(int $id): bool {
         $stmt = $this->db->prepare("DELETE FROM {$this->table} WHERE id = ?");
-        return $stmt->execute([$id]);
+        $stmt->execute([$id]);
+        return $stmt->rowCount() > 0;
     }
 }

@@ -178,7 +178,9 @@ try {
                         'CONFLICT', 409
                     );
                 }
-                $projectRepo->delete((int)$resourceId);
+                if (!$projectRepo->delete((int)$resourceId)) {
+                    Response::error('项目不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '项目删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -279,7 +281,11 @@ try {
                 $body['project_id'] = $projectId;
                 Response::success($configService->updateAccountType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteAccountType((int)$resourceId, $projectId);
+                // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
+                // 否则并发场景下另一人已删除时前端仍会显示成功
+                if (!$configService->deleteAccountType((int)$resourceId, $projectId)) {
+                    Response::error('账户类型不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -489,7 +495,11 @@ try {
                 $body['project_id'] = $projectId;
                 Response::success($configService->updateCurrencyType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteCurrencyType((int)$resourceId, $projectId);
+                // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
+                // 否则并发场景下另一人已删除时前端仍会显示成功
+                if (!$configService->deleteCurrencyType((int)$resourceId, $projectId)) {
+                    Response::error('币种不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -514,7 +524,11 @@ try {
                 $body['project_id'] = $projectId;
                 Response::success($configService->updateSubject((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteSubject((int)$resourceId, $projectId);
+                // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
+                // 否则并发场景下另一人已删除时前端仍会显示成功
+                if (!$configService->deleteSubject((int)$resourceId, $projectId)) {
+                    Response::error('科目不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -607,7 +621,11 @@ try {
                 $body['project_id'] = $projectId;
                 Response::success($configService->updateAssetType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteAssetType((int)$resourceId, $projectId);
+                // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
+                // 否则并发场景下另一人已删除时前端仍会显示成功
+                if (!$configService->deleteAssetType((int)$resourceId, $projectId)) {
+                    Response::error('资产类型不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -632,7 +650,11 @@ try {
                 if (array_key_exists('managerId', $body)) $body['manager_id'] = $body['managerId'];
                 Response::success($configService->updateDepartment((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $configService->deleteDepartment((int)$resourceId, $projectId);
+                // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
+                // 否则并发场景下另一人已删除时前端仍会显示成功
+                if (!$configService->deleteDepartment((int)$resourceId, $projectId)) {
+                    Response::error('部门不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -852,7 +874,9 @@ try {
                 if (!$userRepo->belongsToProject((int)$resourceId, $projectId)) {
                     Response::error('用户不属于当前项目，无权删除', 'FORBIDDEN', 403);
                 }
-                $userRepo->delete((int)$resourceId);
+                if (!$userRepo->delete((int)$resourceId)) {
+                    Response::error('用户不存在', 'NOT_FOUND', 404);
+                }
                 Response::success(null, '用户删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
