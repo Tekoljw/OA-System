@@ -34,7 +34,7 @@ import { zhCN } from "date-fns/locale";
 import { cn } from "../lib/utils";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
-import client from "../api/client";
+import { apiRequest } from "../api/client";
 
 interface DepreciationRecord {
   id: string;
@@ -86,6 +86,14 @@ interface Asset {
   depreciationRecords: DepreciationRecord[];
   deletionCountdown?: string; // 可选字段
 }
+
+/** 后端状态枚举 → 中文展示 */
+const ASSET_STATUS_LABELS: Record<string, string> = {
+  normal: '正常',
+  depreciating: '核销中',
+  written_off: '已核销',
+  disposed: '已处置',
+};
 
 interface DepreciationFormData {
   quantity: number;
@@ -142,19 +150,7 @@ const AssetRecordsContent: React.FC = () => {
       console.log('使用项目ID:', projectId);
       
       // 从API获取资产数据
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/assets?projectId=${projectId}`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`获取资产数据失败: ${response.status}`);
-      }
-
-      const result = await response.json();
+      const result = await apiRequest('GET', `/api/assets?projectId=${projectId}`);
 
       if (result && result.success) {
         // 获取资产数据
@@ -172,15 +168,15 @@ const AssetRecordsContent: React.FC = () => {
             unitPrice: item.unit_price ? item.unit_price.toString() : '0',
             amount: item.total_price ? item.total_price.toString() : '0',
             remainingValue: item.remaining_value ? item.remaining_value.toString() : '0',
-            type: item.type || '未知类型',
+            type: item.asset_type_name || '未分类',
             department: item.department || '未知部门',
             description: item.description || '',
-            submitter: item.submitter_id ? `用户${item.submitter_id}` : '系统',
-            approver: item.approver_id ? `用户${item.approver_id}` : '未知',
+            submitter: item.submitter_name || '系统',
+            approver: item.approver_name || '—',
             operationTime: item.submitted_at ? new Date(item.submitted_at).toLocaleDateString('zh-CN') : 
                          new Date().toLocaleDateString('zh-CN'),
-            status: item.status || '正常',
-            depreciationRecords: [] // 初始化为空数组
+            status: ASSET_STATUS_LABELS[item.status] || item.status || '正常',
+            depreciationRecords: item.depreciation_records || []
           }));
           
           console.log('格式化后的资产数据:', formattedAssets);
@@ -222,12 +218,10 @@ const AssetRecordsContent: React.FC = () => {
       // 使用client - 它会自动添加项目ID参数
       const url = `/api/assets/${selectedAsset.id}/depreciate`;
       
-      const response = await client.post(url, {
-        ...data,
-        approverId: 1, // 默认使用当前用户ID
-      });
+      // approverId 由后端取当前登录用户，前端不再伪造
+      const response = await apiRequest('POST', url, data);
 
-      if (response.data.success) {
+      if (response.success) {
         toast({
           title: "核销成功",
           description: "资产已成功核销",
@@ -236,7 +230,7 @@ const AssetRecordsContent: React.FC = () => {
         // 重新获取数据
         fetchAssets();
       } else {
-        throw new Error(response.data.message || '核销失败');
+        throw new Error(response.message || '核销失败');
       }
     } catch (err: any) {
       console.error('核销失败:', err);

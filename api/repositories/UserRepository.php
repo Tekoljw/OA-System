@@ -50,6 +50,47 @@ class UserRepository extends BaseRepository {
         return $stmt->execute([$hash, $userId]);
     }
 
+    /**
+     * 创建用户并加入指定项目。
+     * 密码在此统一 bcrypt 哈希，调用方不得传入明文以外的内容。
+     */
+    public function createWithProject(array $d, int $projectId): array {
+        $exists = $this->db->prepare("SELECT 1 FROM users WHERE username = ?");
+        $exists->execute([$d['username']]);
+        if ($exists->fetch()) {
+            throw new \InvalidArgumentException('用户名已存在');
+        }
+
+        $this->db->beginTransaction();
+        try {
+            $stmt = $this->db->prepare(
+                "INSERT INTO users (username, password, full_name, email, role, is_active)
+                 VALUES (?, ?, ?, ?, ?, ?)
+                 RETURNING id, username, full_name, email, role, is_active, created_at, updated_at"
+            );
+            $stmt->execute([
+                $d['username'],
+                password_hash($d['password'], PASSWORD_BCRYPT),
+                $d['full_name'] ?? '',
+                $d['email'] ?? '',
+                $d['role'] ?? 'user',
+                $d['is_active'] ?? true,
+            ]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            $this->db->prepare(
+                "INSERT INTO user_projects (user_id, project_id, role) VALUES (?, ?, ?)
+                 ON CONFLICT (user_id, project_id) DO NOTHING"
+            )->execute([(int)$user['id'], $projectId, $d['role'] === 'admin' ? 'admin' : 'member']);
+
+            $this->db->commit();
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+        return $user;
+    }
+
     /** 用户是否隶属于指定项目 */
     public function belongsToProject(int $userId, int $projectId): bool {
         $stmt = $this->db->prepare("SELECT 1 FROM user_projects WHERE user_id = ? AND project_id = ?");

@@ -91,7 +91,7 @@ if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
 $adminWriteEndpoints = [
     'accounts', 'account-types',
     'subjects', 'subject-types',
-    'asset-types', 'departments',
+    'asset-types', 'departments', 'assets', 'loans',
     'projects', 'shareholders', 'activity-logs', 'approval-rules',
 ];
 if ($currentUser
@@ -521,14 +521,73 @@ try {
             }
             break;
 
-        // ===== 资产记录（暂未实现，返回空数据） =====
+        // ===== 资产记录 =====
         case 'assets':
-            Response::success([], '资产记录功能开发中');
+            require_once __DIR__ . '/services/AssetService.php';
+            $assetService = new AssetService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+
+            if ($method === 'GET' && !$resourceId) {
+                Response::success($assetService->getAssets($projectId, $_GET), '获取资产列表成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                Response::success($assetService->getAsset((int)$resourceId, $projectId), '获取资产详情成功');
+            } elseif ($method === 'POST' && $resourceId && $subEndpoint === 'depreciate') {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success(
+                    $assetService->depreciate((int)$resourceId, $projectId, $body, $currentUser),
+                    '核销成功'
+                );
+            } elseif ($method === 'POST' && !$resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id']    = $projectId;
+                $body['submitter_id']  = $currentUser['id'];
+                $body['asset_type_id'] = $body['assetTypeId']  ?? $body['asset_type_id']  ?? null;
+                $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
+                $body['unit_price']    = $body['unitPrice']    ?? $body['unit_price']    ?? 0;
+                $body['currency_type'] = $body['currencyType'] ?? $body['currency_type'] ?? 'CNY';
+                Response::success($assetService->create($body), '资产创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                if (isset($body['unitPrice']))    $body['unit_price']    = $body['unitPrice'];
+                if (isset($body['assetTypeId']))  $body['asset_type_id'] = $body['assetTypeId'];
+                if (isset($body['departmentId'])) $body['department_id'] = $body['departmentId'];
+                Response::success($assetService->update((int)$resourceId, $body, $projectId, $currentUser), '资产更新成功');
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $assetService->delete((int)$resourceId, $projectId, $currentUser);
+                Response::success(null, '资产删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
             break;
 
-        // ===== 借贷记录（暂未实现，返回空数据） =====
+        // ===== 借贷记录 =====
         case 'loans':
-            Response::success(['loans' => [], 'total' => 0], '借贷记录功能开发中');
+            require_once __DIR__ . '/services/LoanService.php';
+            $loanService = new LoanService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+
+            if ($method === 'GET' && !$resourceId) {
+                Response::success($loanService->getLoans($projectId, $_GET), '获取借贷记录成功');
+            } elseif ($method === 'GET' && $resourceId) {
+                Response::success($loanService->getLoan((int)$resourceId, $projectId), '获取借贷详情成功');
+            } elseif ($method === 'POST' && $resourceId && $subEndpoint === 'settle') {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($loanService->settle((int)$resourceId, $projectId, $body, $currentUser), '结算成功');
+            } elseif ($method === 'POST' && !$resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                $body['project_id']     = $projectId;
+                $body['submitter_id']   = $currentUser['id'];
+                $body['department_id']  = $body['departmentId']   ?? $body['department_id']  ?? null;
+                $body['repayment_date'] = $body['repaymentDate']  ?? $body['repayment_date'] ?? null;
+                Response::success($loanService->create($body), '借贷记录创建成功', 201);
+            } elseif ($method === 'DELETE' && $resourceId) {
+                $loanService->delete((int)$resourceId, $projectId, $currentUser);
+                Response::success(null, '删除成功');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
             break;
 
         case 'asset-types':
@@ -733,6 +792,30 @@ try {
             } elseif ($method === 'GET' && $resourceId) {
                 $user = $userRepo->findByIdSafe((int)$resourceId);
                 $user ? Response::success($user) : Response::error('用户不存在', 'NOT_FOUND', 404);
+            } elseif ($method === 'POST' && !$resourceId) {
+                // 内部系统不开放自助注册，用户由管理员在此创建
+                if (($currentUser['role'] ?? '') !== 'admin') {
+                    Response::error('权限不足，仅管理员可创建用户', 'FORBIDDEN', 403);
+                }
+                $body = JsonMiddleware::getRequestBody();
+                if (empty($body['username']) || empty($body['password'])) {
+                    Response::error('用户名和密码不能为空', 'VALIDATION_ERROR');
+                }
+                if (strlen($body['password']) < 6) {
+                    Response::error('密码长度不能少于6位', 'VALIDATION_ERROR');
+                }
+                if (!in_array($body['role'] ?? 'user', ['admin', 'user'], true)) {
+                    Response::error('角色无效', 'VALIDATION_ERROR');
+                }
+                $newUser = $userRepo->createWithProject([
+                    'username'  => $body['username'],
+                    'password'  => $body['password'],
+                    'full_name' => $body['fullName'] ?? $body['full_name'] ?? '',
+                    'email'     => $body['email'] ?? '',
+                    'role'      => $body['role'] ?? 'user',
+                    'is_active' => ($body['status'] ?? 'active') === 'active',
+                ], $projectId);
+                Response::success($newUser, '用户创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 // 仅管理员或本人可修改用户信息
                 if (($currentUser['role'] ?? '') !== 'admin' && (int)$resourceId !== (int)$currentUser['id']) {
