@@ -19,8 +19,10 @@ function resetFixtures() {
         execFileSync('docker', ['compose', 'exec', '-T', 'postgres',
             'psql', '-U', 'postgres', '-d', 'oa_system', '-c',
             `DELETE FROM transactions WHERE shareholder_id IN
-               (SELECT id FROM shareholders WHERE project_id = 1 AND name LIKE '多角色股东%');
-             DELETE FROM shareholders WHERE project_id = 1 AND name LIKE '多角色股东%';`
+               (SELECT id FROM shareholders WHERE project_id = 1
+                AND (name LIKE '多角色股东%' OR name LIKE 'FT%' OR name LIKE 'ED%' OR name LIKE 'SH探测%'));
+             DELETE FROM shareholders WHERE project_id = 1
+                AND (name LIKE '多角色股东%' OR name LIKE 'FT%' OR name LIKE 'ED%' OR name LIKE 'SH探测%');`
         ], { stdio: 'pipe' });
         console.log('  🧹 已清理上轮遗留的测试股东');
     } catch (e) {

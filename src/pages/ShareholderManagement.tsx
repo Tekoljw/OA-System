@@ -77,8 +77,10 @@ function ShareholderFormDialog({
     }
   }, [shareholder, open]);
 
+  // share_ratio 可能以字符串形式到达（PG numeric），不加 Number() 会变成字符串拼接，
+  // 后面的 maxRatio.toFixed() 便抛 TypeError，导致编辑弹窗直接打不开
   const maxRatio = shareholder
-    ? 100 - currentRatioSum + shareholder.share_ratio
+    ? 100 - currentRatioSum + Number(shareholder.share_ratio)
     : 100 - currentRatioSum;
 
   const handleSubmit = async () => {
@@ -463,7 +465,7 @@ export default function ShareholderManagement() {
                       {contributionData.shareholders.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell className="font-medium">{row.name}</TableCell>
-                          <TableCell className="text-right">{row.share_ratio.toFixed(2)}%</TableCell>
+                          <TableCell className="text-right">{Number(row.share_ratio).toFixed(2)}%</TableCell>
                           <TableCell className="text-right">¥{fmt(row.expected_contribution)}</TableCell>
                           <TableCell className="text-right">¥{fmt(row.total_contribution)}</TableCell>
                           <TableCell className={`text-right font-medium ${row.difference > 0 ? 'text-green-600' : row.difference < 0 ? 'text-red-600' : ''}`}>
@@ -539,7 +541,7 @@ export default function ShareholderManagement() {
                         {dividendData.shareholders.map((row: DividendRow) => (
                           <TableRow key={row.id}>
                             <TableCell className="font-medium">{row.name}</TableCell>
-                            <TableCell className="text-right">{row.share_ratio.toFixed(2)}%</TableCell>
+                            <TableCell className="text-right">{Number(row.share_ratio).toFixed(2)}%</TableCell>
                             <TableCell className="text-right">¥{fmt(row.entitled_dividend)}</TableCell>
                             <TableCell className="text-right">¥{fmt(row.total_dividend)}</TableCell>
                             <TableCell className={`text-right font-medium ${row.remaining_dividend > 0 ? 'text-green-600' : row.remaining_dividend < 0 ? 'text-red-600' : ''}`}>

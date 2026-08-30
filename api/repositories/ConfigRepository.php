@@ -28,8 +28,23 @@ class ConfigRepository extends BaseRepository {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * 部门列表附带主管姓名与成员数。
+     * 此前只返回 manager_id，前端无从显示主管是谁，界面一律写死「未指定」——
+     * 而审批流要求部门必须有主管，用户看不出哪个部门缺主管，只能在提交申请时踩坑。
+     */
     public function getDepartments(int $projectId): array {
-        $stmt = $this->db->prepare("SELECT * FROM departments WHERE project_id = ? ORDER BY id");
+        $stmt = $this->db->prepare(
+            "SELECT d.*,
+                    u.full_name AS manager_name,
+                    u.username  AS manager_username,
+                    (SELECT COUNT(*) FROM users mu
+                     JOIN user_projects up ON up.user_id = mu.id
+                     WHERE up.project_id = d.project_id) AS member_count
+             FROM departments d
+             LEFT JOIN users u ON u.id = d.manager_id
+             WHERE d.project_id = ? ORDER BY d.id"
+        );
         $stmt->execute([$projectId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }

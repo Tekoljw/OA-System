@@ -119,8 +119,10 @@ const DepartmentList = () => {
           id: dept.id,
           name: dept.name,
           code: dept.code || '',
-          manager: '未指定',
-          memberCount: 0,
+          // 此前写死「未指定」，主管信息完全无法呈现
+          manager: dept.manager_name || dept.manager_username || '未指定',
+          managerId: dept.manager_id ?? null,
+          memberCount: Number(dept.member_count) || 0,
           members: []
         }));
         setDepartments(formattedDepartments);

@@ -13,8 +13,21 @@ class ShareholderService {
     /**
      * 获取项目股东列表
      */
+    /**
+     * share_ratio 在 PG 中是 numeric，PDO 取出来是字符串（"10.00"）。
+     * 前端把它当数字参与运算，`100 - sum + share_ratio` 会退化成字符串拼接，
+     * 后续 .toFixed() 直接抛 TypeError —— 股东编辑弹窗曾因此完全打不开。
+     * 统一在服务层转成数字，调用方不必各自记得 Number()。
+     */
+    private function normalize(array $row): array {
+        if (isset($row['share_ratio'])) {
+            $row['share_ratio'] = (float)$row['share_ratio'];
+        }
+        return $row;
+    }
+
     public function getShareholders(int $projectId): array {
-        return $this->repo->findByProject($projectId);
+        return array_map([$this, 'normalize'], $this->repo->findByProject($projectId));
     }
 
     /**
@@ -39,7 +52,7 @@ class ShareholderService {
             );
         }
 
-        return $this->repo->create($data);
+        return $this->normalize($this->repo->create($data));
     }
 
     /**
@@ -65,7 +78,7 @@ class ShareholderService {
             }
         }
 
-        return $this->repo->update($id, $data);
+        return $this->normalize($this->repo->update($id, $data));
     }
 
     /**
