@@ -53,7 +53,7 @@ async function run() {
     console.log('\n[1] 交易 status 字段白名单');
 
     // 先创建测试账户
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R18状态测试', account_type: '活期账户', currency_type: 'CNY'
     });
     assert('创建测试账户', acct.status === 201);

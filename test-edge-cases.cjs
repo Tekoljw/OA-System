@@ -2,7 +2,8 @@
  * 业务逻辑边界测试 — 查找隐藏的 Bug
  */
 const fs = require('fs');
-const API = 'https://oa.starway.sg/api';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
+const API = `${BASE_URL}/api`;
 
 const results = [];
 const bugs = [];
@@ -20,7 +21,7 @@ async function api(token, method, path, body = null) {
 }
 
 async function getBalance(token, pId, accId) {
-  const r = await api(token, 'GET', `/accounts?projectId=${pId}`);
+  const r = await api(token, 'GET', `/accounts?projectId=${pId}&limit=500`);
   const a = (r.data || []).find(x => x.id == accId);
   return a ? parseFloat(a.balance) : null;
 }
@@ -43,7 +44,7 @@ async function getBalance(token, pId, accId) {
   console.log('--- 1. 余额透支测试 ---\n');
 
   // 创建一个小余额账户
-  const smallAcc = await api(token, 'POST', `/accounts?projectId=${pId}`, {
+  const smallAcc = await api(token, 'POST', `/accounts?projectId=${pId}&limit=500`, {
     name: '透支测试户', account_type: '活期', currency_type: 'CNY',
     account_number: 'EDGE-001', initial_balance: 100, balance: 100
   });
@@ -163,7 +164,7 @@ async function getBalance(token, pId, accId) {
   console.log('\n--- 5. 删除有交易的账户 ---\n');
 
   // 创建账户 → 创建交易 → 删除账户
-  const tmpAcc = await api(token, 'POST', `/accounts?projectId=${pId}`, {
+  const tmpAcc = await api(token, 'POST', `/accounts?projectId=${pId}&limit=500`, {
     name: '关联删除测试', account_type: '活期', currency_type: 'CNY', account_number: 'EDGE-DEL'
   });
   const tmpAccId = tmpAcc.data?.id;

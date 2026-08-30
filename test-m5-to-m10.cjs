@@ -4,7 +4,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const fs = require('fs');
 
-const BASE_URL = 'https://oa.starway.sg';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
 const API = `${BASE_URL}/api`;
 const SHOT_BASE = '/home/ubuntu/OA-System/test-screenshots';
 
@@ -25,7 +25,7 @@ async function api(token, method, path, body = null) {
 }
 
 async function getBalance(token, pId, accId) {
-  const r = await api(token, 'GET', `/accounts?projectId=${pId}`);
+  const r = await api(token, 'GET', `/accounts?projectId=${pId}&limit=500`);
   const a = (r.data || []).find(x => x.id == accId);
   return a ? parseFloat(a.balance) : null;
 }
@@ -84,7 +84,7 @@ async function getBalance(token, pId, accId) {
 
   // M5-05 ⭐ 账户摘要交叉验证
   const dashResp = await api(token, 'GET', `/dashboard?projectId=${pId}`);
-  const accResp = await api(token, 'GET', `/accounts?projectId=${pId}`);
+  const accResp = await api(token, 'GET', `/accounts?projectId=${pId}&limit=500`);
   if (dashResp.success && dashResp.data?.accountSummary && accResp.data) {
     const dashSummary = dashResp.data.accountSummary;
     // 按币种汇总实际账户余额
@@ -301,7 +301,7 @@ async function getBalance(token, pId, accId) {
   R('M8-01', '查询活动日志', logs.success, `${logItems.length}条日志`);
 
   // M8-02 ⭐ 创建账户自动记日志
-  const testAcc = await api(token, 'POST', `/accounts?projectId=${pId}`, {
+  const testAcc = await api(token, 'POST', `/accounts?projectId=${pId}&limit=500`, {
     name: 'M8日志测试户', account_type: '活期', currency_type: 'CNY', account_number: 'M8-LOG'
   });
   const logsAfterAcc = await api(token, 'GET', `/activity-logs?projectId=${pId}`);
@@ -423,13 +423,23 @@ async function getBalance(token, pId, accId) {
   await page.screenshot({ path: `${m10Dir}/M10-01.png` });
 
   // M10-02 导航跳转正确
+  // 「出入金」「划款」位于折叠的二级菜单（父项「流水管理」）下，
+  // 未展开时并不存在 <a>，此前直接找链接恒为 0，需先点开父菜单。
   const navRoutes = [
-    { text: '出入金', path: 'external-transactions' },
-    { text: '划款', path: 'internal-transactions' },
+    { parent: '流水管理', text: '出入金', path: 'transactions/external' },
+    { parent: '流水管理', text: '划款',   path: 'transactions/internal' },
   ];
   let navPassCount = 0;
   for (const route of navRoutes) {
-    const link = page.locator(`nav a:has-text("${route.text}"), aside a:has-text("${route.text}"), [class*="sidebar"] a:has-text("${route.text}")`).first();
+    await page.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+
+    const parent = page.locator('aside button, nav button').filter({ hasText: route.parent }).first();
+    if (await parent.count() > 0) {
+      await parent.click();
+      await page.waitForTimeout(700);
+    }
+    const link = page.locator('aside a, nav a').filter({ hasText: route.text }).first();
     if (await link.count() > 0) {
       await link.click();
       await page.waitForTimeout(1500);

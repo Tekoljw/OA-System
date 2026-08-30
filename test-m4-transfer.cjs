@@ -2,7 +2,11 @@
  * M4 内部划款测试（12 项）
  */
 const fs = require('fs');
-const API = 'https://oa.starway.sg/api';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
+const API = `${BASE_URL}/api`;
+// 每轮唯一标记：断言「恰好 2 条」必须只统计本轮产生的记录，
+// 否则历史数据累积后第二次运行必然失败
+const M4_TAG = `M4同币种划款测试-${Date.now().toString().slice(-6)}`;
 const SHOT_DIR = '/home/ubuntu/OA-System/test-screenshots/m4';
 
 const results = [];
@@ -18,10 +22,38 @@ async function api(token, method, path, body = null) {
   return { httpStatus: r.status, ...(await r.json()) };
 }
 
+// 账户列表按 id 倒序分页，默认只返回 50 条。此前不带 limit 直接 find，
+// 账户一多，早期 id 就落在第一页之外，getBalance 恒为 null，
+// 余额相关断言全部失效（看起来像产品 bug，其实是取不到数据）。
 async function getBalance(token, projectId, accountId) {
-  const r = await api(token, 'GET', `/accounts?projectId=${projectId}`);
+  const r = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=200`);
   const acc = (r.data || []).find(a => a.id == accountId);
   return acc ? parseFloat(acc.balance) : null;
+}
+
+/**
+ * 动态挑两个同币种账户，并把转出账户的余额备足。
+ * 此前硬编码 id=1/2，且默认库里恰好有钱；账户数据一变测试就整片失败，
+ * 报「余额不足」看起来像产品缺陷，实则是用例没有自己准备前置数据。
+ */
+async function pickTwoAccounts(token, projectId) {
+  const r = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=200`);
+  const list = (r.data || []).filter(a => a.currency_type === 'CNY');
+  if (list.length < 2) throw new Error('可用的 CNY 账户少于 2 个，无法测试划款');
+  const [a, b] = [list[0].id, list[1].id];
+
+  // 备足转出账户余额：本组用例最大一笔需 10050
+  const need = 50000;
+  const cur = await getBalance(token, projectId, a);
+  if (cur < need) {
+    const subj = await api(token, 'GET', `/subjects?projectId=${projectId}&type=income`);
+    const subjectId = (subj.data || [])[0]?.id;
+    await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+      type: 'income', amount: need - cur, account_id: a, subject_id: subjectId,
+      description: 'M4测试备款',
+    });
+  }
+  return [a, b];
 }
 
 (async () => {
@@ -39,8 +71,7 @@ async function getBalance(token, projectId, accountId) {
   const token = loginResp.data.token;
   const projectId = loginResp.data.currentProject?.id || 1;
 
-  const accA = 1; // 转出账户
-  const accB = 2; // 转入账户
+  const [accA, accB] = await pickTwoAccounts(token, projectId); // 动态选取，不再硬编码
 
   // ---- M4.1 划款功能 ----
 
@@ -55,7 +86,7 @@ async function getBalance(token, projectId, accountId) {
   console.log(`  📊 划款前: A#${accA}=${balA_before}, B#${accB}=${balB_before}`);
 
   const transferResp = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
-    type: 'transfer', amount: 6000, description: 'M4同币种划款测试',
+    type: 'transfer', amount: 6000, description: M4_TAG,
     account_id: accA, target_account_id: accB
   });
   R('M4-02', 'API同币种划款', transferResp.success,
@@ -140,9 +171,11 @@ async function getBalance(token, projectId, accountId) {
 
   // M4-12 ⭐ 划款事务一致性
   const allTx = await api(token, 'GET', `/transactions?projectId=${projectId}&limit=100`);
-  const m4Txs = (allTx.data || []).filter(t => t.description === 'M4同币种划款测试');
-  R('M4-12', '⭐划款生成两条记录', m4Txs.length === 2,
-    `找到${m4Txs.length}条M4划款记录, 账户IDs=[${m4Txs.map(t => t.account_id).join(',')}]`);
+  const m4Txs = (allTx.data || []).filter(t => t.description === M4_TAG);
+  // 一笔划款应生成转出/转入各一条，且落在两个不同账户上
+  const accIds = m4Txs.map(t => t.account_id);
+  R('M4-12', '⭐划款生成两条记录', m4Txs.length === 2 && new Set(accIds).size === 2,
+    `找到${m4Txs.length}条本轮划款记录, 账户IDs=[${accIds.join(',')}]`);
 
   // 回退测试数据（反向划款）
   // M4-02: 6000, M4-05: 10000+50fee, M4-06: 7000 => A净减 23050, B净增 17000

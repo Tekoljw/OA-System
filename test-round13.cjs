@@ -82,7 +82,7 @@ async function run() {
     const badPeriod = await request('GET', `/api/transaction-summary?projectId=${PROJECT_ID}&period=week`);
     assert('无效period被拒', !badPeriod.body.success);
 
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R13测试', account_type: '活期账户', currency_type: 'CNY', balance: 500
     });
     assert('创建账户', acct.body.success);

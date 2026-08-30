@@ -8,6 +8,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const http = require('http');
 const { execFileSync } = require('child_process');
+const { resetShareholders } = require('./test-helpers.cjs');
 
 const BASE = 'http://localhost:8000';
 const TAG = 'FT' + Date.now().toString().slice(-6);   // 本轮唯一前缀，便于断言与清理
@@ -32,6 +33,7 @@ function api(method, path, token, body = null) {
 
 /** 清理历次遗留，并腾出股东比例以便测试「添加股东」 */
 function resetFixtures() {
+    resetShareholders();
     // 按外键依赖顺序删除：先删引用方（交易），再删被引用方（账户/股东）。
     // 此前把删账户放在最前面，撞 transactions_account_id_fkey 直接中止，
     // 后面的股东清理从未执行，导致比例被占满、后续用例连环失败。

@@ -82,7 +82,7 @@ async function run() {
     const patchAcct = await request('PATCH', `/api/account-types?projectId=${PROJECT_ID}`);
     assert('PATCH 405', patchAcct.status === 405);
 
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R11测试', account_type: '活期账户', currency_type: 'CNY', balance: 300
     });
     assert('创建账户', acct.body.success);

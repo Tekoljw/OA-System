@@ -49,13 +49,13 @@ async function run() {
     assert('登录成功', login.status === 200 && TOKEN);
 
     // 创建测试账户
-    const acct1 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct1 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R19测试账户A', account_type: '活期账户', currency_type: 'CNY'
     });
     assert('创建测试账户A', acct1.status === 201);
     const acctId1 = acct1.body?.data?.id;
 
-    const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R19测试账户B', account_type: '活期账户', currency_type: 'CNY'
     });
     assert('创建测试账户B', acct2.status === 201);

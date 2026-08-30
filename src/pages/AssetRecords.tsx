@@ -1,4 +1,8 @@
 import React, { useState, useEffect } from "react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import PageLayout from "../components/layout/PageLayout";
 import LoadMoreButton from "../components/common/LoadMoreButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
@@ -106,6 +110,7 @@ const AssetRecordsContent: React.FC = () => {
   const [activeTab, setActiveTab] = useState("all");
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [isDepreciationDialogOpen, setIsDepreciationDialogOpen] = useState(false);
+  const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -209,6 +214,22 @@ const AssetRecordsContent: React.FC = () => {
   const handleDepreciation = (asset: Asset) => {
     setSelectedAsset(asset);
     setIsDepreciationDialogOpen(true);
+  };
+
+  // 此前两处删除按钮都只是 console.log，点了毫无反应。
+  // 资产属于财务数据，删除必须二次确认后再真正调用接口。
+  const confirmDeleteAsset = async () => {
+    if (!deletingAsset) return;
+    try {
+      const res = await apiRequest('DELETE', `/api/assets/${deletingAsset.id}`);
+      if (!res?.success) throw new Error(res?.message || '删除失败');
+      toast({ title: "删除成功", description: `资产「${deletingAsset.name}」已删除` });
+      fetchAssets();
+    } catch (err: any) {
+      toast({ title: "删除失败", description: err?.message || '请稍后重试', variant: "destructive" });
+    } finally {
+      setDeletingAsset(null);
+    }
   };
 
   const onSubmitDepreciation = async (data: DepreciationFormData) => {
@@ -375,7 +396,7 @@ const AssetRecordsContent: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => console.log('删除', asset.id)}
+            onClick={() => setDeletingAsset(asset)}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             删除
@@ -553,7 +574,7 @@ const AssetRecordsContent: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => console.log('删除资产:', asset.id)}
+                              onClick={() => setDeletingAsset(asset)}
                             >
                               删除
                             </Button>
@@ -690,6 +711,21 @@ const AssetRecordsContent: React.FC = () => {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={deletingAsset !== null} onOpenChange={o => !o && setDeletingAsset(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>确认删除资产？</AlertDialogTitle>
+            <AlertDialogDescription>
+              将删除资产「{deletingAsset?.name}」及其全部核销记录，此操作不可撤销。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDeleteAsset}>删除</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

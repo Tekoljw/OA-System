@@ -57,10 +57,10 @@ async function run() {
     // --- 测试2: 账户分页过滤 ---
     console.log('\n[2] AccountService 分页过滤修复');
     // 先创建两个不同币种的账户用于测试
-    const acct1 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct1 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: '测试CNY账户-R6', account_type: '活期账户', currency_type: 'CNY'
     });
-    const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: '测试USD账户-R6', account_type: '活期账户', currency_type: 'USD'
     });
     assert('创建CNY账户', acct1.body.success);
@@ -119,7 +119,7 @@ async function run() {
     // --- 测试4: 交易余额校验（bcmath + SELECT FOR UPDATE） ---
     console.log('\n[4] 交易余额校验（精度+并发安全）');
     // 创建一个有初始余额的账户
-    const testAcct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const testAcct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: '精度测试账户-R6', account_type: '活期账户', currency_type: 'CNY',
         initial_balance: 100.10, balance: 100.10
     });

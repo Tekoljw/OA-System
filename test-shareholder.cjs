@@ -4,6 +4,27 @@
 const http = require('http');
 
 const BASE = 'http://localhost:8000';
+const { execFileSync } = require('child_process');
+const { resetShareholders } = require('./test-helpers.cjs');
+
+/** 自清理：股份比例上限 100%，不清理则被其他用例的股东占满，创建必然失败 */
+function resetFixtures() {
+    resetShareholders();
+    try {
+        execFileSync('docker', ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'postgres',
+            '-d', 'oa_system', '-v', 'ON_ERROR_STOP=1', '-c',
+            `DELETE FROM transactions WHERE shareholder_id IN
+                 (SELECT id FROM shareholders WHERE project_id=1
+                  AND (name LIKE '测试股东%' OR name LIKE '多角色股东%' OR name LIKE 'FT%' OR name LIKE 'ED%'));
+             DELETE FROM shareholders WHERE project_id=1
+                 AND (name LIKE '测试股东%' OR name LIKE '多角色股东%' OR name LIKE 'FT%' OR name LIKE 'ED%');`
+        ], { stdio: 'pipe' });
+        console.log('  🧹 已清理测试股东');
+    } catch (e) {
+        const d = e.stderr ? e.stderr.toString() : e.message;
+        console.log('  ⚠️ 清理失败:\n' + d.split('\n').filter(l => /ERROR|DETAIL/.test(l)).join('\n'));
+    }
+}
 let TOKEN = '';
 let PROJECT_ID = 0;
 let passed = 0, failed = 0;
@@ -37,6 +58,7 @@ function request(method, path, body = null) {
 }
 
 async function run() {
+    resetFixtures();
     // 登录
     const login = await request('POST', '/api/login', { username: 'admin', password: 'admin123' });
     TOKEN = login.body.data.token;
@@ -88,7 +110,7 @@ async function run() {
     console.log('\n[2] 股东入资交易');
 
     // 创建测试账户
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: '股东测试账户', account_type: '活期账户', currency_type: 'CNY'
     });
     const acctId = acct.body?.data?.id;

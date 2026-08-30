@@ -4,7 +4,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const fs = require('fs');
 
-const BASE_URL = 'https://oa.starway.sg';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
 const API = `${BASE_URL}/api`;
 const SHOT_DIR = '/home/ubuntu/OA-System/test-screenshots/m3';
 
@@ -45,12 +45,17 @@ async function api(token, method, path, body = null) {
   const subResp = await api(token, 'GET', `/subjects?projectId=${projectId}`);
   const incomeSub = (subResp.data || []).find(s => s.type === 'income');
   const expenseSub = (subResp.data || []).find(s => s.type === 'expense');
-  const testAccountId = 1; // 使用已有账户
+  // 动态选一个 CNY 账户：硬编码 id=1 在账户数增长后会落到分页之外，
+  // 余额读不到便恒为 0，M3-08/09 的余额断言全部失真
+  const accListInit = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
+  const cnyAcc = (accListInit.data || []).find(a => a.currency_type === 'CNY');
+  if (!cnyAcc) throw new Error('项目下没有 CNY 账户，无法测试交易');
+  const testAccountId = cnyAcc.id;
 
   // ---- M3.1 交易列表 ----
 
   // M3-01 页面加载
-  await page.goto(`${BASE_URL}/external-transactions`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE_URL}/transactions/external`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(2500);
   const bodyText = await page.innerText('body');
   R('M3-01', '页面加载', bodyText.includes('收入') || bodyText.includes('支出') || bodyText.includes('出入金') || bodyText.includes('交易'),
@@ -77,7 +82,7 @@ async function api(token, method, path, body = null) {
   // ---- M3.2 创建交易 ----
 
   // 获取交易前余额
-  const beforeResp = await api(token, 'GET', `/accounts?projectId=${projectId}`);
+  const beforeResp = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
   const accBefore = (beforeResp.data || []).find(a => a.id == testAccountId);
   const balBefore = parseFloat(accBefore?.balance || 0);
   console.log(`  📊 账户#${testAccountId} 交易前余额: ${balBefore}`);
@@ -97,7 +102,7 @@ async function api(token, method, path, body = null) {
   R('M3-07', 'API创建支出', expResp.success, expResp.success ? `ID=${expResp.data?.id}` : expResp.error?.message);
 
   // M3-08 ⭐ 收入后余额增加
-  const afterInc = await api(token, 'GET', `/accounts?projectId=${projectId}`);
+  const afterInc = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
   const accAfterInc = (afterInc.data || []).find(a => a.id == testAccountId);
   const balAfterAll = parseFloat(accAfterInc?.balance || 0);
   // 收入+8000 支出-3000 => 净变化 +5000
@@ -110,10 +115,16 @@ async function api(token, method, path, body = null) {
     `收入后期望=${balBefore + 8000}, 实际=${balAfterAll}(减了3000支出)`);
 
   // M3-10 交易出现在列表中
-  const txList = await api(token, 'GET', `/transactions?projectId=${projectId}&limit=5`);
-  const txItems = txList.data || [];
-  const found = txItems.some(t => t.description === 'M3测试收入' || t.description === 'M3测试支出');
-  R('M3-10', '交易出现在列表', found, `列表含${txItems.length}条, 找到测试交易=${found}`);
+  // 接口 limit 硬上限 200，交易总量早已超出，单页取不到本轮记录；需翻页查找
+  let found = false, scanned = 0;
+  for (let pg = 1; pg <= 20 && !found; pg++) {
+    const r = await api(token, 'GET', `/transactions?projectId=${projectId}&limit=200&page=${pg}`);
+    const batch = r.data || [];
+    scanned += batch.length;
+    found = batch.some(t => t.description === 'M3测试收入' || t.description === 'M3测试支出');
+    if (batch.length < 200) break;
+  }
+  R('M3-10', '交易出现在列表', found, `扫描${scanned}条, 找到测试交易=${found}`);
 
   // ---- M3.3 验证规则 ----
 

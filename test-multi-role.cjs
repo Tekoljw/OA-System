@@ -9,12 +9,14 @@
  */
 const http = require('http');
 const { execFileSync } = require('child_process');
+const { resetShareholders } = require('./test-helpers.cjs');
 
 /**
  * 测试自清理：本套用例会在项目1留下股东与交易，且「有交易的股东不可删除」是
  * 刻意的业务约束，无法用 API 清理。不清理则下一轮因比例占满 100% 必然失败。
  */
 function resetFixtures() {
+    resetShareholders();
     try {
         execFileSync('docker', ['compose', 'exec', '-T', 'postgres',
             'psql', '-U', 'postgres', '-d', 'oa_system', '-c',
@@ -200,10 +202,10 @@ async function run() {
     assert('股东入资科目存在', !!incomeSubject);
 
     // 获取/创建账户
-    const accounts = await request('GET', `/api/accounts?projectId=${PROJECT_A}`, null, ADMIN_TOKEN);
+    const accounts = await request('GET', `/api/accounts?projectId=${PROJECT_A}&limit=500`, null, ADMIN_TOKEN);
     let acctId = (accounts.body?.data || [])[0]?.id;
     if (!acctId) {
-        const newAcct = await request('POST', `/api/accounts?projectId=${PROJECT_A}`, {
+        const newAcct = await request('POST', `/api/accounts?projectId=${PROJECT_A}&limit=500`, {
             name: '多角色测试账户', account_type: '活期账户', currency_type: 'CNY'
         }, ADMIN_TOKEN);
         acctId = newAcct.body?.data?.id;

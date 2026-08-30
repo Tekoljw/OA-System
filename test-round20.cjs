@@ -7,6 +7,22 @@
 const http = require('http');
 
 const BASE = 'http://localhost:8000';
+const { execFileSync } = require('child_process');
+
+/** 自清理：本用例用固定 code 创建科目，不清理则第二次运行必然撞唯一约束 */
+function resetFixtures() {
+    try {
+        execFileSync('docker', ['compose', 'exec', '-T', 'postgres', 'psql', '-U', 'postgres',
+            '-d', 'oa_system', '-v', 'ON_ERROR_STOP=1', '-c',
+            `DELETE FROM transactions WHERE subject_id IN
+                 (SELECT id FROM subjects WHERE project_id=1 AND code IN ('R20INC','R20EXP'));
+             DELETE FROM subjects WHERE project_id=1 AND code IN ('R20INC','R20EXP');`
+        ], { stdio: 'pipe' });
+    } catch (e) {
+        const d = e.stderr ? e.stderr.toString() : e.message;
+        console.log('  ⚠️ 清理失败:\n' + d.split('\n').filter(l => /ERROR|DETAIL/.test(l)).join('\n'));
+    }
+}
 let TOKEN = '';
 let PROJECT_ID = 0;
 let passed = 0, failed = 0;
@@ -42,13 +58,14 @@ function request(method, path, body = null, extraHeaders = {}) {
 }
 
 async function run() {
+    resetFixtures();
     const login = await request('POST', '/api/login', { username: 'admin', password: 'admin123' });
     TOKEN = login.body.data.token;
     PROJECT_ID = login.body.data.projectId;
     assert('登录成功', login.status === 200 && TOKEN);
 
     // 创建测试账户
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R20测试账户', account_type: '活期账户', currency_type: 'CNY'
     });
     assert('创建测试账户', acct.status === 201);

@@ -88,7 +88,7 @@ async function run() {
     assert('审计日志无projectId被拒', !logNoP.body.success);
 
     // 交易完整流程
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R10测试', account_type: '活期账户', currency_type: 'CNY', balance: 200
     });
     assert('创建账户', acct.body.success);

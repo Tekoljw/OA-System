@@ -85,7 +85,7 @@ async function run() {
 
     // --- 测试5: 正常业务流程 ---
     console.log('\n[5] 正常业务流程完整性');
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R8测试账户', account_type: '活期账户', currency_type: 'CNY', balance: 500
     });
     assert('创建账户成功', acct.body.success);

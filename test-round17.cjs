@@ -100,7 +100,7 @@ async function run() {
     assert('不存在项目被拒（非超管）或返回空', fakeProject.status === 200 || fakeProject.status === 403);
 
     // 正常项目应该能访问
-    const validAccounts = await request('GET', `/api/accounts?projectId=${PROJECT_ID}`);
+    const validAccounts = await request('GET', `/api/accounts?projectId=${PROJECT_ID}&limit=500`);
     assert('归属项目可访问', validAccounts.status === 200);
 
     // Dashboard 也受保护
@@ -135,7 +135,7 @@ async function run() {
     assert('Dashboard projectId=0 被拒', dash0.status === 400);
 
     // 账户操作
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R17测试', account_type: '活期账户', currency_type: 'CNY'
     });
     assert('创建账户成功', acct.status === 201);

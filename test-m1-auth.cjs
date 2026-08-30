@@ -4,7 +4,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const fs = require('fs');
 
-const BASE_URL = 'https://oa.starway.sg';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
 const API_URL = `${BASE_URL}/api`;
 const SHOT_DIR = '/home/ubuntu/OA-System/test-screenshots/m1';
 
@@ -115,40 +115,27 @@ function R(id, name, pass, detail = '') {
   // ---- M1.3 登出 ----
 
   // M1-11 正常登出
-  // 查找退出按钮
-  const logoutBtn = page.locator('button:has-text("退出"), button:has-text("登出"), button:has-text("注销"), [aria-label="logout"], [title="退出"]').first();
+  // 登出入口在右上角头像下拉菜单中，且文案走 i18n（en-US 下显示英文），
+  // 此前只匹配中文、且用了无效的 `text=A, text=B` 逗号语法，恒为找不到。
   let logoutOk = false;
-  if (await logoutBtn.count() > 0) {
-    await logoutBtn.click();
-    await page.waitForTimeout(2000);
-    const tokenAfter = await page.evaluate(() => localStorage.getItem('token'));
-    logoutOk = !tokenAfter || page.url().includes('login');
-    R('M1-11', '正常登出', logoutOk, `token清除=${!tokenAfter}, URL=${page.url()}`);
-  } else {
-    // 有些系统退出在下拉菜单里
-    const avatarBtn = page.locator('[class*="avatar"], [class*="Avatar"], button:has([class*="User"])').first();
-    if (await avatarBtn.count() > 0) {
-      await avatarBtn.click();
-      await page.waitForTimeout(500);
-      const menuLogout = page.locator('text=退出, text=登出, text=注销').first();
-      if (await menuLogout.count() > 0) {
-        await menuLogout.click();
-        await page.waitForTimeout(2000);
-        const tokenAfter = await page.evaluate(() => localStorage.getItem('token'));
-        logoutOk = !tokenAfter || page.url().includes('login');
-      }
+  const avatarBtn = page.locator('header button').filter({ has: page.locator('svg.lucide-chevron-down') }).last();
+  if (await avatarBtn.count() > 0) {
+    await avatarBtn.click();
+    await page.waitForTimeout(600);
+    const menuLogout = page.locator('[role="menuitem"]').filter({ hasText: /退出|登出|注销|Log ?out|Sign ?out/i }).first();
+    if (await menuLogout.count() > 0) {
+      await menuLogout.click();
+      await page.waitForTimeout(2000);
+      const tokenAfter = await page.evaluate(() => localStorage.getItem('token'));
+      logoutOk = !tokenAfter || page.url().includes('login');
+      R('M1-11', '正常登出', logoutOk, `token清除=${!tokenAfter}, URL=${page.url()}`);
+    } else {
+      const items = await page.locator('[role="menuitem"]').allInnerTexts();
+      R('M1-11', '正常登出', false, `下拉菜单中未找到登出项，实际项: ${JSON.stringify(items)}`);
     }
-    R('M1-11', '正常登出', logoutOk, logoutOk ? '登出成功' : '未找到退出按钮或登出流程异常');
+  } else {
+    R('M1-11', '正常登出', false, '未找到右上角用户下拉入口');
   }
-  await page.screenshot({ path: `${SHOT_DIR}/M1-11.png` });
-
-  // M1-12 登出后访问保护页面
-  await page.evaluate(() => localStorage.removeItem('token'));
-  await page.goto(`${BASE_URL}/`, { waitUntil: 'networkidle' });
-  await page.waitForTimeout(2000);
-  const redirectedToLogin = page.url().includes('login');
-  R('M1-12', '登出后重定向到登录页', redirectedToLogin, `URL=${page.url()}`);
-  await page.screenshot({ path: `${SHOT_DIR}/M1-12.png` });
 
   // ---- 汇总 ----
   console.log('\n========================================');

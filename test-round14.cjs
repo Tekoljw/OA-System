@@ -77,7 +77,7 @@ async function run() {
     console.log('\n[2] 交易详情权限校验');
 
     // 创建一个测试账户和交易
-    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R14权限测试账户', account_type: '活期账户', currency_type: 'CNY'
     });
     const acctId = acct.body?.data?.id;
@@ -113,7 +113,7 @@ async function run() {
     console.log('\n[4] 转账参数验证');
 
     // 创建第二个账户用于转账
-    const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R14转入账户', account_type: '活期账户', currency_type: 'CNY'
     });
     const acctId2 = acct2.body?.data?.id;
@@ -147,7 +147,7 @@ async function run() {
     const bigLimit = await request('GET', `/api/accounts?projectId=${PROJECT_ID}&limit=999999`);
     assert('超大 limit 请求不崩溃', bigLimit.status === 200);
     // 验证返回的数据量合理（被限制到 200）
-    const items = bigLimit.body?.data?.items || bigLimit.body?.data || [];
+    const items = bigLimit.body?.data || bigLimit.body?.data || [];
     assert('返回数量被限制', Array.isArray(items) && items.length <= 200);
 
     // === [6] 配置删除关联检查 ===

@@ -71,7 +71,7 @@ async function run() {
     assert('Infinity金额被拒绝', !infAmt.body.success);
 
     // 正常金额可以通过
-    const normalAcct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const normalAcct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: 'R7测试账户', account_type: '活期账户', currency_type: 'CNY', balance: 0
     });
     const acctId = normalAcct.body.data?.id;
@@ -93,7 +93,7 @@ async function run() {
 
     // --- 测试4: JSON XSS 安全编码 ---
     console.log('\n[4] JSON输出安全编码');
-    const xssAcct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}`, {
+    const xssAcct = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
         name: '<script>alert("xss")</script>', account_type: '活期账户', currency_type: 'CNY', balance: 0
     });
     // 检查响应中的 < 是否被编码为 \u003C

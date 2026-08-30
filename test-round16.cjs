@@ -44,6 +44,19 @@ function request(method, path, body = null, extraHeaders = {}) {
     });
 }
 
+/**
+ * 抓取服务实际下发的前端 bundle。
+ * 此前直接读本地 dist/assets —— 该目录已移除（它会覆盖 Docker 构建产物），
+ * 且本地文件未必等于线上下发内容。改为按 index.html 的引用抓取真实产物。
+ */
+async function fetchServedBundle() {
+    const base = typeof BASE !== 'undefined' ? BASE : 'http://localhost:8000';
+    const html = await fetch(base + '/').then(r => r.text());
+    const m = html.match(/src="(\/assets\/[^"]+\.js)"/);
+    if (!m) throw new Error('index.html 中未找到 JS 产物引用');
+    return await fetch(base + m[1]).then(r => r.text());
+}
+
 async function run() {
     // 管理员登录
     const login = await request('POST', '/api/login', { username: 'admin', password: 'admin123' });
@@ -104,10 +117,8 @@ async function run() {
     // === [3] 构建产物 console.log 检查 ===
     console.log('\n[3] 构建产物安全');
 
-    const distDir = path.join(__dirname, 'dist', 'assets');
-    const jsFiles = fs.readdirSync(distDir).filter(f => f.endsWith('.js'));
-    if (jsFiles.length > 0) {
-        const jsContent = fs.readFileSync(path.join(distDir, jsFiles[0]), 'utf8');
+    const jsContent = await fetchServedBundle();
+    {
         const logCount = (jsContent.match(/console\.log/g) || []).length;
         assert('构建产物无 console.log', logCount === 0, `found ${logCount}`);
 

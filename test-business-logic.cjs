@@ -6,7 +6,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const fs = require('fs');
 
-const BASE_URL = 'https://oa.starway.sg';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
 const API_URL = `${BASE_URL}/api`;
 const SCREENSHOT_DIR = '/home/ubuntu/OA-System/test-screenshots/business';
 
@@ -171,14 +171,14 @@ async function apiCall(token, method, path, body = null) {
       description: '业务逻辑测试创建的账户'
     };
 
-    const createAccResp = await apiCall(token, 'POST', `/accounts?projectId=${projectId}`, newAccount);
+    const createAccResp = await apiCall(token, 'POST', `/accounts?projectId=${projectId}&limit=500`, newAccount);
     const createdAccountId = createAccResp.data?.id;
     record('账户管理', 'API创建账户', createAccResp.success ? 'PASS' : 'FAIL',
       createAccResp.success ? `ID=${createdAccountId}` : createAccResp.message);
 
     // 2.2 API 查询验证账户存在
-    const listAccResp = await apiCall(token, 'GET', `/accounts?projectId=${projectId}`);
-    const foundAccount = listAccResp.data?.items?.find(a => a.name === '测试账户_BizTest');
+    const listAccResp = await apiCall(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
+    const foundAccount = (listAccResp.data || []).find(a => a.name === '测试账户_BizTest');
     record('账户管理', 'API查询验证账户存在', foundAccount ? 'PASS' : 'FAIL',
       foundAccount ? `余额=${foundAccount.balance}` : '未找到创建的账户');
 
@@ -200,7 +200,7 @@ async function apiCall(token, method, path, body = null) {
     }
 
     // 2.5 必填字段验证 - 空名称
-    const emptyNameResp = await apiCall(token, 'POST', `/accounts?projectId=${projectId}`, {
+    const emptyNameResp = await apiCall(token, 'POST', `/accounts?projectId=${projectId}&limit=500`, {
       name: '',
       account_type: '活期账户',
       currency_type: 'CNY'
@@ -210,7 +210,7 @@ async function apiCall(token, method, path, body = null) {
       emptyNameResp.success ? { severity: '中', desc: '账户名称为空时未校验拒绝' } : null);
 
     // 2.6 UI 验证 - 导航到账户管理页面
-    await page.goto(`${BASE_URL}/asset-records`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE_URL}/accounts`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
 
     const pageContent = await page.content();
@@ -220,7 +220,11 @@ async function apiCall(token, method, path, body = null) {
     await screenshot(page, '02-accounts-page');
 
     // 2.7 UI 创建账户对话框
-    const addAccountBtn = page.locator('button:has-text("添加账户"), button:has-text("新增账户"), button:has-text("新建")').first();
+    // 账户页新建按钮实际文案为英文 Add Account，只匹配中文会恒为找不到
+    const addAccountBtn = page.locator(
+      'main button:has-text("Add Account"), main button:has-text("添加账户"), ' +
+      'main button:has-text("新增账户"), main button:has-text("新建")'
+    ).first();
     const addBtnExists = await addAccountBtn.count() > 0;
     record('账户管理', 'UI添加账户按钮存在', addBtnExists ? 'PASS' : 'FAIL', '');
 
@@ -266,8 +270,8 @@ async function apiCall(token, method, path, body = null) {
     // 3.2 获取当前账户余额（交易前）
     let accountBeforeTx = null;
     if (createdAccountId) {
-      const accDetailResp = await apiCall(token, 'GET', `/accounts?projectId=${projectId}`);
-      accountBeforeTx = accDetailResp.data?.items?.find(a => a.id == createdAccountId);
+      const accDetailResp = await apiCall(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
+      accountBeforeTx = accDetailResp.data?.find(a => a.id == createdAccountId);
     }
     const balanceBefore = accountBeforeTx ? parseFloat(accountBeforeTx.balance) : 0;
 
@@ -304,8 +308,8 @@ async function apiCall(token, method, path, body = null) {
     // 3.5 ⭐ 核心业务逻辑：交易后账户余额是否自动更新
     if (createdAccountId) {
       await new Promise(r => setTimeout(r, 1000)); // 等待可能的异步更新
-      const accAfterResp = await apiCall(token, 'GET', `/accounts?projectId=${projectId}`);
-      const accountAfterTx = accAfterResp.data?.items?.find(a => a.id == createdAccountId);
+      const accAfterResp = await apiCall(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
+      const accountAfterTx = accAfterResp.data?.find(a => a.id == createdAccountId);
       const balanceAfter = accountAfterTx ? parseFloat(accountAfterTx.balance) : 0;
 
       // 收入+10000, 支出-3000, 期望余额 = 50000 + 10000 - 3000 = 57000
@@ -349,18 +353,18 @@ async function apiCall(token, method, path, body = null) {
 
     // 3.9 查询交易列表
     const txListResp = await apiCall(token, 'GET', `/transactions?projectId=${projectId}`);
-    const txCount = txListResp.data?.items?.length || 0;
+    const txCount = txListResp.data?.length || 0;
     record('交易管理', 'API查询交易列表', txListResp.success && txCount > 0 ? 'PASS' : 'FAIL',
       `共${txCount}条交易记录`);
 
     // 3.10 按类型筛选交易
     const incomeFilter = await apiCall(token, 'GET', `/transactions?projectId=${projectId}&type=income`);
-    const allIncome = incomeFilter.data?.items?.every(t => t.type === 'income');
+    const allIncome = incomeFilter.data?.every(t => t.type === 'income');
     record('交易管理', 'API按类型筛选(income)', allIncome ? 'PASS' : 'FAIL',
-      `返回${incomeFilter.data?.items?.length || 0}条，全部为income: ${allIncome}`);
+      `返回${incomeFilter.data?.length || 0}条，全部为income: ${allIncome}`);
 
     // 3.11 UI 验证 - 导航到出入金页面
-    await page.goto(`${BASE_URL}/external-transactions`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE_URL}/transactions/external`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
     await screenshot(page, '04-external-transactions');
 
@@ -378,7 +382,7 @@ async function apiCall(token, method, path, body = null) {
     }
 
     // 3.13 ⭐ 内部划款功能
-    await page.goto(`${BASE_URL}/internal-transactions`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE_URL}/transactions/internal`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
     await screenshot(page, '05-internal-transactions');
 
@@ -467,7 +471,7 @@ async function apiCall(token, method, path, body = null) {
       `共${assetTypesResp.data?.length || 0}种资产类型`);
 
     // 4.10 UI 验证 - 配置管理页面
-    await page.goto(`${BASE_URL}/configurations/currency`, { waitUntil: 'networkidle' });
+    await page.goto(`${BASE_URL}/configurations/account-categories`, { waitUntil: 'networkidle' });
     await page.waitForTimeout(2000);
 
     const curPageContent = await page.content();
@@ -510,7 +514,16 @@ async function apiCall(token, method, path, body = null) {
         `${d.expenseByDepartment?.length || 0}个部门`);
 
       // 5.7 ⭐ 交叉验证：交易摘要 vs 实际交易列表
-      const allTx = await apiCall(token, 'GET', `/transactions?projectId=${projectId}&limit=1000`);
+      // 接口对 limit 有 200 的硬上限，单次请求拿不全；必须翻页汇总，
+      // 否则与仪表板（在 SQL 层聚合全量）对比必然不一致
+      const allTxItems = [];
+      for (let p = 1; p <= 20; p++) {
+        const r = await apiCall(token, 'GET', `/transactions?projectId=${projectId}&limit=200&page=${p}`);
+        const batch = r.data || [];
+        allTxItems.push(...batch);
+        if (batch.length < 200) break;
+      }
+      const allTx = { data: allTxItems };
       if (allTx.success && d.transactionSummary?.length > 0) {
         const incomeSummary = d.transactionSummary.find(s => s.type === 'income');
         const expenseSummary = d.transactionSummary.find(s => s.type === 'expense');
@@ -518,7 +531,7 @@ async function apiCall(token, method, path, body = null) {
         // 获取本月交易进行对比
         const now = new Date();
         const monthStart = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-        const thisMonthTx = allTx.data?.items?.filter(t => t.transaction_date >= monthStart) || [];
+        const thisMonthTx = allTx.data?.filter(t => t.transaction_date >= monthStart) || [];
         const thisMonthIncome = thisMonthTx.filter(t => t.type === 'income');
         const thisMonthExpense = thisMonthTx.filter(t => t.type === 'expense');
 
@@ -602,7 +615,7 @@ async function apiCall(token, method, path, body = null) {
 
     // 7.1 不同projectId的数据隔离
     const otherProjectResp = await apiCall(token, 'GET', '/accounts?projectId=99999');
-    const otherProjectData = otherProjectResp.data?.items || otherProjectResp.data || [];
+    const otherProjectData = otherProjectResp.data || otherProjectResp.data || [];
     record('数据安全', '项目数据隔离(不存在的项目)',
       Array.isArray(otherProjectData) && otherProjectData.length === 0 ? 'PASS' : 'WARN',
       `projectId=99999 返回 ${otherProjectData.length || 0} 条数据`);
@@ -647,7 +660,7 @@ async function apiCall(token, method, path, body = null) {
     // 8.1 查询活动日志
     const logsResp = await apiCall(token, 'GET', `/activity-logs?projectId=${projectId}`);
     record('活动日志', 'API查询活动日志', logsResp.success ? 'PASS' : 'FAIL',
-      `共${logsResp.data?.items?.length || 0}条日志`);
+      `共${logsResp.data?.length || 0}条日志`);
 
     // 8.2 创建活动日志
     const createLogResp = await apiCall(token, 'POST', `/activity-logs?projectId=${projectId}`, {
@@ -661,7 +674,7 @@ async function apiCall(token, method, path, body = null) {
     // 8.3 ⭐ 业务操作是否自动记录日志
     // 检查之前创建账户、交易的操作是否自动生成了日志
     const recentLogs = await apiCall(token, 'GET', `/activity-logs?projectId=${projectId}&limit=50`);
-    const autoLogs = recentLogs.data?.items?.filter(l =>
+    const autoLogs = recentLogs.data?.filter(l =>
       l.action === 'create' && (l.target_type === 'accounts' || l.target_type === 'transactions')
     ) || [];
     record('活动日志', '⭐业务操作自动记录日志', autoLogs.length > 0 ? 'PASS' : 'BUG',
@@ -682,9 +695,9 @@ async function apiCall(token, method, path, body = null) {
 
     const navLinks = [
       { name: '仪表板', path: '/' },
-      { name: '资产记录', path: '/asset-records' },
-      { name: '出入金', path: '/external-transactions' },
-      { name: '内部划款', path: '/internal-transactions' },
+      { name: '资产记录', path: '/assets/records' },
+      { name: '出入金', path: '/transactions/external' },
+      { name: '内部划款', path: '/transactions/internal' },
     ];
 
     for (const link of navLinks) {

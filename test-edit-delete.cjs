@@ -7,6 +7,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const http = require('http');
 const { execFileSync } = require('child_process');
+const { resetShareholders } = require('./test-helpers.cjs');
 
 const BASE = 'http://localhost:8000';
 const TAG = 'ED' + Date.now().toString().slice(-6);
@@ -30,6 +31,7 @@ function api(method, path, token, body = null) {
 }
 
 function resetFixtures() {
+    resetShareholders();
     // 按外键依赖顺序删除
     const sql = `
         DELETE FROM transactions WHERE shareholder_id IN

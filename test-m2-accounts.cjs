@@ -4,7 +4,7 @@
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
 const fs = require('fs');
 
-const BASE_URL = 'https://oa.starway.sg';
+const BASE_URL = process.env.OA_BASE_URL || 'http://localhost:8000';
 const API = `${BASE_URL}/api`;
 const SHOT_DIR = '/home/ubuntu/OA-System/test-screenshots/m2';
 
@@ -44,7 +44,7 @@ async function api(token, method, path, body = null) {
   // ---- M2.1 账户列表 ----
 
   // M2-01 页面加载
-  await page.goto(`${BASE_URL}/assets/records`, { waitUntil: 'networkidle' });
+  await page.goto(`${BASE_URL}/accounts`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(2000);
   const bodyText = await page.innerText('body');
   const hasAccData = bodyText.includes('账户') || bodyText.includes('余额') || bodyText.includes('CNY') || bodyText.includes('USD');
@@ -52,14 +52,14 @@ async function api(token, method, path, body = null) {
   await page.screenshot({ path: `${SHOT_DIR}/M2-01.png` });
 
   // M2-02 账户信息展示
-  const accResp = await api(token, 'GET', `/accounts?projectId=${projectId}`);
+  const accResp = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
   const accounts = accResp.data || [];
   const hasFields = accounts.length > 0 && accounts[0].name && accounts[0].currency_type && accounts[0].balance !== undefined;
   R('M2-02', '账户信息完整', hasFields, `${accounts.length}个账户, 首个: ${accounts[0]?.name || 'N/A'}`);
 
   // M2-03 按币种筛选
   const cnyCur = await api(token, 'GET', `/accounts?projectId=${projectId}&currency=CNY`);
-  const cnyItems = cnyCur.data?.items || cnyCur.data || [];
+  const cnyItems = cnyCur.data || cnyCur.data || [];
   const allCNY = cnyItems.every(a => a.currency_type === 'CNY');
   R('M2-03', '按币种筛选(API)', cnyItems.length > 0 && allCNY, `${cnyItems.length}个CNY账户, 全部CNY=${allCNY}`);
 
@@ -71,7 +71,11 @@ async function api(token, method, path, body = null) {
   // ---- M2.2 创建账户 ----
 
   // M2-05 打开创建表单
-  const addBtn = page.locator('button:has-text("添加"), button:has-text("新增"), button:has-text("新建"), button:has-text("创建")').first();
+  // 账户页的新建按钮文案是英文 Add Account，此前只匹配中文，恒为「未找到」
+  const addBtn = page.locator(
+    'main button:has-text("Add Account"), main button:has-text("添加"), ' +
+    'main button:has-text("新增"), main button:has-text("新建"), main button:has-text("创建")'
+  ).first();
   let dialogOpened = false;
   if (await addBtn.count() > 0) {
     await addBtn.click();
@@ -90,7 +94,7 @@ async function api(token, method, path, body = null) {
   }
 
   // M2-06 必填验证（API 层）
-  const emptyResp = await api(token, 'POST', `/accounts?projectId=${projectId}`, { name: '', account_type: '', currency_type: '' });
+  const emptyResp = await api(token, 'POST', `/accounts?projectId=${projectId}&limit=500`, { name: '', account_type: '', currency_type: '' });
   R('M2-06', '必填验证(空名称)', !emptyResp.success, emptyResp.success ? '空名称竟然通过' : `正确拒绝: ${emptyResp.error?.message || ''}`);
 
   // M2-07 正常创建
@@ -104,12 +108,12 @@ async function api(token, method, path, body = null) {
     status: 'active',
     description: 'M2测试创建'
   };
-  const createResp = await api(token, 'POST', `/accounts?projectId=${projectId}`, createData);
+  const createResp = await api(token, 'POST', `/accounts?projectId=${projectId}&limit=500`, createData);
   const newAccId = createResp.data?.id;
   R('M2-07', '正常创建账户', createResp.success && !!newAccId, createResp.success ? `ID=${newAccId}` : createResp.error?.message);
 
   // M2-08 空名称验证（补充详细）
-  const emptyName2 = await api(token, 'POST', `/accounts?projectId=${projectId}`, { name: '', account_type: '活期', currency_type: 'CNY' });
+  const emptyName2 = await api(token, 'POST', `/accounts?projectId=${projectId}&limit=500`, { name: '', account_type: '活期', currency_type: 'CNY' });
   R('M2-08', 'API空名称拒绝', !emptyName2.success, emptyName2.error?.message || '');
 
   // M2-09 币种/类型下拉数据
@@ -134,7 +138,7 @@ async function api(token, method, path, body = null) {
 
   // M2-11 编辑回显
   if (newAccId) {
-    const detailResp = await api(token, 'GET', `/accounts?projectId=${projectId}`);
+    const detailResp = await api(token, 'GET', `/accounts?projectId=${projectId}&limit=500`);
     const found = (detailResp.data || []).find(a => a.id == newAccId);
     R('M2-11', '编辑回显', found?.name === 'M2测试已修改', `查到名称=${found?.name || 'NOT_FOUND'}`);
   } else {
@@ -151,10 +155,11 @@ async function api(token, method, path, body = null) {
     R('M2-12', '删除账户', false, '无可删除账户');
   }
 
-  // M2-13 删除确认弹窗（UI 测试 — 刷新页面后尝试点击删除按钮）
-  await page.goto(`${BASE_URL}/assets/records`, { waitUntil: 'networkidle' });
+  // M2-13 删除确认弹窗
+  // 本用例测的是「账户」删除，此前却打开资产记录页，测错了对象
+  await page.goto(`${BASE_URL}/accounts`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(2000);
-  const delBtns = page.locator('button:has-text("删除"), [aria-label="delete"], button:has([class*="Trash"])');
+  const delBtns = page.locator('main button[aria-label="删除账户"]');
   if (await delBtns.count() > 0) {
     await delBtns.first().click();
     await page.waitForTimeout(500);

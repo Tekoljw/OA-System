@@ -64,13 +64,13 @@ async function run() {
     // ===== [1] 账户隔离 =====
     console.log('\n[1] 账户隔离');
 
-    const acctA = await request('GET', `/api/accounts?projectId=${PROJECT_A}`, null, ADMIN);
+    const acctA = await request('GET', `/api/accounts?projectId=${PROJECT_A}&limit=500`, null, ADMIN);
     const acctAList = acctA.body?.data || [];
     assert('项目A有账户', acctAList.length > 0);
     const acctAId = acctAList[0]?.id;
     console.log(`    项目A: ${acctAList.length} 个账户, 第一个 id=${acctAId}`);
 
-    const acctB = await request('GET', `/api/accounts?projectId=${PROJECT_B}`, null, ADMIN);
+    const acctB = await request('GET', `/api/accounts?projectId=${PROJECT_B}&limit=500`, null, ADMIN);
     const acctBList = acctB.body?.data || [];
     assert('项目B初始无账户(或有自己的)', true); // 项目B可能有也可能没有
     console.log(`    项目B: ${acctBList.length} 个账户`);
@@ -82,14 +82,14 @@ async function run() {
     }
 
     // 在项目B中创建自己的账户
-    const newAcctB = await request('POST', `/api/accounts?projectId=${PROJECT_B}`, {
+    const newAcctB = await request('POST', `/api/accounts?projectId=${PROJECT_B}&limit=500`, {
         name: '隔离测试账户B', account_type: '活期账户', currency_type: 'CNY'
     }, ADMIN);
     assert('在项目B创建账户', newAcctB.status === 201);
     const acctBId = newAcctB.body?.data?.id;
 
     // 项目B的新账户不应出现在项目A列表
-    const acctARefresh = await request('GET', `/api/accounts?projectId=${PROJECT_A}`, null, ADMIN);
+    const acctARefresh = await request('GET', `/api/accounts?projectId=${PROJECT_A}&limit=500`, null, ADMIN);
     const foundBInA = (acctARefresh.body?.data || []).find(a => a.id === acctBId);
     assert('项目B的账户不出现在项目A列表中', !foundBInA);
 
@@ -288,7 +288,7 @@ async function run() {
         assert('创建项目C', !!PROJECT_C);
 
         // testuser不在项目C中，尝试访问
-        const userAcctC = await request('GET', `/api/accounts?projectId=${PROJECT_C}`, null, USER);
+        const userAcctC = await request('GET', `/api/accounts?projectId=${PROJECT_C}&limit=500`, null, USER);
         assert('非成员不能访问项目C的账户', userAcctC.status === 403);
 
         const userTxC = await request('GET', `/api/transactions?projectId=${PROJECT_C}`, null, USER);
