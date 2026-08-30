@@ -141,12 +141,12 @@ async function run() {
     assert('创建账户成功', acct.status === 201);
 
     if (acct.body?.data?.id) {
-        const income = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const income = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 100, account_id: acct.body.data.id
         });
         assert('收入交易成功', income.status === 201);
 
-        const expense = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const expense = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 50, account_id: acct.body.data.id
         });
         assert('支出交易成功', expense.status === 201);

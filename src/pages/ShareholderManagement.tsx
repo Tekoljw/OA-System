@@ -169,13 +169,19 @@ function ShareholderTransactionDialog({
   const [accountId, setAccountId] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
+  // 入资/分红须走审批，审批链的第一级是申请人所属部门主管，故必须指定部门
+  const [departments, setDepartments] = useState<{ id: number; name: string }[]>([]);
+  const [departmentId, setDepartmentId] = useState("");
 
   useEffect(() => {
     if (open) {
-      setShareholderId(""); setAccountId(""); setAmount(""); setDescription("");
-      apiRequest("GET", "/api/accounts").then(res => {
+      setShareholderId(""); setAccountId(""); setAmount(""); setDescription(""); setDepartmentId("");
+      apiRequest("GET", "/api/accounts?limit=200").then(res => {
         const items = Array.isArray(res.data) ? res.data : res.data?.items || [];
         setAccounts(items);
+      }).catch(() => {});
+      apiRequest("GET", "/api/departments").then(res => {
+        setDepartments(Array.isArray(res.data) ? res.data : []);
       }).catch(() => {});
     }
   }, [open]);
@@ -187,6 +193,7 @@ function ShareholderTransactionDialog({
   const handleSubmit = async () => {
     if (!shareholderId) { toast({ title: "请选择股东", variant: "destructive" }); return; }
     if (!accountId) { toast({ title: "请选择账户", variant: "destructive" }); return; }
+    if (!departmentId) { toast({ title: "请选择部门", variant: "destructive" }); return; }
     const amt = parseFloat(amount);
     if (isNaN(amt) || amt <= 0) { toast({ title: "请输入有效金额", variant: "destructive" }); return; }
 
@@ -202,16 +209,26 @@ function ShareholderTransactionDialog({
         return;
       }
 
-      await apiRequest("POST", "/api/transactions", {
+      const shName = shareholders.find(s => s.id === parseInt(shareholderId))?.name || "";
+      // 入资/分红同样是收入/支出，不能绕过审批直接记账：
+      // 提交申请单，审批通过并执行后由系统生成流水。
+      // 账户与科目在此已确定，随申请一并预置为归帐结果。
+      const res = await apiRequest("POST", "/api/applications", {
         type: txType,
+        title: `${title} - ${shName}`,
         amount: amt,
-        account_id: parseInt(accountId),
-        subject_id: subject.id,
-        shareholder_id: parseInt(shareholderId),
-        description: description || `${title} - ${shareholders.find(s => s.id === parseInt(shareholderId))?.name || ""}`,
+        departmentId: parseInt(departmentId),
+        shareholderId: parseInt(shareholderId),
+        accountId: parseInt(accountId),
+        subjectId: subject.id,
+        description: description || `${title} - ${shName}`,
       });
+      if (!res?.success) throw new Error(res?.message || "提交失败");
 
-      toast({ title: `${title}记录创建成功` });
+      toast({
+        title: `${title}申请已提交`,
+        description: "审批通过并执行后将自动生成流水",
+      });
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -237,6 +254,17 @@ function ShareholderTransactionDialog({
                   <SelectItem key={s.id} value={String(s.id)}>
                     {s.name} ({Number(s.share_ratio).toFixed(2)}%)
                   </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label>所属部门 *</Label>
+            <Select value={departmentId} onValueChange={setDepartmentId}>
+              <SelectTrigger><SelectValue placeholder="请选择部门" /></SelectTrigger>
+              <SelectContent>
+                {departments.map(d => (
+                  <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>

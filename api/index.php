@@ -370,26 +370,15 @@ try {
                 $result = $txService->getTransactions($projectId, $filters, $page, $limit);
                 Response::paginated($result['items'], $result['total'], $page, $limit);
             } elseif ($method === 'POST') {
-                $body = JsonMiddleware::getRequestBody();
-                $body['project_id'] = $projectId;
-                $body['created_by'] = $currentUser['id'];
-
-                // 股东入资/分红交易仅管理员可操作
-                if (!empty($body['subject_id'])
-                    && $txService->isShareholderSubject((int)$body['subject_id'])
-                    && ($currentUser['role'] ?? '') !== 'admin'
-                ) {
-                    Response::error('权限不足，仅管理员可操作股东入资/分红', 'FORBIDDEN', 403);
-                }
-
-                // 内部划款走专用方法
-                if (($body['type'] ?? '') === 'transfer') {
-                    $result = $txService->createTransfer($body);
-                    Response::success($result, '内部划款成功', 201);
-                } else {
-                    $tx = $txService->createTransaction($body);
-                    Response::success($tx, '交易创建成功', 201);
-                }
+                // 账本只能由审批流产生：收入/支出经申请单执行落账，
+                // 内部划款经划款单执行落账，两者都在服务层内部调用
+                // TransactionService，不经过本路由。
+                // 此前这里对任何登录用户开放，等于绕过审批凭空造收支并改动余额。
+                Response::error(
+                    '不能直接创建流水。收入/支出请提交申请单（流程管理 → 我的申请），'
+                    . '内部划款请提交划款单，审批通过并执行后自动生成流水。',
+                    'FORBIDDEN', 403
+                );
             } elseif ($method === 'GET' && $resourceId) {
                 require_once __DIR__ . '/repositories/TransactionRepository.php';
                 $repo = new TransactionRepository($db);
@@ -473,6 +462,9 @@ try {
                 $body['related_party'] = $body['relatedParty'] ?? null;
                 $body['due_date']      = $body['dueDate'] ?? null;
                 $body['type']          = $body['applicationType'] ?? $body['type'] ?? null;
+                $body['shareholder_id'] = $body['shareholderId'] ?? $body['shareholder_id'] ?? null;
+                $body['allocated_account_id'] = $body['accountId'] ?? $body['allocated_account_id'] ?? null;
+                $body['allocated_subject_id'] = $body['subjectId'] ?? $body['allocated_subject_id'] ?? null;
                 Response::success($appService->create($body), '申请提交成功', 201);
             } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'status') {
                 $body = JsonMiddleware::getRequestBody();

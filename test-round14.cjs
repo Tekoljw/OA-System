@@ -83,7 +83,7 @@ async function run() {
     const acctId = acct.body?.data?.id;
 
     if (acctId) {
-        const tx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const tx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 500, account_id: acctId, description: 'R14测试'
         });
         const txId = tx.body?.data?.id;
@@ -120,21 +120,21 @@ async function run() {
 
     if (acctId && acctId2) {
         // 负数 fees
-        const negFees = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const negFees = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'transfer', amount: 10, account_id: acctId, target_account_id: acctId2,
             fees: -100, description: '负费用测试'
         });
         assert('负数 fees 被拒绝', negFees.status === 400);
 
         // 负数 to_amount
-        const negTo = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const negTo = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'transfer', amount: 10, account_id: acctId, target_account_id: acctId2,
             to_amount: -50, description: '负转入金额测试'
         });
         assert('负数 to_amount 被拒绝', negTo.status === 400);
 
         // 正常转账应成功
-        const okTransfer = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const okTransfer = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'transfer', amount: 10, account_id: acctId, target_account_id: acctId2,
             fees: 1, to_amount: 10, description: '正常转账'
         });
@@ -161,7 +161,7 @@ async function run() {
 
     if (subj2Id && acctId) {
         // 创建一笔引用该科目的交易
-        await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 100, account_id: acctId,
             subject_id: subj2Id, description: '关联交易'
         });

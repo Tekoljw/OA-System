@@ -88,14 +88,14 @@ async function api(token, method, path, body = null) {
   console.log(`  📊 账户#${testAccountId} 交易前余额: ${balBefore}`);
 
   // M3-06 创建收入
-  const incResp = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const incResp = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'income', amount: 8000, description: 'M3测试收入',
     account_id: testAccountId, subject_id: incomeSub?.id || 1, transaction_date: '2026-08-28'
   });
   R('M3-06', 'API创建收入', incResp.success, incResp.success ? `ID=${incResp.data?.id}` : incResp.error?.message);
 
   // M3-07 创建支出
-  const expResp = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const expResp = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'expense', amount: 3000, description: 'M3测试支出',
     account_id: testAccountId, subject_id: expenseSub?.id || 1, transaction_date: '2026-08-28'
   });
@@ -129,37 +129,37 @@ async function api(token, method, path, body = null) {
   // ---- M3.3 验证规则 ----
 
   // M3-11 金额为空
-  const r11 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r11 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'income', description: '空金额测试', account_id: 1, subject_id: 1
   });
   R('M3-11', '金额为空拒绝', !r11.success, r11.error?.message || '');
 
   // M3-12 金额为0
-  const r12 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r12 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'income', amount: 0, description: '零金额', account_id: 1, subject_id: 1
   });
   R('M3-12', '金额为0拒绝', !r12.success, r12.error?.message || '');
 
   // M3-13 金额为负
-  const r13 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r13 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'income', amount: -999, description: '负金额', account_id: 1, subject_id: 1
   });
   R('M3-13', '负数金额拒绝', !r13.success, r13.error?.message || '');
 
   // M3-14 无效交易类型
-  const r14 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r14 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'abc', amount: 100, description: '无效类型', account_id: 1, subject_id: 1
   });
   R('M3-14', '无效交易类型拒绝', !r14.success, r14.error?.message || '');
 
   // M3-15 缺少 type
-  const r15 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r15 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     amount: 100, description: '缺type', account_id: 1, subject_id: 1
   });
   R('M3-15', '缺少type拒绝', !r15.success, r15.error?.message || '');
 
   // M3-16 日期自动填充
-  const r16 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r16 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'income', amount: 1, description: 'M3日期自动填充测试', account_id: 1, subject_id: 1
   });
   const today = new Date().toISOString().slice(0, 10);
@@ -169,7 +169,7 @@ async function api(token, method, path, body = null) {
 
   // 清理：回退测试交易的余额影响（创建反向交易）
   // M3测试收入 8000 + M3测试支出 3000 + 日期测试 1 = 净 +5001
-  await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'expense', amount: 5001, description: 'M3测试数据清理', account_id: testAccountId, subject_id: expenseSub?.id || 1
   });
 

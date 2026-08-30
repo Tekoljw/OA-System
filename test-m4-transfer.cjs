@@ -48,7 +48,7 @@ async function pickTwoAccounts(token, projectId) {
   if (cur < need) {
     const subj = await api(token, 'GET', `/subjects?projectId=${projectId}&type=income`);
     const subjectId = (subj.data || [])[0]?.id;
-    await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+    await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
       type: 'income', amount: need - cur, account_id: a, subject_id: subjectId,
       description: 'M4测试备款',
     });
@@ -85,7 +85,7 @@ async function pickTwoAccounts(token, projectId) {
   const balB_before = await getBalance(token, projectId, accB);
   console.log(`  📊 划款前: A#${accA}=${balA_before}, B#${accB}=${balB_before}`);
 
-  const transferResp = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const transferResp = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 6000, description: M4_TAG,
     account_id: accA, target_account_id: accB
   });
@@ -109,7 +109,7 @@ async function pickTwoAccounts(token, projectId) {
   // M4-05 含手续费划款
   const balA2 = await getBalance(token, projectId, accA);
   const balB2 = await getBalance(token, projectId, accB);
-  const feeResp = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const feeResp = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 10000, fees: 50, description: 'M4手续费划款测试',
     account_id: accA, target_account_id: accB
   });
@@ -128,7 +128,7 @@ async function pickTwoAccounts(token, projectId) {
     `转入变化=${bFeeDelta}, 期望=+10000`);
 
   // M4-06 跨币种划款（to_amount 不同）
-  const crossResp = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const crossResp = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 7000, to_amount: 1000, description: 'M4跨币种划款(模拟)',
     account_id: accA, target_account_id: accB
   });
@@ -138,31 +138,31 @@ async function pickTwoAccounts(token, projectId) {
   // ---- M4.2 验证规则 ----
 
   // M4-07 转出账户为空
-  const r07 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r07 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 1000, target_account_id: accB
   });
   R('M4-07', '转出账户为空拒绝', !r07.success, r07.error?.message || '');
 
   // M4-08 转入账户为空
-  const r08 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r08 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 1000, account_id: accA
   });
   R('M4-08', '转入账户为空拒绝', !r08.success, r08.error?.message || '');
 
   // M4-09 转出=转入
-  const r09 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r09 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 1000, account_id: accA, target_account_id: accA
   });
   R('M4-09', '转出=转入拒绝', !r09.success, r09.error?.message || '');
 
   // M4-10 金额为0
-  const r10 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r10 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 0, account_id: accA, target_account_id: accB
   });
   R('M4-10', '金额为0拒绝', !r10.success, r10.error?.message || '');
 
   // M4-11 金额为负
-  const r11 = await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  const r11 = await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: -100, account_id: accA, target_account_id: accB
   });
   R('M4-11', '金额为负拒绝', !r11.success, r11.error?.message || '');
@@ -179,12 +179,12 @@ async function pickTwoAccounts(token, projectId) {
 
   // 回退测试数据（反向划款）
   // M4-02: 6000, M4-05: 10000+50fee, M4-06: 7000 => A净减 23050, B净增 17000
-  await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'transfer', amount: 17000, description: 'M4清理-反向',
     account_id: accB, target_account_id: accA
   });
   // 补 6050 差额
-  await api(token, 'POST', `/transactions?projectId=${projectId}`, {
+  await api(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
     type: 'income', amount: 6050, description: 'M4清理-补差', account_id: accA, subject_id: 1
   });
 

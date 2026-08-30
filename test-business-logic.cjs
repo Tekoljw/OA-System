@@ -285,7 +285,7 @@ async function apiCall(token, method, path, body = null) {
       transaction_date: '2026-08-28',
       status: 'completed'
     };
-    const createIncome = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, incomeData);
+    const createIncome = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, incomeData);
     const incomeId = createIncome.data?.id;
     record('交易管理', 'API创建收入交易', createIncome.success ? 'PASS' : 'FAIL',
       createIncome.success ? `ID=${incomeId}, 金额=10000` : createIncome.message);
@@ -300,7 +300,7 @@ async function apiCall(token, method, path, body = null) {
       transaction_date: '2026-08-28',
       status: 'completed'
     };
-    const createExpense = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, expenseData);
+    const createExpense = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, expenseData);
     const expenseId = createExpense.data?.id;
     record('交易管理', 'API创建支出交易', createExpense.success ? 'PASS' : 'FAIL',
       createExpense.success ? `ID=${expenseId}, 金额=3000` : createExpense.message);
@@ -325,7 +325,7 @@ async function apiCall(token, method, path, body = null) {
     }
 
     // 3.6 交易金额验证 - 负数金额
-    const negativeAmtResp = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, {
+    const negativeAmtResp = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
       type: 'income', amount: -500, description: '负数金额测试',
       account_id: 1, subject_id: 1
     });
@@ -334,7 +334,7 @@ async function apiCall(token, method, path, body = null) {
       negativeAmtResp.success ? { severity: '高', desc: '交易允许负数金额，应当验证 amount > 0' } : null);
 
     // 3.7 交易金额验证 - 零金额
-    const zeroAmtResp = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, {
+    const zeroAmtResp = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
       type: 'income', amount: 0, description: '零金额测试',
       account_id: 1, subject_id: 1
     });
@@ -343,7 +343,7 @@ async function apiCall(token, method, path, body = null) {
       zeroAmtResp.success ? { severity: '中', desc: '交易允许零金额，应当验证 amount > 0' } : null);
 
     // 3.8 交易类型验证 - 无效类型
-    const invalidTypeResp = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, {
+    const invalidTypeResp = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
       type: 'invalid_type', amount: 100, description: '无效类型测试',
       account_id: 1, subject_id: 1
     });
@@ -387,7 +387,7 @@ async function apiCall(token, method, path, body = null) {
     await screenshot(page, '05-internal-transactions');
 
     // 测试内部划款 API
-    const transferResp = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, {
+    const transferResp = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
       type: 'transfer',
       amount: 5000,
       description: '内部划款测试',
@@ -627,7 +627,7 @@ async function apiCall(token, method, path, body = null) {
       '使用参数化查询(PDO)，注入无效');
 
     // 7.3 XSS 防护 - 创建带脚本的交易
-    const xssResp = await apiCall(token, 'POST', `/transactions?projectId=${projectId}`, {
+    const xssResp = await apiCall(token, 'POST', `/test-harness.php?projectId=${projectId}`, {
       type: 'income',
       amount: 1,
       description: '<script>alert("XSS")</script>',

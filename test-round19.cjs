@@ -64,7 +64,7 @@ async function run() {
     // === [1] createTransaction 禁止 type=transfer ===
     console.log('\n[1] createTransaction 禁止 type=transfer');
 
-    const phantomTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const phantomTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'transfer', amount: 100, account_id: acctId1
     });
     assert('type=transfer 被 createTransaction 拒绝', phantomTx.status === 400 || phantomTx.status === 422);
@@ -72,12 +72,12 @@ async function run() {
     assert('错误消息包含限制说明', errMsg.includes('划款') || errMsg.includes('专用') || errMsg.includes('转入') || errMsg.includes('仅支持'));
 
     // income/expense 仍然正常
-    const incomeTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const incomeTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 500, account_id: acctId1
     });
     assert('type=income 仍正常', incomeTx.status === 201);
 
-    const expenseTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const expenseTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'expense', amount: 10, account_id: acctId1
     });
     assert('type=expense 仍正常', expenseTx.status === 201);
@@ -87,13 +87,13 @@ async function run() {
 
     if (acctId1) {
         // 同账户划款应被拒
-        const selfTransfer = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const selfTransfer = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'transfer', account_id: acctId1, target_account_id: acctId1, amount: 10
         });
         assert('同账户划款被拒', selfTransfer.status === 400 || selfTransfer.status === 422);
 
         // 字符串/数字类型混用也应被拒
-        const selfTransfer2 = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const selfTransfer2 = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'transfer', account_id: String(acctId1), target_account_id: acctId1, amount: 10
         });
         assert('字符串/数字混用同账户被拒', selfTransfer2.status === 400 || selfTransfer2.status === 422);
@@ -101,10 +101,10 @@ async function run() {
 
     // 正常跨账户划款应成功（先充值，走 type=transfer）
     if (acctId1 && acctId2) {
-        await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 1000, account_id: acctId1
         });
-        const transfer = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const transfer = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'transfer', account_id: acctId1, target_account_id: acctId2, amount: 50
         });
         assert('正常跨账户划款成功', transfer.status === 201);
@@ -140,7 +140,7 @@ async function run() {
     assert('Dashboard projectId=0 被拒', dash0.status === 400);
 
     // 交易 status 白名单仍有效
-    const badStatus = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const badStatus = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 1, account_id: acctId1, status: 'evil'
     });
     assert('status 白名单仍有效', badStatus.status === 400 || badStatus.status === 422);

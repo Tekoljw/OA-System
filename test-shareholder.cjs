@@ -125,7 +125,7 @@ async function run() {
 
     if (incomeSubject && acctId && shAId) {
         // 股东A入资
-        const txA = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const txA = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 55000, account_id: acctId,
             subject_id: incomeSubject.id, shareholder_id: shAId,
             description: '测试股东A入资'
@@ -133,7 +133,7 @@ async function run() {
         assert('股东A入资成功', txA.status === 201);
 
         // 股东B入资
-        const txB = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const txB = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 45000, account_id: acctId,
             subject_id: incomeSubject.id, shareholder_id: shBId,
             description: '测试股东B入资'
@@ -141,7 +141,7 @@ async function run() {
         assert('股东B入资成功', txB.status === 201);
 
         // 入资不带 shareholder_id 应失败
-        const txNoSh = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const txNoSh = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 1000, account_id: acctId,
             subject_id: incomeSubject.id
         });
@@ -176,7 +176,7 @@ async function run() {
 
     // 分红交易
     if (dividendSubject && acctId && shAId) {
-        const divTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const divTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 1000, account_id: acctId,
             subject_id: dividendSubject.id, shareholder_id: shAId,
             description: '测试股东A分红'

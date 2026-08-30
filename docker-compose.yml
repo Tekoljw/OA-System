@@ -48,6 +48,8 @@ services:
       dockerfile: Dockerfile
     container_name: oa-system-app
     environment:
+      # 仅开发/测试环境启用服务层测试入口；生产镜像不得设置
+      OA_ENABLE_TEST_HARNESS: "1"
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: oa_system

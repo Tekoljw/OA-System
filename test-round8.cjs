@@ -67,7 +67,7 @@ async function run() {
     const badPeriod = await request('GET', `/api/transaction-summary?projectId=${PROJECT_ID}&period=week`);
     assert('无效period被拒', !badPeriod.body.success);
 
-    const hugeAmt = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const hugeAmt = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 9999999999, description: '超大金额'
     });
     assert('超大金额被拒', !hugeAmt.body.success);
@@ -92,17 +92,17 @@ async function run() {
     const acctId = acct.body.data?.id;
 
     if (acctId) {
-        const income = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const income = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 200, account_id: acctId, description: '收入测试'
         });
         assert('收入交易成功', income.body.success);
 
-        const expense = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const expense = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 100, account_id: acctId, description: '支出测试'
         });
         assert('支出交易成功', expense.body.success);
 
-        const overSpend = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const overSpend = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 99999, account_id: acctId, description: '超支测试'
         });
         assert('超支被拒', !overSpend.body.success);

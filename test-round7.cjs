@@ -60,12 +60,12 @@ async function run() {
 
     // --- 测试2: 金额上限验证 ---
     console.log('\n[2] 金额范围验证');
-    const hugeAmt = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const hugeAmt = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 9999999999, description: '超大金额测试'
     });
     assert('超大金额被拒绝', !hugeAmt.body.success, JSON.stringify(hugeAmt.body.error));
 
-    const infAmt = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const infAmt = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 'Infinity', description: 'Infinity测试'
     });
     assert('Infinity金额被拒绝', !infAmt.body.success);
@@ -75,7 +75,7 @@ async function run() {
         name: 'R7测试账户', account_type: '活期账户', currency_type: 'CNY', balance: 0
     });
     const acctId = normalAcct.body.data?.id;
-    const normalAmt = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const normalAmt = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 100.50, account_id: acctId, description: '正常金额'
     });
     assert('正常金额交易成功', normalAmt.body.success);
@@ -123,7 +123,7 @@ async function run() {
     });
     assert('错误旧密码被拒', !changePwd.body.success);
 
-    const overSpend = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const overSpend = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'expense', amount: 999999, account_id: acctId, description: '超支测试'
     });
     assert('超额支出被拒绝', !overSpend.body.success);

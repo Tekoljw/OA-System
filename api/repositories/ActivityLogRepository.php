@@ -6,7 +6,10 @@ class ActivityLogRepository extends BaseRepository {
 
     public function findByProject(int $projectId, int $page = 1, int $limit = 20): array {
         $stmt = $this->db->prepare(
-            "SELECT l.*, u.username, u.full_name
+            // 时间戳截到秒：PG 的微秒精度对用户无意义，且形如 12:08:55.125404
+            // 的尾数会被日志检索与告警规则误匹配
+            "SELECT l.*, to_char(l.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at,
+                    u.username, u.full_name
              FROM activity_logs l
              LEFT JOIN users u ON u.id = l.user_id
              WHERE l.project_id = ?

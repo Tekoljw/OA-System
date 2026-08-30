@@ -74,6 +74,7 @@ class ApplicationService {
             'content'     => $r['content'],
             'description' => $r['description'],
             'images'      => json_decode($r['images'] ?? '[]', true) ?: [],
+            'shareholderId' => $r['shareholder_id'] !== null ? (int)$r['shareholder_id'] : null,
             'currentStep' => (int)$r['current_step'],
             'createdAt'   => $r['created_at'],
             'updatedAt'   => $r['updated_at'],
@@ -98,6 +99,20 @@ class ApplicationService {
         try {
             $d['status'] = 'pending';
             $app = $this->repo->insert($d);
+
+            // 入资/分红等场景在提交时就已确定账户与科目，
+            // 预置为归帐结果，审批通过后直接执行即可，无需再走一次归帐。
+            if (!empty($d['allocated_account_id'])) {
+                $this->assertBelongsToProject('accounts', (int)$d['allocated_account_id'], (int)$d['project_id'], '账户');
+                if (!empty($d['allocated_subject_id'])) {
+                    $this->assertBelongsToProject('subjects', (int)$d['allocated_subject_id'], (int)$d['project_id'], '科目');
+                }
+                $this->repo->updateStatus((int)$app['id'], 'pending', [
+                    'allocated_account_id' => (int)$d['allocated_account_id'],
+                    'allocated_subject_id' => !empty($d['allocated_subject_id']) ? (int)$d['allocated_subject_id'] : null,
+                    'allocated_at'         => date('Y-m-d H:i:s'),
+                ]);
+            }
 
             // 生成审批链；部门无主管、会签人数不足等情况会在此抛出并回滚
             $chain = $this->approval->createApprovalChain(
@@ -273,6 +288,8 @@ class ApplicationService {
                 'account_id'       => $accountId,
                 'subject_id'       => $subjectId,
                 'department_id'    => $app['department_id'],
+                // 股东入资/分红科目要求关联股东，申请单需把它带到落账环节
+                'shareholder_id'   => $app['shareholder_id'] ?? null,
                 'transaction_date' => date('Y-m-d'),
                 'status'           => 'completed',
                 'project_id'       => $projectId,

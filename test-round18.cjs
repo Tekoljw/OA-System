@@ -61,29 +61,29 @@ async function run() {
 
     if (acctId) {
         // 正常 status 应成功
-        const validTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const validTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 100, account_id: acctId, status: 'completed'
         });
         assert('status=completed 允许', validTx.status === 201);
 
-        const pendingTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const pendingTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 50, account_id: acctId, status: 'pending'
         });
         assert('status=pending 允许', pendingTx.status === 201);
 
         // 非法 status 被拒
-        const badTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const badTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 10, account_id: acctId, status: 'hacked'
         });
         assert('status=hacked 被拒', badTx.status === 400 || badTx.status === 422);
 
-        const injTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const injTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 10, account_id: acctId, status: "'; DROP TABLE--"
         });
         assert('status SQL 注入被拒', injTx.status === 400 || injTx.status === 422);
 
         // 不传 status 默认 completed
-        const defaultTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const defaultTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 20, account_id: acctId
         });
         assert('默认 status=completed', defaultTx.status === 201);

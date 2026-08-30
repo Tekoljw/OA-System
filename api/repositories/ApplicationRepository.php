@@ -93,8 +93,8 @@ class ApplicationRepository extends BaseRepository {
         $stmt = $this->db->prepare("
             INSERT INTO applications
                 (project_id, type, title, amount, currency_type, department_id, submitter_id,
-                 status, related_party, due_date, content, description, images)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *
+                 status, related_party, due_date, content, description, images, shareholder_id)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *
         ");
         $stmt->execute([
             $d['project_id'], $d['type'], $d['title'], $d['amount'],
@@ -102,6 +102,7 @@ class ApplicationRepository extends BaseRepository {
             $d['status'] ?? 'pending', $d['related_party'] ?? null, $d['due_date'] ?? null,
             $d['content'] ?? null, $d['description'] ?? null,
             json_encode($d['images'] ?? [], JSON_UNESCAPED_UNICODE),
+            !empty($d['shareholder_id']) ? (int)$d['shareholder_id'] : null,
         ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }

@@ -52,7 +52,7 @@ async function run() {
 
     // 发送大 payload（但不超过 nginx 限制，只测试 JsonMiddleware 逻辑）
     const normalBody = { type: 'income', amount: 100, description: 'x'.repeat(1000) };
-    const normalReq = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, normalBody);
+    const normalReq = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, normalBody);
     // 无 account_id 会报验证错误，但不是 413，说明正常处理了
     assert('正常大小请求通过', normalReq.status !== 413);
 
@@ -77,7 +77,7 @@ async function run() {
     const badPeriod = await request('GET', `/api/transaction-summary?projectId=${PROJECT_ID}&period=week`);
     assert('无效period被拒', !badPeriod.body.success);
 
-    const huge = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const huge = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 9999999999, description: '超大金额'
     });
     assert('超大金额被拒', !huge.body.success);
@@ -90,15 +90,15 @@ async function run() {
     });
     assert('创建账户', acct.body.success);
     if (acct.body.data?.id) {
-        const inc = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const inc = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 200, account_id: acct.body.data.id, description: '收入'
         });
         assert('收入成功', inc.body.success);
-        const exp = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const exp = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 100, account_id: acct.body.data.id, description: '支出'
         });
         assert('支出成功', exp.body.success);
-        const over = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const over = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 99999, account_id: acct.body.data.id, description: '超支'
         });
         assert('超支被拒', !over.body.success);

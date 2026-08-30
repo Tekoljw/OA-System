@@ -49,7 +49,8 @@ const ERROR_PATTERNS = [
     'undefined is not',
     'Cannot read',
     '出错了',
-    '404',
+    // 不能用裸 '404'：会误命中时间戳微秒（如 12:08:55.125404）等正常内容
+    'HTTP 404', '404 Not Found', '页面不存在',
 ];
 
 (async () => {

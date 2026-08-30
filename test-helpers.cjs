@@ -9,7 +9,7 @@ const { execFileSync } = require('child_process');
 
 /** 所有用例使用的测试数据名称前缀，新增用例请在此登记 */
 const TEST_PREFIXES = [
-    '多角色股东', 'FT', 'ED', 'SH探测', '测试股东', '项目B股东',
+    '多角色股东', 'FT', 'ED', 'SH探测', '测试股东', '项目B股东', '审批入资股东', 'TX',
     'R1', 'R2', 'M3测试', 'M4', '空码', '码测', '删除语义测试', '唯一码',
 ];
 
@@ -44,4 +44,48 @@ function resetShareholders(projectId = 1) {
     return ok;
 }
 
-module.exports = { TEST_PREFIXES, likeClause, psql, resetShareholders };
+
+/**
+ * 通过审批流产生一笔收入/支出流水。
+ *
+ * 账本只能由审批流写入：POST /api/transactions 已关闭，
+ * 收支必须提交申请单，经审批与执行后才落账。
+ * 测试需要准备账面数据时统一走这里，不要绕过业务规则直接写库。
+ *
+ * @param ctx.api        (method, path, token, body) => Promise<响应>
+ * @param ctx.tokens     { admin, admin2, manager } 三种身份，用于走完会签
+ * @returns {Promise<{ok:boolean, applicationId?:number, reason?:string}>}
+ */
+async function createTransactionViaApproval(ctx, {
+    projectId = 1, type, amount, accountId, subjectId,
+    departmentId = 1, shareholderId = null, title,
+}) {
+    const { api, tokens } = ctx;
+    const app = await api('POST', `/api/applications?projectId=${projectId}`, tokens.admin, {
+        type, title: title || `自动化-${type}-${amount}`, amount,
+        departmentId, shareholderId, accountId, subjectId,
+    });
+    if (app.status !== 201) {
+        return { ok: false, reason: app?.error?.message || app?.message || '提交申请失败' };
+    }
+    const id = app.data.id;
+
+    // 审批链最多三级：部门主管 → 管理员 ×N 会签，逐个身份尝试推进
+    for (const who of [tokens.manager, tokens.admin, tokens.admin2]) {
+        if (!who) continue;
+        const cur = await api('GET', `/api/applications/${id}?projectId=${projectId}`, tokens.admin);
+        if (cur?.data?.status !== 'pending') break;
+        await api('PUT', `/api/applications/${id}/status?projectId=${projectId}`, who, { status: 'approved' });
+    }
+
+    const exec = await api('PUT', `/api/applications/${id}/execute?projectId=${projectId}`, tokens.admin, {});
+    if (exec.status !== 200) {
+        return { ok: false, applicationId: id, reason: exec?.error?.message || '执行失败' };
+    }
+    return { ok: true, applicationId: id };
+}
+
+module.exports = {
+    TEST_PREFIXES, likeClause, psql, resetShareholders,
+    createTransactionViaApproval,
+};

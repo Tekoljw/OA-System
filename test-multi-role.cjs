@@ -9,7 +9,7 @@
  */
 const http = require('http');
 const { execFileSync } = require('child_process');
-const { resetShareholders } = require('./test-helpers.cjs');
+const { resetShareholders, createTransactionViaApproval } = require('./test-helpers.cjs');
 
 /**
  * 测试自清理：本套用例会在项目1留下股东与交易，且「有交易的股东不可删除」是
@@ -63,6 +63,15 @@ function request(method, path, body = null, token = '') {
     });
 }
 
+/**
+ * 适配 helper：本文件的 request 返回 {status, body}，
+ * 而 helper 期望响应体展开在顶层（{status, success, data, error}）。
+ */
+const apiFor = async (method, path, token, body) => {
+    const r = await request(method, path, body, token);
+    return { status: r.status, ...(r.body && typeof r.body === 'object' ? r.body : {}) };
+};
+
 async function run() {
     resetFixtures();
 
@@ -77,6 +86,10 @@ async function run() {
     const userLogin = await request('POST', '/api/login', { username: 'testuser', password: 'user123' });
     const USER_TOKEN = userLogin.body?.data?.token;
     assert('普通用户登录成功', userLogin.status === 200 && USER_TOKEN);
+
+    // 收支须经审批产生，会签需要第二名管理员
+    const admin2Login = await request('POST', '/api/login', { username: 'phpuser', password: 'php123' });
+    const ctx = { api: apiFor, tokens: { admin: ADMIN_TOKEN, admin2: admin2Login.body?.data?.token, manager: USER_TOKEN } };
 
     const PROJECT_B = 8; // 测试项目B
 
@@ -214,36 +227,35 @@ async function run() {
 
     if (incomeSubject && acctId) {
         // 股东甲入资 50000（按50%比例入资，如果总入资100000则正好匹配）
-        const txA = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'income', amount: 50000, account_id: acctId,
-            subject_id: incomeSubject.id, shareholder_id: shAId,
-            description: '多角色测试-股东甲入资'
-        }, ADMIN_TOKEN);
-        assert('股东甲入资 50000', txA.status === 201);
+        const r50000 = await createTransactionViaApproval(ctx, {
+            type: 'income', amount: 50000, accountId: acctId,
+            subjectId: incomeSubject.id, shareholderId: shAId,
+            title: '股东甲入资 50000',
+        });
+        assert('股东甲入资 50000', r50000.ok, r50000.reason || '');
 
         // 股东乙入资 20000（按30%应入30000，少入了10000）
-        const txB = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'income', amount: 20000, account_id: acctId,
-            subject_id: incomeSubject.id, shareholder_id: shBId,
-            description: '多角色测试-股东乙入资'
-        }, ADMIN_TOKEN);
-        assert('股东乙入资 20000', txB.status === 201);
+        const r20000 = await createTransactionViaApproval(ctx, {
+            type: 'income', amount: 20000, accountId: acctId,
+            subjectId: incomeSubject.id, shareholderId: shBId,
+            title: '股东乙入资 20000',
+        });
+        assert('股东乙入资 20000', r20000.ok, r20000.reason || '');
 
         // 股东丙入资 30000（按20%应入20000，多入了10000）
-        const txC = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'income', amount: 30000, account_id: acctId,
-            subject_id: incomeSubject.id, shareholder_id: shCId,
-            description: '多角色测试-股东丙入资'
-        }, ADMIN_TOKEN);
-        assert('股东丙入资 30000', txC.status === 201);
+        const r30000 = await createTransactionViaApproval(ctx, {
+            type: 'income', amount: 30000, accountId: acctId,
+            subjectId: incomeSubject.id, shareholderId: shCId,
+            title: '股东丙入资 30000',
+        });
+        assert('股东丙入资 30000', r30000.ok, r30000.reason || '');
 
-        // 入资不带 shareholder_id 应失败
-        const txNoSh = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'income', amount: 1000, account_id: acctId,
-            subject_id: incomeSubject.id,
-            description: '缺少股东ID的入资'
-        }, ADMIN_TOKEN);
-        assert('入资不选股东被拒', txNoSh.status === 400 || txNoSh.status === 422);
+        // 入资不带股东：申请可提交，但执行落账时因股东科目缺关联而被拒
+        const noSh = await createTransactionViaApproval(ctx, {
+            type: 'income', amount: 1000, accountId: acctId,
+            subjectId: incomeSubject.id, title: '缺少股东ID的入资',
+        });
+        assert('入资不选股东被拒', !noSh.ok && /股东/.test(noSh.reason || ''), noSh.reason || '');
     }
 
     // ===== [6] 入资分析验证 =====
@@ -306,28 +318,27 @@ async function run() {
 
     if (dividendSubject && acctId) {
         // 给股东甲分红
-        const divTxA = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'expense', amount: 5000, account_id: acctId,
-            subject_id: dividendSubject.id, shareholder_id: shAId,
-            description: '多角色测试-股东甲分红'
-        }, ADMIN_TOKEN);
-        assert('股东甲分红 5000', divTxA.status === 201);
+        const div5000 = await createTransactionViaApproval(ctx, {
+            type: 'expense', amount: 5000, accountId: acctId,
+            subjectId: dividendSubject.id, shareholderId: shAId,
+            title: '多角色测试-股东甲分红',
+        });
+        assert('股东甲分红 5000', div5000.ok, div5000.reason || '');
 
         // 给股东乙分红
-        const divTxB = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'expense', amount: 3000, account_id: acctId,
-            subject_id: dividendSubject.id, shareholder_id: shBId,
-            description: '多角色测试-股东乙分红'
-        }, ADMIN_TOKEN);
-        assert('股东乙分红 3000', divTxB.status === 201);
+        const div3000 = await createTransactionViaApproval(ctx, {
+            type: 'expense', amount: 3000, accountId: acctId,
+            subjectId: dividendSubject.id, shareholderId: shBId,
+            title: '多角色测试-股东乙分红',
+        });
+        assert('股东乙分红 3000', div3000.ok, div3000.reason || '');
 
         // 分红不选股东应失败
-        const divNoSh = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'expense', amount: 1000, account_id: acctId,
-            subject_id: dividendSubject.id,
-            description: '缺少股东ID的分红'
-        }, ADMIN_TOKEN);
-        assert('分红不选股东被拒', divNoSh.status === 400 || divNoSh.status === 422);
+        const divNoSh = await createTransactionViaApproval(ctx, {
+            type: 'expense', amount: 1000, accountId: acctId,
+            subjectId: dividendSubject.id, title: '缺少股东ID的分红',
+        });
+        assert('分红不选股东被拒', !divNoSh.ok && /股东/.test(divNoSh.reason || ''), divNoSh.reason || '');
     }
 
     // ===== [9] 分红后重新检查分红计算 =====
@@ -367,17 +378,14 @@ async function run() {
     console.log('\n[12] 普通用户交易权限');
 
     if (incomeSubject && acctId) {
-        // 注意：交易创建可能不限制为admin only，这里测试实际行为
-        const userTx = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
-            type: 'income', amount: 999, account_id: acctId,
-            subject_id: incomeSubject.id, shareholder_id: shAId,
-            description: '普通用户尝试创建入资'
-        }, USER_TOKEN);
-        // 记录结果但不硬性要求（取决于业务需求）
-        if (userTx.status === 201) {
-            console.log('  ⚠️  普通用户可以创建交易（当前允许）');
-        } else {
-            assert('普通用户不能创建交易', userTx.status === 403);
+        // 账本只能由审批流写入，任何人直连 POST /api/transactions 都应被拒
+        for (const [who, label] of [[USER_TOKEN, '普通用户'], [ADMIN_TOKEN, '管理员']]) {
+            const r = await request('POST', `/api/transactions?projectId=${PROJECT_A}`, {
+                type: 'income', amount: 999, account_id: acctId,
+                subject_id: incomeSubject.id, shareholder_id: shAId,
+                description: '直连创建流水尝试'
+            }, who);
+            assert(`${label}不能直连创建流水`, r.status === 403, `实际 ${r.status}`);
         }
     }
 

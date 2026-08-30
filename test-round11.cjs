@@ -87,15 +87,15 @@ async function run() {
     });
     assert('创建账户', acct.body.success);
     if (acct.body.data?.id) {
-        const inc = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const inc = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 100, account_id: acct.body.data.id, description: 'R11收入'
         });
         assert('收入成功', inc.body.success);
-        const exp = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const exp = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 50, account_id: acct.body.data.id, description: 'R11支出'
         });
         assert('支出成功', exp.body.success);
-        const over = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const over = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 99999, account_id: acct.body.data.id, description: '超支'
         });
         assert('超支被拒', !over.body.success);

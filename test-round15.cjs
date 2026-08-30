@@ -139,14 +139,14 @@ async function run() {
     });
     const acctId = acct.body?.data?.id;
     if (acctId) {
-        await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 1000, account_id: acctId
         });
         const acct2 = await request('POST', `/api/accounts?projectId=${PROJECT_ID}&limit=500`, {
             name: 'R15转入', account_type: '活期账户', currency_type: 'CNY'
         });
         if (acct2.body?.data?.id) {
-            const negFee = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+            const negFee = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
                 type: 'transfer', amount: 10, account_id: acctId,
                 target_account_id: acct2.body.data.id, fees: -999
             });

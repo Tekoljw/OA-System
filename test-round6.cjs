@@ -128,13 +128,13 @@ async function run() {
 
     if (testAcctId) {
         // 收入交易
-        const income = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const income = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 0.01, account_id: testAcctId, description: '精度测试收入'
         });
         assert('0.01收入交易成功', income.body.success);
 
         // 尝试超额支出
-        const overSpend = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const overSpend = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 999999, account_id: testAcctId, description: '超额支出'
         });
         assert('超额支出被拒绝', !overSpend.body.success);

@@ -73,7 +73,7 @@ async function run() {
 
     // 充值
     if (acctId) {
-        await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'income', amount: 5000, account_id: acctId
         });
     }
@@ -82,19 +82,19 @@ async function run() {
     console.log('\n[1] subject_id/department_id 项目归属校验');
 
     // 使用不存在的 subject_id
-    const badSubject = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const badSubject = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'expense', amount: 1, account_id: acctId, subject_id: 999999
     });
     assert('不存在的 subject_id 被拒', badSubject.status === 400 || badSubject.status === 422);
 
     // 使用不存在的 department_id
-    const badDept = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const badDept = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'expense', amount: 1, account_id: acctId, department_id: 999999
     });
     assert('不存在的 department_id 被拒', badDept.status === 400 || badDept.status === 422);
 
     // 正常交易（不传 subject_id/department_id）仍成功
-    const normalTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const normalTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'expense', amount: 1, account_id: acctId
     });
     assert('不传 subject/dept 仍正常', normalTx.status === 201);
@@ -103,7 +103,7 @@ async function run() {
     const subjects = await request('GET', `/api/subjects?projectId=${PROJECT_ID}`);
     if (subjects.body?.data && subjects.body.data.length > 0) {
         const validSubjectId = subjects.body.data[0].id;
-        const goodTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+        const goodTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
             type: 'expense', amount: 1, account_id: acctId, subject_id: validSubjectId
         });
         assert('本项目 subject_id 正常使用', goodTx.status === 201);
@@ -113,7 +113,7 @@ async function run() {
             name: 'R20测试科目', type: 'expense', code: 'R20T'
         });
         if (newSubject.body?.data?.id) {
-            const goodTx = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+            const goodTx = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
                 type: 'expense', amount: 1, account_id: acctId, subject_id: newSubject.body.data.id
             });
             assert('本项目 subject_id 正常使用', goodTx.status === 201);
@@ -153,13 +153,13 @@ async function run() {
     assert('getUserInfo 无密码', user.status === 200 && !user.body?.data?.password);
 
     // type=transfer 仍被路由到 createTransfer
-    const transferNoTarget = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const transferNoTarget = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'transfer', amount: 10, account_id: acctId
     });
     assert('transfer 仍走专用接口', transferNoTarget.status === 400 || transferNoTarget.status === 422);
 
     // status 白名单
-    const badStatus = await request('POST', `/api/transactions?projectId=${PROJECT_ID}`, {
+    const badStatus = await request('POST', `/api/test-harness.php?projectId=${PROJECT_ID}`, {
         type: 'income', amount: 1, account_id: acctId, status: 'evil'
     });
     assert('status 白名单仍有效', badStatus.status === 400 || badStatus.status === 422);
