@@ -316,15 +316,11 @@ try {
                 $body['created_by'] = $currentUser['id'];
 
                 // 股东入资/分红交易仅管理员可操作
-                if (!empty($body['subject_id'])) {
-                    $stmtChk = $db->prepare("SELECT code FROM subjects WHERE id = ?");
-                    $stmtChk->execute([(int)$body['subject_id']]);
-                    $subjectCode = $stmtChk->fetchColumn();
-                    if (in_array($subjectCode, ['income-shareholder', 'expense-dividend'], true)) {
-                        if (($currentUser['role'] ?? '') !== 'admin') {
-                            Response::error('权限不足，仅管理员可操作股东入资/分红', 'FORBIDDEN', 403);
-                        }
-                    }
+                if (!empty($body['subject_id'])
+                    && $txService->isShareholderSubject((int)$body['subject_id'])
+                    && ($currentUser['role'] ?? '') !== 'admin'
+                ) {
+                    Response::error('权限不足，仅管理员可操作股东入资/分红', 'FORBIDDEN', 403);
                 }
 
                 // 内部划款走专用方法
@@ -374,110 +370,22 @@ try {
 
         // ===== 审批规则配置（仅管理员，由 4.6 守卫统一拦截写操作）=====
         case 'approval-rules':
+            require_once __DIR__ . '/services/ApprovalService.php';
+            $approvalSvc = new ApprovalService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
             if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET') {
-                $stmt = $db->prepare(
-                    "SELECT r.*,
-                            COALESCE(json_agg(json_build_object(
-                                'id', n.id, 'step_order', n.step_order,
-                                'approver_type', n.approver_type, 'approver_role', n.approver_role,
-                                'required_count', n.required_count
-                            ) ORDER BY n.step_order) FILTER (WHERE n.id IS NOT NULL), '[]') AS nodes
-                     FROM approval_rules r
-                     LEFT JOIN approval_rule_nodes n ON n.rule_id = r.id
-                     WHERE r.project_id = ?
-                     GROUP BY r.id ORDER BY r.priority, r.min_amount"
-                );
-                $stmt->execute([$projectId]);
-                $rules = array_map(function ($r) {
-                    $r['nodes'] = json_decode($r['nodes'], true);
-                    return $r;
-                }, $stmt->fetchAll(PDO::FETCH_ASSOC));
-                Response::success($rules, '获取审批规则成功');
-
-            } elseif ($method === 'POST' || ($method === 'PUT' && $resourceId)) {
+                Response::success($approvalSvc->listRules($projectId), '获取审批规则成功');
+            } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
-                if (empty($body['name'])) Response::error('规则名称不能为空', 'VALIDATION_ERROR');
-                $nodes = $body['nodes'] ?? [];
-                if (!is_array($nodes) || !$nodes) {
-                    Response::error('至少需要配置一个审批节点', 'VALIDATION_ERROR');
-                }
-                foreach ($nodes as $n) {
-                    if (!in_array($n['approver_type'] ?? '', ['applicant_dept_manager', 'role'], true)) {
-                        Response::error('审批人类型无效', 'VALIDATION_ERROR');
-                    }
-                    if (($n['approver_type'] === 'role') && empty($n['approver_role'])) {
-                        Response::error('角色型审批节点必须指定角色', 'VALIDATION_ERROR');
-                    }
-                    if ((int)($n['required_count'] ?? 1) < 1) {
-                        Response::error('会签人数至少为 1', 'VALIDATION_ERROR');
-                    }
-                }
-
-                $db->beginTransaction();
-                try {
-                    if ($method === 'POST') {
-                        $st = $db->prepare(
-                            "INSERT INTO approval_rules
-                                (project_id, name, application_type, min_amount, max_amount, amount_scope, priority, active)
-                             VALUES (?,?,?,?,?,?,?,?) RETURNING *"
-                        );
-                        $st->execute([
-                            $projectId, $body['name'], $body['application_type'] ?? null,
-                            (float)($body['min_amount'] ?? 0),
-                            isset($body['max_amount']) && $body['max_amount'] !== '' ? (float)$body['max_amount'] : null,
-                            $body['amount_scope'] ?? 'daily',
-                            (int)($body['priority'] ?? 0),
-                            array_key_exists('active', $body) ? (bool)$body['active'] : true,
-                        ]);
-                        $rule = $st->fetch(PDO::FETCH_ASSOC);
-                    } else {
-                        $st = $db->prepare(
-                            "UPDATE approval_rules SET name=?, application_type=?, min_amount=?, max_amount=?,
-                             amount_scope=?, priority=?, active=?, updated_at=NOW()
-                             WHERE id=? AND project_id=? RETURNING *"
-                        );
-                        $st->execute([
-                            $body['name'], $body['application_type'] ?? null,
-                            (float)($body['min_amount'] ?? 0),
-                            isset($body['max_amount']) && $body['max_amount'] !== '' ? (float)$body['max_amount'] : null,
-                            $body['amount_scope'] ?? 'daily',
-                            (int)($body['priority'] ?? 0),
-                            array_key_exists('active', $body) ? (bool)$body['active'] : true,
-                            (int)$resourceId, $projectId,
-                        ]);
-                        $rule = $st->fetch(PDO::FETCH_ASSOC);
-                        if (!$rule) { $db->rollBack(); Response::error('规则不存在', 'NOT_FOUND', 404); }
-                        $db->prepare("DELETE FROM approval_rule_nodes WHERE rule_id = ?")->execute([(int)$rule['id']]);
-                    }
-
-                    $ins = $db->prepare(
-                        "INSERT INTO approval_rule_nodes (rule_id, step_order, approver_type, approver_role, required_count)
-                         VALUES (?,?,?,?,?)"
-                    );
-                    $order = 1;
-                    foreach ($nodes as $n) {
-                        $ins->execute([
-                            (int)$rule['id'], (int)($n['step_order'] ?? $order),
-                            $n['approver_type'], $n['approver_role'] ?? null,
-                            (int)($n['required_count'] ?? 1),
-                        ]);
-                        $order++;
-                    }
-                    $db->commit();
-                } catch (\Exception $e) {
-                    $db->rollBack();
-                    throw $e;
-                }
-                Response::success($rule, $method === 'POST' ? '规则创建成功' : '规则更新成功', $method === 'POST' ? 201 : 200);
-
+                Response::success($approvalSvc->createRule($projectId, $body), '规则创建成功', 201);
+            } elseif ($method === 'PUT' && $resourceId) {
+                $body = JsonMiddleware::getRequestBody();
+                Response::success($approvalSvc->updateRule((int)$resourceId, $projectId, $body), '规则更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $st = $db->prepare("DELETE FROM approval_rules WHERE id = ? AND project_id = ?");
-                $st->execute([(int)$resourceId, $projectId]);
-                $st->rowCount() ? Response::success(null, '规则删除成功')
-                                : Response::error('规则不存在', 'NOT_FOUND', 404);
+                $approvalSvc->deleteRule((int)$resourceId, $projectId);
+                Response::success(null, '规则删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
@@ -858,9 +766,7 @@ try {
                     Response::error('不能删除自己的账户', 'VALIDATION_ERROR', 400);
                 }
                 // 校验被删用户是否属于当前项目
-                $checkStmt = $db->prepare("SELECT 1 FROM user_projects WHERE user_id = ? AND project_id = ?");
-                $checkStmt->execute([(int)$resourceId, $projectId]);
-                if (!$checkStmt->fetch()) {
+                if (!$userRepo->belongsToProject((int)$resourceId, $projectId)) {
                     Response::error('用户不属于当前项目，无权删除', 'FORBIDDEN', 403);
                 }
                 $userRepo->delete((int)$resourceId);
@@ -892,35 +798,24 @@ try {
 
         // ===== 活动日志 =====
         case 'activity-logs':
+            require_once __DIR__ . '/repositories/ActivityLogRepository.php';
+            $logRepo = new ActivityLogRepository($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
             if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
-            $page = max(1, (int)($_GET['page'] ?? 1));
+            $page  = max(1, (int)($_GET['page'] ?? 1));
             $limit = min(200, max(1, (int)($_GET['limit'] ?? 20)));
-            $offset = ($page - 1) * $limit;
 
             if ($method === 'GET') {
-                $stmt = $db->prepare("SELECT * FROM activity_logs WHERE project_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?");
-                $stmt->execute([$projectId, $limit, $offset]);
-                $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-                $countStmt = $db->prepare("SELECT COUNT(*) FROM activity_logs WHERE project_id = ?");
-                $countStmt->execute([$projectId]);
-                $total = (int)$countStmt->fetchColumn();
-
-                Response::paginated($logs, $total, $page, $limit);
+                Response::paginated(
+                    $logRepo->findByProject($projectId, $page, $limit),
+                    $logRepo->countByProject($projectId),
+                    $page, $limit
+                );
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
-                $stmt = $db->prepare("INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id) VALUES (?, ?, ?, ?, ?, ?) RETURNING *");
-                $stmt->execute([
-                    $body['action'] ?? '',
-                    $body['target_type'] ?? 'system',
-                    $body['target_id'] ?? null,
-                    $body['description'] ?? '',
-                    $currentUser['id'],
-                    $projectId
-                ]);
-                $log = $stmt->fetch(PDO::FETCH_ASSOC);
-                Response::success($log, '日志记录成功', 201);
+                $body['project_id'] = $projectId;
+                $body['user_id']    = $currentUser['id'];
+                Response::success($logRepo->record($body), '日志记录成功', 201);
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }

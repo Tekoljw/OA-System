@@ -302,109 +302,34 @@ const ProjectSwitcher: React.FC = () => {
     if (!projectId || projectId === (currentProject?.id.toString() || "")) {
       return;
     }
-    
+
+    const selectedProject = availableProjects.find(p => p.id.toString() === projectId);
+    if (!selectedProject) {
+      toast({ title: "项目切换失败", description: "项目不存在", variant: "destructive" });
+      return;
+    }
+
     setIsLoading(true);
-    
     try {
-      // 找到对应的项目对象
-      const selectedProject = availableProjects.find(p => p.id.toString() === projectId);
-      
-      // 如果找不到项目，显示错误
-      if (!selectedProject) {
-        throw new Error("项目不存在");
+      // 统一交给 AuthContext.switchProject：它会调用后端接口、更新 Context 状态
+      // 与 localStorage，并由 App 中按项目 id 设 key 的路由子树触发重新挂载。
+      // 此处不再自行写 localStorage，也不再用 window.location 强制整页跳转。
+      const success = await switchProject(selectedProject.id);
+      if (!success) {
+        toast({ title: "项目切换失败", description: "无法切换到指定项目", variant: "destructive" });
       }
-      
-      // 开始切换到选定项目
-      
-      // 直接在前端切换项目，不依赖后端API
-      // 1. 更新本地存储中的当前项目
-      localStorage.setItem('currentProject', JSON.stringify(selectedProject));
-      localStorage.setItem('currentProjectId', projectId);
-      
-      // 2. 更新用户对象中的projectId
-      const userData = localStorage.getItem('user');
-      if (userData) {
-        const user = JSON.parse(userData);
-        user.projectId = parseInt(projectId, 10);
-        user.currentProject = selectedProject;
-        localStorage.setItem('user', JSON.stringify(user));
-      }
-      
-      // 显示成功消息
-      toast({
-        title: "项目切换成功",
-        description: `已切换到项目: ${selectedProject.name}`
-      });
-      
-      // 使用无刷新切换技术
-      try {
-        // 使用无刷新切换项目技术
-        
-        // 显示标准加载指示器
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'app-loading fade-in';
-        const spinner = document.createElement('div');
-        spinner.className = 'app-loading-spinner';
-        const text = document.createElement('div');
-        text.className = 'app-loading-text';
-        text.textContent = `快速切换到项目: ${selectedProject.name}`;
-        loadingDiv.appendChild(spinner);
-        loadingDiv.appendChild(text);
-        document.body.appendChild(loadingDiv);
-        
-        // 预先更新所有本地状态到新项目
-        const userData = localStorage.getItem('user');
-        if (userData) {
-          const user = JSON.parse(userData);
-          // 缓存旧数据，以便在失败时恢复
-          const oldProjectId = user.projectId;
-          const oldCurrentProject = user.currentProject;
-          
-          // 更新到新项目
-          user.projectId = selectedProject.id;
-          user.currentProject = selectedProject;
-          
-          // 保存到本地存储
-          localStorage.setItem('user', JSON.stringify(user));
-          localStorage.setItem('currentProject', JSON.stringify(selectedProject));
-          localStorage.setItem('currentProjectId', selectedProject.id.toString());
-          
-          // 缓存上一个项目信息，以便在出错时恢复
-          sessionStorage.setItem('previous_project_id', oldProjectId ? oldProjectId.toString() : '');
-          sessionStorage.setItem('previous_project', oldCurrentProject ? JSON.stringify(oldCurrentProject) : '');
-        }
-        
-        // 使用状态URL参数立即导航（无需等待）
-        window.location.href = '/?ts=' + new Date().getTime() + '&project_id=' + selectedProject.id;
-      } catch (e) {
-        console.error('优化导航失败，执行直接导航:', e);
-        // 出错时执行最简单的直接导航
-        const loadingDiv = document.createElement('div');
-        loadingDiv.className = 'app-loading fade-in';
-        const spinner2 = document.createElement('div');
-        spinner2.className = 'app-loading-spinner';
-        const text2 = document.createElement('div');
-        text2.className = 'app-loading-text';
-        text2.textContent = '正在切换项目...';
-        loadingDiv.appendChild(spinner2);
-        loadingDiv.appendChild(text2);
-        document.body.appendChild(loadingDiv);
-        
-        window.location.href = '/';
-      }
-      
     } catch (error: any) {
       console.error('项目切换失败:', error);
       toast({
         title: "项目切换失败",
-        description: error.message || "切换项目时发生错误",
+        description: error?.message || "切换项目时发生错误",
         variant: "destructive"
       });
     } finally {
       setIsLoading(false);
     }
   };
-  
+
   const handleDeleteClick = (project: Project) => {
     // 不允许删除当前项目
     if (currentProject && project.id === currentProject.id) {

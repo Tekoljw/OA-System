@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../repositories/ApprovalRuleRepository.php';
 /**
  * 审批引擎
  *
@@ -216,6 +217,86 @@ class ApprovalService {
         );
         $stmt->execute([$targetId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    // ==================== 规则配置 CRUD ====================
+
+    public function listRules(int $projectId): array {
+        return (new ApprovalRuleRepository($this->db))->findByProject($projectId);
+    }
+
+    /** 规则与节点的合法性校验，创建与更新共用 */
+    private function validateRulePayload(array $d): array {
+        if (empty($d['name'])) {
+            throw new \InvalidArgumentException('规则名称不能为空');
+        }
+        $nodes = $d['nodes'] ?? [];
+        if (!is_array($nodes) || !$nodes) {
+            throw new \InvalidArgumentException('至少需要配置一个审批节点');
+        }
+        $min = (float)($d['min_amount'] ?? 0);
+        $max = ($d['max_amount'] ?? null);
+        if ($max !== null && $max !== '' && (float)$max <= $min) {
+            throw new \InvalidArgumentException('金额上限必须大于下限');
+        }
+        if (!in_array($d['amount_scope'] ?? 'daily', ['single', 'daily'], true)) {
+            throw new \InvalidArgumentException('计算口径无效');
+        }
+        foreach ($nodes as $n) {
+            if (!in_array($n['approver_type'] ?? '', ['applicant_dept_manager', 'role'], true)) {
+                throw new \InvalidArgumentException('审批人类型无效');
+            }
+            if (($n['approver_type'] === 'role') && empty($n['approver_role'])) {
+                throw new \InvalidArgumentException('角色型审批节点必须指定角色');
+            }
+            if ((int)($n['required_count'] ?? 1) < 1) {
+                throw new \InvalidArgumentException('会签人数至少为 1');
+            }
+        }
+        return $nodes;
+    }
+
+    public function createRule(int $projectId, array $d): array {
+        $nodes = $this->validateRulePayload($d);
+        $repo  = new ApprovalRuleRepository($this->db);
+
+        $this->db->beginTransaction();
+        try {
+            $rule = $repo->insertRule($projectId, $d);
+            $repo->insertNodes((int)$rule['id'], $nodes);
+            $this->db->commit();
+        } catch (\Exception $e) {
+            $this->db->rollBack();
+            throw $e;
+        }
+        return $rule;
+    }
+
+    public function updateRule(int $id, int $projectId, array $d): array {
+        $nodes = $this->validateRulePayload($d);
+        $repo  = new ApprovalRuleRepository($this->db);
+
+        $this->db->beginTransaction();
+        try {
+            $rule = $repo->updateRule($id, $projectId, $d);
+            if (!$rule) {
+                $this->db->rollBack();
+                throw new \RuntimeException('规则不存在');
+            }
+            $repo->deleteNodes((int)$rule['id']);
+            $repo->insertNodes((int)$rule['id'], $nodes);
+            $this->db->commit();
+        } catch (\Exception $e) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $e;
+        }
+        return $rule;
+    }
+
+    public function deleteRule(int $id, int $projectId): void {
+        if (!(new ApprovalRuleRepository($this->db))->deleteRule($id, $projectId)) {
+            throw new \RuntimeException('规则不存在');
+        }
     }
 
     /**

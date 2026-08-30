@@ -50,6 +50,13 @@ class UserRepository extends BaseRepository {
         return $stmt->execute([$hash, $userId]);
     }
 
+    /** 用户是否隶属于指定项目 */
+    public function belongsToProject(int $userId, int $projectId): bool {
+        $stmt = $this->db->prepare("SELECT 1 FROM user_projects WHERE user_id = ? AND project_id = ?");
+        $stmt->execute([$userId, $projectId]);
+        return (bool) $stmt->fetch();
+    }
+
     public function isSuperAdmin(int $userId): bool {
         $stmt = $this->db->prepare("SELECT id FROM super_admins WHERE user_id = ?");
         $stmt->execute([$userId]);

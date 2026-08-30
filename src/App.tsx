@@ -73,17 +73,18 @@ const ProtectedSidebarPage = withProtectedRoute(({ children }: { children: React
   </SidebarProvider>
 ));
 
-const App = () => {
-  console.log("App组件重新渲染");
-  
+/**
+ * 路由子树。key 绑定当前项目 id：切换项目时整棵子树重新挂载，
+ * 各页面重跑数据请求，替代此前的 window.location.reload()。
+ */
+const AppRoutes = () => {
+  const { currentProject } = useAuth();
+
   return (
-    <AuthProvider>
-        <QueryClientProvider client={queryClient}>
-          <TooltipProvider>
-            <ApiErrorHandler>
-              <Toaster />
-              <Sonner />
-              <Routes>
+    <ApiErrorHandler>
+      <Toaster />
+      <Sonner />
+      <Routes key={currentProject?.id ?? 'no-project'}>
                 {/* 公开路由 */}
                 <Route path="/login" element={<Login />} />
                 {/* 应急登录页面已移除 */}
@@ -248,14 +249,21 @@ const App = () => {
                   </ProtectedSidebarPage>
                 } />
                 
-                {/* 404页面 */}
-                <Route path="*" element={<NotFound />} />
-              </Routes>
-            </ApiErrorHandler>
-          </TooltipProvider>
-        </QueryClientProvider>
-    </AuthProvider>
+      {/* 404页面 */}
+      <Route path="*" element={<NotFound />} />
+      </Routes>
+    </ApiErrorHandler>
   );
 };
+
+const App = () => (
+  <AuthProvider>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <AppRoutes />
+      </TooltipProvider>
+    </QueryClientProvider>
+  </AuthProvider>
+);
 
 export default App;

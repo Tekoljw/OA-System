@@ -261,9 +261,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             description: response.message || `已切换到项目: ${selectedProject.name}`,
           });
           
-          // 刷新页面以加载新项目数据
-          window.location.reload();
-          
+          // 不再整页刷新。currentProject 变化会让 App 中的路由子树以新的 key
+          // 重新挂载，各页面重跑 useEffect 并按新 projectId 拉数据，
+          // 既达到同样的刷新效果，又不丢失应用状态、不产生一次完整往返。
           return true;
         }
       }
@@ -274,8 +274,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: response?.message || "无法切换到指定项目",
         variant: "destructive",
       });
-      
-      setIsLoading(false);
       return false;
     } catch (error: any) {
       toast({
@@ -283,9 +281,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         description: error.message || "切换项目时发生错误",
         variant: "destructive",
       });
-      
-      setIsLoading(false);
       return false;
+    } finally {
+      // 原先成功路径靠 window.location.reload() 收场，从不复位 isLoading。
+      // 去掉整页刷新后必须在 finally 统一复位，否则受保护路由会永久停在加载态。
+      setIsLoading(false);
     }
   };
   

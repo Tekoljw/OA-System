@@ -302,6 +302,15 @@ class TransactionService {
     }
 
     /**
+     * 该科目是否为股东入资/分红科目（此类交易仅管理员可操作）
+     */
+    public function isShareholderSubject(int $subjectId): bool {
+        $stmt = $this->db->prepare("SELECT code FROM subjects WHERE id = ?");
+        $stmt->execute([$subjectId]);
+        return in_array($stmt->fetchColumn(), ['income-shareholder', 'expense-dividend'], true);
+    }
+
+    /**
      * 仅在尚未处于事务中时开启事务。
      * 本服务会被 ApplicationService / TransferService 在其事务内调用，
      * PDO 不支持嵌套事务，由最外层负责 commit / rollback。
