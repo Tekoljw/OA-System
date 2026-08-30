@@ -72,7 +72,9 @@ class UserRepository extends BaseRepository {
                 $d['username'],
                 password_hash($d['password'], PASSWORD_BCRYPT),
                 $d['full_name'] ?? '',
-                $d['email'] ?? '',
+                // 不能写成 $d['email'] ?? ''：email 有唯一约束，
+                // 空串会让第二个未填邮箱的用户撞 users_email_key，必须保持 NULL
+                ($d['email'] ?? null) !== '' ? ($d['email'] ?? null) : null,
                 $d['role'] ?? 'user',
                 $d['is_active'] ?? true,
             ]);

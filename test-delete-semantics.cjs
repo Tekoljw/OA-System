@@ -77,6 +77,28 @@ async function run() {
     const cleanup = await request('DELETE', `/api/subjects/${sub2.body?.data?.id}?projectId=${P}`, null, T);
     assert('回到本项目可正常删除', cleanup.status === 200);
 
+    // ---- 空编码不应互相冲突 ----
+    // subjects/currency_types/departments 均有 UNIQUE(code, project_id)，
+    // 编码存空串时第二条起必然 duplicate key —— 界面不填编码，等于每项只能建一条
+    console.log('\n[4] 不填编码可连续创建多条');
+    const made = [];
+    for (const i of [1, 2, 3]) {
+        const d = await request('POST', `/api/departments?projectId=${P}`, { name: `空码部门${i}` }, T);
+        assert(`第${i}个不填编码的部门`, d.status === 201, `-> ${msg(d)}`);
+        if (d.body?.data?.id) made.push(['departments', d.body.data.id]);
+        const s2 = await request('POST', `/api/subjects?projectId=${P}`, { name: `空码科目${i}`, type: 'income' }, T);
+        assert(`第${i}个不填编码的科目`, s2.status === 201, `-> ${msg(s2)}`);
+        if (s2.body?.data?.id) made.push(['subjects', s2.body.data.id]);
+    }
+    // 填了编码时唯一性必须仍然生效
+    const u1 = await request('POST', `/api/subjects?projectId=${P}`, { name: '唯一码A', type: 'income', code: 'UNIQ-T1' }, T);
+    const u2 = await request('POST', `/api/subjects?projectId=${P}`, { name: '唯一码B', type: 'income', code: 'UNIQ-T1' }, T);
+    assert('带编码首次创建成功', u1.status === 201, `-> ${msg(u1)}`);
+    assert('相同编码被拒（唯一性未被改坏）', u2.status >= 400, `实际 ${u2.status}`);
+    if (u1.body?.data?.id) made.push(['subjects', u1.body.data.id]);
+
+    for (const [ep, id] of made) await request('DELETE', `/api/${ep}/${id}?projectId=${P}`, null, T);
+
     console.log(`\n${'='.repeat(50)}`);
     console.log(`删除语义：总计 ${passed + failed} | ✅ ${passed} | ❌ ${failed}`);
     console.log('='.repeat(50));

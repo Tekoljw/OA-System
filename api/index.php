@@ -102,6 +102,31 @@ if ($currentUser
     Response::error('权限不足，仅管理员可执行该操作', 'FORBIDDEN', 403);
 }
 
+/**
+ * 账户请求体归一化。
+ * 前端表单提交的是 camelCase（accountNumber/currencyType/accountType），
+ * 且账户类型传的是显示名（如「活期账户」）而非库中的 code（current），
+ * 此前两者都对不上，通过界面新建账户必然报「账户类型不能为空」。
+ */
+function normalizeAccountBody(array $body): array {
+    $map = [
+        'accountNumber' => 'account_number',
+        'currencyType'  => 'currency_type',
+        'accountType'   => 'account_type',
+        'initialBalance'=> 'initial_balance',
+        'openDate'      => 'open_date',
+        'bank'          => 'bank_name',
+        'limit'         => 'credit_limit',
+    ];
+    foreach ($map as $from => $to) {
+        if (array_key_exists($from, $body) && !array_key_exists($to, $body)) {
+            $body[$to] = $body[$from];
+        }
+        unset($body[$from]);
+    }
+    return $body;
+}
+
 // 5. 路由分发
 try {
     switch ($endpoint) {
@@ -249,12 +274,13 @@ try {
                 Response::paginated($result['items'], $result['total'], $page, $limit);
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
+                $body = normalizeAccountBody($body);
                 $body['project_id'] = $projectId;
                 $body['created_by'] = $currentUser['id'];
                 $account = $accountService->createAccount($body);
                 Response::success($account, '账户创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
-                $body = JsonMiddleware::getRequestBody();
+                $body = normalizeAccountBody(JsonMiddleware::getRequestBody());
                 $account = $accountService->updateAccount((int)$resourceId, $body, $projectId);
                 Response::success($account, '账户更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
@@ -833,7 +859,8 @@ try {
                     'username'  => $body['username'],
                     'password'  => $body['password'],
                     'full_name' => $body['fullName'] ?? $body['full_name'] ?? '',
-                    'email'     => $body['email'] ?? '',
+                    // email 有唯一约束，空串会让第二个用户撞 users_email_key，须转 NULL
+                    'email'     => ($body['email'] ?? '') !== '' ? $body['email'] : null,
                     'role'      => $body['role'] ?? 'user',
                     'is_active' => ($body['status'] ?? 'active') === 'active',
                 ], $projectId);

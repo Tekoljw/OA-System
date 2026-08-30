@@ -212,7 +212,8 @@ const AccountFormDialog: React.FC<AccountFormDialogProps> = ({
                       </FormControl>
                       <SelectContent>
                         {accountTypes.map((type) => (
-                          <SelectItem key={type.id} value={type.name}>
+                          // 提交 code 而非显示名：库中 account_type 存的是 current/fixed 等 code
+                          <SelectItem key={type.id} value={type.code || type.name}>
                             {type.name}
                           </SelectItem>
                         ))}

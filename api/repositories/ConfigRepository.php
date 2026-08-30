@@ -34,21 +34,33 @@ class ConfigRepository extends BaseRepository {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+
+    /**
+     * 空编码必须存 NULL 而不是空串。
+     * subjects / currency_types / departments 都有 UNIQUE(code, project_id)，
+     * 空串之间会互相冲突——界面上不填编码时，每个项目只能创建一条，
+     * 第二条起一律报 duplicate key。NULL 在 Postgres 唯一约束中互不冲突。
+     */
+    private static function nullIfBlank($code) {
+        $code = is_string($code) ? trim($code) : $code;
+        return ($code === '' || $code === null) ? null : $code;
+    }
+
     public function createCurrencyType(array $data): array {
         $stmt = $this->db->prepare("INSERT INTO currency_types (name, code, description, project_id) VALUES (?, ?, ?, ?) RETURNING *");
-        $stmt->execute([$data['name'], $data['code'], $data['description'] ?? '', $data['project_id']]);
+        $stmt->execute([$data['name'], self::nullIfBlank($data['code'] ?? null), $data['description'] ?? '', $data['project_id']]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function createAccountType(array $data): array {
         $stmt = $this->db->prepare("INSERT INTO account_types (name, code, type, description, project_id) VALUES (?, ?, ?, ?, ?) RETURNING *");
-        $stmt->execute([$data['name'], $data['code'] ?? '', $data['type'] ?? 'asset', $data['description'] ?? '', $data['project_id']]);
+        $stmt->execute([$data['name'], self::nullIfBlank($data['code'] ?? null), $data['type'] ?? 'asset', $data['description'] ?? '', $data['project_id']]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
     public function createSubject(array $data): array {
         $stmt = $this->db->prepare("INSERT INTO subjects (name, code, type, description, project_id) VALUES (?, ?, ?, ?, ?) RETURNING *");
-        $stmt->execute([$data['name'], $data['code'] ?? '', $data['type'], $data['description'] ?? '', $data['project_id']]);
+        $stmt->execute([$data['name'], self::nullIfBlank($data['code'] ?? null), $data['type'], $data['description'] ?? '', $data['project_id']]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }
 
@@ -68,7 +80,7 @@ class ConfigRepository extends BaseRepository {
         // manager_id 此前被静默丢弃，导致前端选的部门主管从未落库
         $stmt = $this->db->prepare("INSERT INTO departments (name, code, description, project_id, manager_id) VALUES (?, ?, ?, ?, ?) RETURNING *");
         $stmt->execute([
-            $data['name'], $data['code'] ?? '', $data['description'] ?? '', $data['project_id'],
+            $data['name'], self::nullIfBlank($data['code'] ?? null), $data['description'] ?? '', $data['project_id'],
             !empty($data['manager_id']) ? (int)$data['manager_id'] : null,
         ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
@@ -93,7 +105,7 @@ class ConfigRepository extends BaseRepository {
         $safeData = [];
         foreach ($data as $k => $v) {
             if (in_array($k, $allowed, true)) {
-                $safeData[$k] = $v;
+                $safeData[$k] = ($k === 'code') ? self::nullIfBlank($v) : $v;
             }
         }
         if (empty($safeData)) return null;

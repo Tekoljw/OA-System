@@ -23,6 +23,7 @@ import {
   SelectValue 
 } from "../../ui/select";
 import { getManagerUsers } from "../../../utils/api";
+import { apiRequest } from "../../../api/client";
 import { useToast } from "../../../hooks/use-toast";
 import { Skeleton } from "../../ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "../../ui/alert";
@@ -191,36 +192,35 @@ export function DepartmentDialog({ department, onSaved }: DepartmentDialogProps)
     }
     
     try {
-      console.log(`${department ? '更新' : '创建'}部门，数据:`, departmentData);
-      
-      if (!department) {
-        // 新创建的部门保存到localStorage
-        departmentData.id = Date.now();
-        departmentData.active = true;
-        departmentData.description = departmentData.description || '';
-        
-        const newDepartments = JSON.parse(localStorage.getItem('newDepartments') || '[]');
-        newDepartments.push(departmentData);
-        localStorage.setItem('newDepartments', JSON.stringify(newDepartments));
-        console.log('新部门已保存到localStorage:', departmentData);
+      // 此前新建部门只写入 localStorage 的 newDepartments、编辑分支甚至什么都不做，
+      // 界面却提示「已创建/已更新」。结果是部门只存在于当前浏览器：他人看不到、
+      // 清缓存即丢失，而审批流依赖的部门主管在库中根本不存在。改为真正调用接口。
+      const payload: any = { name: departmentData.name };
+      if (departmentData.managerId !== undefined) {
+        payload.managerId = departmentData.managerId ? Number(departmentData.managerId) : null;
       }
-      
-      // 重置表单并关闭对话框
+
+      const res = department
+        ? await apiRequest('PUT', `/api/departments/${department.id}?projectId=${currentProjectId}`, payload)
+        : await apiRequest('POST', `/api/departments?projectId=${currentProjectId}`, payload);
+
+      if (!res?.success) {
+        throw new Error(res?.message || '无法保存部门数据');
+      }
+
       setName('');
       setSelectedManagerId('');
       setOpen(false);
-      
-      // 成功消息
+
       toast({
-        title: department ? "部门已更新" : "部门已创建", 
+        title: department ? "部门已更新" : "部门已创建",
         description: `${name} 部门已成功${department ? "更新" : "创建"}`,
       });
-      
-      // 告知父组件更新数据
+
       if (onSaved) {
         onSaved();
       }
-      
+
     } catch (error: any) {
       console.error('部门操作错误:', error);
       toast({

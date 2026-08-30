@@ -60,6 +60,8 @@ export interface CurrencyTypeUpdate {
 export interface AccountType {
   id: string;
   name: string;
+  /** 库中 accounts.account_type 存的是这个 code（current/fixed/...），提交时须用它而非 name */
+  code?: string;
   description?: string;
 }
 
@@ -226,11 +228,35 @@ export async function getTransactionTypesByCategory(category: 'income' | 'expens
   }
 }
 
+/**
+ * 科目在后端以 type: 'income' | 'expense' 存储，界面以 category: '收入' | '支出' 展示。
+ * 此前创建时直接把 category 发给后端，导致必然报「类型不能为空」，
+ * 通过界面新增科目从来就没成功过。转换集中放在这里，两个方向都走它。
+ */
+const SUBJECT_CATEGORY_TO_TYPE: Record<string, 'income' | 'expense'> = {
+  '收入': 'income',
+  '支出': 'expense',
+};
+
+function toSubjectType(category?: string): 'income' | 'expense' | undefined {
+  if (!category) return undefined;
+  return SUBJECT_CATEGORY_TO_TYPE[category] ?? (category as 'income' | 'expense');
+}
+
+function fromSubjectRow(row: any): SubjectType {
+  return {
+    id: String(row.id),
+    name: row.name,
+    description: row.description || '',
+    category: row.type === 'expense' ? '支出' : '收入',
+  };
+}
+
 // 科目分类API
 export async function getSubjectTypes(): Promise<SubjectType[]> {
   try {
     const result = await apiRequest('GET', '/api/subject-types');
-    return result.data || [];
+    return (result.data || []).map(fromSubjectRow);
   } catch (error) {
     console.error("获取科目分类失败:", error);
     if (error.message && error.message.includes("401")) {
@@ -243,7 +269,7 @@ export async function getSubjectTypes(): Promise<SubjectType[]> {
 export async function getSubjectType(id: string): Promise<SubjectType> {
   try {
     const result = await apiRequest('GET', `/api/subject-types/${id}`);
-    return result.data;
+    return fromSubjectRow(result.data);
   } catch (error) {
     console.error(`获取科目分类(ID: ${id})失败:`, error);
     throw error;
@@ -252,8 +278,12 @@ export async function getSubjectType(id: string): Promise<SubjectType> {
 
 export async function createSubjectType(data: SubjectTypeCreate): Promise<SubjectType> {
   try {
-    const result = await apiRequest('POST', '/api/subject-types', data);
-    return result.data;
+    const result = await apiRequest('POST', '/api/subject-types', {
+      name: data.name,
+      description: data.description,
+      type: toSubjectType(data.category),
+    });
+    return fromSubjectRow(result.data);
   } catch (error: any) {
     console.error("创建科目分类失败:", error);
     // 处理常见错误
@@ -266,8 +296,12 @@ export async function createSubjectType(data: SubjectTypeCreate): Promise<Subjec
 
 export async function updateSubjectType(id: string, data: SubjectTypeUpdate): Promise<SubjectType> {
   try {
-    const result = await apiRequest('PUT', `/api/subject-types/${id}`, data);
-    return result.data;
+    const result = await apiRequest('PUT', `/api/subject-types/${id}`, {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(data.category !== undefined ? { type: toSubjectType(data.category) } : {}),
+    });
+    return fromSubjectRow(result.data);
   } catch (error: any) {
     console.error(`更新科目分类(ID: ${id})失败:`, error);
     throw error;
