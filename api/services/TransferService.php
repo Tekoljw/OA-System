@@ -82,9 +82,10 @@ class TransferService {
             'reason'                => $r['reason'],
             'status'                => $r['status'],
             'submitter'             => $r['submitter_name'] ?? '',
-            'submitTime'            => $r['created_at'],
+            // 截到秒：PG 时间戳带微秒，前端直接展示会出现 11:08:27.824239
+            'submitTime'            => substr((string)$r['created_at'], 0, 19),
             'approver'              => $r['approver_name'] ?? '',
-            'approveTime'           => $r['approved_at'],
+            'approveTime'           => $r['approved_at'] ? substr((string)$r['approved_at'], 0, 19) : null,
             'projectId'             => (int)$r['project_id'],
         ];
     }

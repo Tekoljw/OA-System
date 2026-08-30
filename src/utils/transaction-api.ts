@@ -87,11 +87,13 @@ export async function getTransactions(params: TransactionQueryParams = {}): Prom
             result.page = response.data.page || params.page || 1;
             result.limit = response.data.limit || params.limit || 10;
           } 
-          // 如果API以不同的字段名返回数据，需要进行映射
+          // 实际形态：交易列表走 Response::paginated —— data 是数组，
+          // 总数在顶层 pagination.total。此前用当前页长度当总数，分页必然算错。
           else if (Array.isArray(response.data)) {
-            // 如果直接返回数组
             result.transactions = response.data;
-            result.total = response.data.length;
+            result.total = response.pagination?.total ?? response.data.length;
+            result.page = response.pagination?.page ?? params.page ?? 1;
+            result.limit = response.pagination?.limit ?? params.limit ?? 10;
           } 
           // 其他可能的响应结构
           else if (typeof response.data === 'object') {

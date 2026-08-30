@@ -114,17 +114,19 @@ const fetchTransactions = async (
       params.append('date', dateFilter);
     }
     
-    // 走统一客户端，自动附带 Authorization 和 projectId
-    const result = await apiRequest('GET', `/api/transactions?${params.toString()}`);
+    // 数据源是 /api/transfers（划款单），不是 /api/transactions。
+    // 本页按「一次划款」呈现：转出账户、转入账户、到账金额、手续费、汇率，
+    // 而 transactions 里每次划款是拆成转出/转入两条独立流水的，
+    // 既无配对关系也无手续费与汇率，字段对不上会导致渲染时读到 undefined。
+    const result = await apiRequest('GET', `/api/transfers?${params.toString()}`);
 
     if (!result.success) {
       throw new Error(result.message || '获取划款记录失败');
     }
-    
-    // 返回数据和总数
+
     return {
-      data: result.data.transactions || [],
-      total: result.data.total || 0
+      data: result.data?.transfers ?? [],
+      total: result.data?.total ?? 0
     };
   } catch (error) {
     console.error('获取划款记录错误:', error);

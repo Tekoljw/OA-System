@@ -127,6 +127,33 @@ function normalizeAccountBody(array $body): array {
     return $body;
 }
 
+/**
+ * 划款请求体归一化。
+ * 前端按 TransferData 提交 camelCase（fromAccountId/toAmount/fees/…），
+ * 后端使用 snake_case，两者对不上会报「未指定部门」等误导性错误。
+ */
+function normalizeTransferBody(array $body): array {
+    $map = [
+        'fromAccountId'        => 'from_account_id',
+        'toAccountId'          => 'to_account_id',
+        'fromAccount'          => 'from_account_id',
+        'toAccount'            => 'to_account_id',
+        'toAmount'             => 'to_amount',
+        'exchangeLoss'         => 'exchange_loss',
+        'actualExchangeRate'   => 'actual_exchange_rate',
+        'officialExchangeRate' => 'official_exchange_rate',
+        'departmentId'         => 'department_id',
+        'repaymentDate'        => 'repayment_date',
+    ];
+    foreach ($map as $from => $to) {
+        if (array_key_exists($from, $body) && !array_key_exists($to, $body)) {
+            $body[$to] = $body[$from];
+        }
+        unset($body[$from]);
+    }
+    return $body;
+}
+
 // 5. 路由分发
 try {
     switch ($endpoint) {
@@ -480,7 +507,7 @@ try {
             } elseif ($method === 'GET' && $resourceId) {
                 Response::success($trService->getTransfer((int)$resourceId, $projectId), '获取划款详情成功');
             } elseif ($method === 'POST' && !$resourceId) {
-                $body = JsonMiddleware::getRequestBody();
+                $body = normalizeTransferBody(JsonMiddleware::getRequestBody());
                 $body['project_id']   = $projectId;
                 $body['submitter_id'] = $currentUser['id'];
                 Response::success($trService->create($body), '划款单提交成功', 201);

@@ -84,7 +84,15 @@ async function getBalance(token, pId, accId) {
 
   // M5-05 ⭐ 账户摘要交叉验证
   const dashResp = await api(token, 'GET', `/dashboard?projectId=${pId}`);
-  const accResp = await api(token, 'GET', `/accounts?projectId=${pId}&limit=500`);
+  // 账户数会随测试增长，任何固定 limit 迟早不够；接口上限 200，必须翻页取全量
+  const accItems = [];
+  for (let pg = 1; pg <= 50; pg++) {
+    const r = await api(token, 'GET', `/accounts?projectId=${pId}&limit=200&page=${pg}`);
+    const batch = r.data || [];
+    accItems.push(...batch);
+    if (batch.length < 200) break;
+  }
+  const accResp = { success: true, data: accItems };
   if (dashResp.success && dashResp.data?.accountSummary && accResp.data) {
     const dashSummary = dashResp.data.accountSummary;
     // 按币种汇总实际账户余额
