@@ -48,8 +48,10 @@ services:
       dockerfile: Dockerfile
     container_name: oa-system-app
     environment:
-      # 仅开发/测试环境启用服务层测试入口；生产镜像不得设置
-      OA_ENABLE_TEST_HARNESS: "1"
+      # 服务层测试入口默认关闭。本仓库的 compose 同时用于生产部署，
+      # 写死开启会让绕过审批直写账本的入口跟着代码进生产。
+      # 本地跑测试时用 docker-compose.override.yml 打开（该文件不进版本库）。
+      OA_ENABLE_TEST_HARNESS: "${OA_ENABLE_TEST_HARNESS:-0}"
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: oa_system
