@@ -16,6 +16,12 @@ import ImageViewer from "../common/ImageViewer";
 import ApprovalDialog from "./ApprovalDialog";
 import { approveApplication } from "../../utils/approval-api";
 import { useToast } from "../../hooks/use-toast";
+import { apiRequest } from "../../api/client";
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from "../ui/dialog";
+import { Label } from "../ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
 
 type Application = {
   id: number;
@@ -42,9 +48,22 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
   const [selectedApplication, setSelectedApplication] = useState<Application | null>(null);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
 
+  // 归账：需指定入账账户与科目
+  const [allocateTarget, setAllocateTarget] = useState<Application | null>(null);
+  const [accounts, setAccounts] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<any[]>([]);
+  const [allocAccountId, setAllocAccountId] = useState("");
+  const [allocSubjectId, setAllocSubjectId] = useState("");
+  const [busy, setBusy] = useState(false);
+
   // Status badge color mapping
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "to_be_allocated":
+      case "ready_for_execution":
+        return "bg-orange-100 text-orange-800";
+      case "to_be_executed":
+        return "bg-indigo-100 text-indigo-800";
       case "approved":
       case "completed":
         return "bg-green-100 text-green-800";
@@ -66,9 +85,14 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
       case "rejected":
         return "已拒绝";
       case "ready_for_execution":
+      case "to_be_allocated":
+        return "待归账";
+      case "to_be_executed":
         return "待执行";
       case "completed":
         return "已完成";
+      case "cancelled":
+        return "已取消";
       case "pending":
       default:
         return "待审批";
@@ -140,6 +164,64 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
     setApprovalDialogOpen(true);
   };
   
+  // 打开归账对话框：此前待归账页没有任何操作入口，流程到这里就断了
+  const handleAllocate = async (app: Application, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setAllocateTarget(app);
+    setAllocAccountId("");
+    setAllocSubjectId("");
+    try {
+      const [accRes, subRes] = await Promise.all([
+        apiRequest('GET', '/api/accounts?limit=200'),
+        apiRequest('GET', '/api/subjects'),
+      ]);
+      setAccounts(Array.isArray(accRes?.data) ? accRes.data : []);
+      // 科目类型需与申请类型一致：收入申请只能记到收入科目
+      const wanted = app.type === 'income' ? 'income' : 'expense';
+      setSubjects((Array.isArray(subRes?.data) ? subRes.data : []).filter((x: any) => x.type === wanted));
+    } catch {
+      setAccounts([]); setSubjects([]);
+    }
+  };
+
+  const submitAllocate = async () => {
+    if (!allocateTarget || !allocAccountId) {
+      toast({ title: "请选择入账账户", variant: "destructive" });
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await apiRequest('PUT', `/api/applications/${allocateTarget.id}/allocate`, {
+        account_id: Number(allocAccountId),
+        subject_id: allocSubjectId ? Number(allocSubjectId) : undefined,
+      });
+      if (!res?.success) throw new Error(res?.message || '归账失败');
+      toast({ title: "归账成功", description: "已转入待执行" });
+      setAllocateTarget(null);
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      toast({ title: "归账失败", description: err?.message || '请稍后重试', variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // 执行：生成流水并变动账户余额，是唯一动账的一步
+  const handleExecute = async (app: Application, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setBusy(true);
+    try {
+      const res = await apiRequest('PUT', `/api/applications/${app.id}/execute`, {});
+      if (!res?.success) throw new Error(res?.message || '执行失败');
+      toast({ title: "执行成功", description: "已生成流水并更新账户余额" });
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      toast({ title: "执行失败", description: err?.message || '请稍后重试', variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
   // 处理同意审批
   const handleApprove = async (id: number, comment: string) => {
     try {
@@ -303,7 +385,8 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
                     <TableHead>状态</TableHead>
                     <TableHead>备注说明</TableHead>
                     <TableHead className="w-10">附件</TableHead>
-                    {type === "待审批" && <TableHead className="text-center">操作</TableHead>}
+                    {["待审批", "待归账", "待执行"].includes(type) &&
+                      <TableHead className="text-center">操作</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -333,15 +416,25 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
                           iconSize={16}
                         />
                       </TableCell>
-                      {type === "待审批" && (
+                      {["待审批", "待归账", "待执行"].includes(type) && (
                         <TableCell className="text-center">
-                          {app.status === "pending" && (
-                            <Button 
-                              size="sm" 
-                              onClick={(e) => handleApproval(app, e)}
-                            >
+                          {type === "待审批" && app.status === "pending" && (
+                            <Button size="sm" onClick={(e) => handleApproval(app, e)}>
                               <CheckCircle2 className="mr-1 h-4 w-4" />
                               立即审批
+                            </Button>
+                          )}
+                          {/* 待归账与待执行此前没有任何操作入口，流程走到这里就断了 */}
+                          {type === "待归账" && ["to_be_allocated", "ready_for_execution", "approved"].includes(app.status) && (
+                            <Button size="sm" onClick={(e) => handleAllocate(app, e)}>
+                              <CheckCircle2 className="mr-1 h-4 w-4" />
+                              归账
+                            </Button>
+                          )}
+                          {type === "待执行" && ["to_be_executed", "to_be_allocated"].includes(app.status) && (
+                            <Button size="sm" onClick={(e) => handleExecute(app, e)}>
+                              <CheckCircle2 className="mr-1 h-4 w-4" />
+                              执行
                             </Button>
                           )}
                         </TableCell>
@@ -355,6 +448,48 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
         </CardContent>
       </Card>
       
+      {/* 归账对话框 */}
+      <Dialog open={allocateTarget !== null} onOpenChange={o => !o && setAllocateTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>归账</DialogTitle>
+            <DialogDescription>
+              为「{allocateTarget?.title}」指定入账账户与科目，确认后转入待执行。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label>入账账户 *</Label>
+              <Select value={allocAccountId} onValueChange={setAllocAccountId}>
+                <SelectTrigger><SelectValue placeholder="请选择账户" /></SelectTrigger>
+                <SelectContent>
+                  {accounts.map(a => (
+                    <SelectItem key={a.id} value={String(a.id)}>
+                      {a.name}（{a.currency_type}）
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>科目</Label>
+              <Select value={allocSubjectId} onValueChange={setAllocSubjectId}>
+                <SelectTrigger><SelectValue placeholder="请选择科目" /></SelectTrigger>
+                <SelectContent>
+                  {subjects.map(x => (
+                    <SelectItem key={x.id} value={String(x.id)}>{x.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAllocateTarget(null)}>取消</Button>
+            <Button onClick={submitAllocate} disabled={busy}>确认归账</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* 审批对话框 */}
       {selectedApplication && (
         <ApprovalDialog

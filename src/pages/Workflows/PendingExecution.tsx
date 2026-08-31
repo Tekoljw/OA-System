@@ -587,6 +587,7 @@ const PendingExecution: React.FC = () => {
     completed: [],
     all: []
   });
+  const [reloadTick, setReloadTick] = useState(0);
   const [page, setPage] = useState<Record<string, number>>({
     pending: 1,
     completed: 1,
@@ -689,7 +690,9 @@ const PendingExecution: React.FC = () => {
     };
     
     loadAllData();
-  }, [toast]);
+    // reloadTick 变化即重新拉取：loadAllData 定义在 effect 内部，外部无法直接调用，
+    // 用计数器作为依赖来触发刷新
+  }, [toast, reloadTick]);
 
   // 筛选应用程序
   useEffect(() => {
@@ -913,9 +916,11 @@ const PendingExecution: React.FC = () => {
                 
                 {["pending", "completed", "all"].map((tab) => (
                   <TabsContent key={tab} value={tab} className="mt-4">
-                    <ApplicationList 
+                    <ApplicationList
                       applications={visibleApplications[tab] || []}
                       type={getStatusText(tab)}
+                      // 执行后必须重新拉取，否则列表仍显示已执行的记录
+                      onRefresh={() => setReloadTick(t => t + 1)}
                     />
                   </TabsContent>
                 ))}

@@ -163,13 +163,14 @@ const PendingAccounting: React.FC = () => {
   };
 
   // 初始加载数据
-  useEffect(() => {
-    // 加载待归账数据
+  const reloadAll = () => {
     fetchApplications("pending");
-    // 加载已完成数据
     fetchApplications("completed");
-    // 加载所有数据
     fetchApplications("all");
+  };
+
+  useEffect(() => {
+    reloadAll();
   }, [toast]); // 添加toast依赖
 
   // 筛选应用程序
@@ -343,9 +344,11 @@ const PendingAccounting: React.FC = () => {
             
             {["pending", "completed", "all"].map((tab) => (
               <TabsContent key={tab} value={tab} className="mt-4">
-                <ApplicationList 
+                <ApplicationList
                   applications={visibleApplications[tab] || []}
                   type={getStatusText(tab)}
+                  // 归账后必须重新拉取，否则列表仍显示已处理的记录
+                  onRefresh={reloadAll}
                 />
               </TabsContent>
             ))}
