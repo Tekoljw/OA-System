@@ -8,6 +8,7 @@ import { Input } from "../../components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
 import { Calendar as CalendarComponent } from "../../components/ui/calendar";
 import { format, isValid, parse } from "date-fns";
+import { useAuth } from "../../contexts/AuthContext";
 import { zhCN } from "date-fns/locale";
 import { ApplicationDialog } from "../../components/applications/ApplicationDialog";
 import ApplicationList from "../../components/applications/ApplicationList";
@@ -61,6 +62,7 @@ const MyApplications: React.FC = () => {
   const [activeTab, setActiveTab] = useState<string>("all");
   // 添加预设申请类型状态
   const [presetType, setPresetType] = useState<'payment' | 'income' | undefined>(undefined);
+  const { user } = useAuth(); // 提交人必须取自登录身份，不能写死
   
   // 使用状态保存从数据库加载的流水类型
   const [transactionTypes, setTransactionTypes] = useState<TransactionType[]>([]);
@@ -145,7 +147,8 @@ const MyApplications: React.FC = () => {
           const result = await getApplications({
             type: 'all',
             page: 1,
-            limit: 100 // 获取足够多的记录以便分类
+            limit: 100, // 获取足够多的记录以便分类
+            mine: true, // 本页是「我的申请」，只看自己提交的
           });
           
           // 将API返回的应用数据转换为前端应用格式
@@ -281,6 +284,7 @@ const MyApplications: React.FC = () => {
           type: 'all',
           page: nextPage,
           limit: PAGE_SIZE,
+          mine: true,
           searchTerm,
           date: dateFilter ? format(dateFilter, 'yyyy-MM-dd') : undefined
         });
@@ -329,21 +333,20 @@ const MyApplications: React.FC = () => {
 
   const handleApplicationCreate = async (data: any): Promise<void> => {
     console.log("创建新申请:", data);
-    
-    // 获取用户ID (在实际环境中，这应该从认证上下文中获取)
-    const userId = 1; // 假设是管理员ID
-    
+
     // 准备API请求数据
+    // 三处此前都是错的：userId 写死为 1（提交人会记成管理员）、
+    // department 传的是部门名而后端要 departmentId、
+    // type 传 'payment' 而后端只认 income / expense。
     const requestData = {
-      type: data.type || 'payment',
+      type: presetType === 'income' ? 'income' : 'expense',
       title: data.title,
       amount: parseFloat(data.amount),
-      department: data.department || '未指定',
-      userId: userId,
+      departmentId: data.department ? Number(data.department) : undefined,
+      userId: user?.id,
       images: data.images || [], // 确保传递图片数据
       content: data.description || '', // 添加内容/描述字段
       description: data.description || '', // 备注说明
-      applicationType: presetType, // 预设的申请类型
       relatedParty: data.relatedParty, // 供应商/客户信息
       dueDate: data.dueDate // 期限日期
     };

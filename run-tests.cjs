@@ -16,7 +16,7 @@ const path = require('path');
 
 // 核心套件：本次会话新建或重写、断言明确、可重复运行
 const CORE = [
-    'test-transactions', 'test-workflow-ui', 'test-edit-delete', 'test-form-submit', 'test-delete-semantics',
+    'test-transactions', 'test-workflow-ui', 'test-my-applications', 'test-edit-delete', 'test-form-submit', 'test-delete-semantics',
     'test-assets-loans', 'test-approval-workflow', 'test-approval-rules-ui',
     'test-project-switch', 'test-multi-role', 'test-project-isolation',
     'test-all-pages', 'test-interactions',

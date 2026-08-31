@@ -106,7 +106,23 @@ export async function apiRequest(urlOrMethod: string, urlOrOptions?: string | Re
 }
 
 // 兼容旧的 fetchAPI 签名
-export async function fetchAPI(endpoint: string, method: string = 'GET', data?: any): Promise<any> {
+/**
+ * 兼容两种调用形式：
+ *   fetchAPI(url, 'POST', data)              — 原签名
+ *   fetchAPI(url, { method, body })          — 实际调用方普遍使用的形式
+ *
+ * application-api / transfer-api 共 10 处都按后者调用，
+ * 而原实现把整个对象当作 method 塞给 fetch，请求无法按预期发出。
+ */
+export async function fetchAPI(
+  endpoint: string,
+  methodOrOptions: string | RequestInit = 'GET',
+  data?: any,
+): Promise<any> {
+  if (typeof methodOrOptions === 'object' && methodOrOptions !== null) {
+    return apiRequest(endpoint, methodOrOptions);
+  }
+  const method = (methodOrOptions as string) || 'GET';
   const options: RequestInit = { method };
   if (data && method !== 'GET') {
     options.body = JSON.stringify(data);

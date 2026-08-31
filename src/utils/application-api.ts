@@ -27,6 +27,8 @@ export async function getApplications(params: {
   limit?: number;
   searchTerm?: string;
   date?: string;
+  /** 只看当前登录用户提交的申请；后端按登录身份收敛，不接受指定他人 */
+  mine?: boolean;
 }): Promise<{
   applications: Application[];
   total: number;
@@ -43,6 +45,7 @@ export async function getApplications(params: {
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.searchTerm) queryParams.append('searchTerm', params.searchTerm);
     if (params.date) queryParams.append('date', params.date);
+    if (params.mine) queryParams.append('mine', '1');
     
     const url = `/api/applications${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     const response = await fetchAPI(url);
@@ -77,11 +80,13 @@ export async function getApplication(id: number): Promise<Application> {
 
 // 创建新申请
 export async function createApplication(data: {
+  /** 后端只接受 income / expense */
   type: string;
   title: string;
   amount: number;
-  department: string;
-  userId: number;
+  /** 审批链第一级是部门主管，必须传部门 id 而非部门名 */
+  departmentId?: number;
+  userId?: number;
   images?: string[];
   content?: string;
   description?: string; // 备注说明

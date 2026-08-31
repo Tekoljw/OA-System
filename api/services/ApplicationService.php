@@ -24,7 +24,11 @@ class ApplicationService {
 
     // ==================== 查询 ====================
 
-    public function getApplications(int $projectId, array $q): array {
+    /**
+     * @param array $q          查询参数
+     * @param array|null $user  当前登录用户；用于「我的申请」与「待审批」的可见范围收敛
+     */
+    public function getApplications(int $projectId, array $q, ?array $user = null): array {
         $key = $q['type'] ?? $q['status'] ?? 'all';
         if (!array_key_exists($key, ApplicationRepository::STATUS_ALIASES)) {
             throw new \InvalidArgumentException('无效的状态参数: ' . $key);
@@ -32,6 +36,20 @@ class ApplicationService {
         $filters = ['statuses' => ApplicationRepository::STATUS_ALIASES[$key]];
         foreach (['submitter_id', 'searchTerm', 'date'] as $k) {
             if (!empty($q[$k])) $filters[$k] = $q[$k];
+        }
+
+        // 「我的申请」只看自己提交的。由后端按当前登录用户强制收敛，
+        // 不能依赖前端传 submitter_id —— 那样任何人改个参数就能看别人的申请。
+        if ($user && !empty($q['mine'])) {
+            $filters['submitter_id'] = (int)$user['id'];
+        }
+
+        // 「待审批」只列当前用户能审的单据
+        if ($user && $key === 'pending') {
+            $filters['approvable_by'] = [
+                'user_id' => (int)$user['id'],
+                'role'    => (string)($user['role'] ?? ''),
+            ];
         }
 
         $page  = max(1, (int)($q['page'] ?? 1));

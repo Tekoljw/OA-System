@@ -55,6 +55,20 @@ class ApplicationRepository extends BaseRepository {
             $where[]  = "$alias.submitter_id = ?";
             $params[] = (int)$filters['submitter_id'];
         }
+        // 待审批列表只应呈现「当前用户真正能审」的单据：
+        // 当前待审节点要么指名此人（部门主管），要么是此人所属角色（管理员会签）。
+        // 此前不做限制，主管能看到根本轮不到自己审的单子。
+        if (!empty($filters['approvable_by'])) {
+            $where[] = "EXISTS (
+                SELECT 1 FROM application_approvals ap
+                WHERE ap.application_id = $alias.id
+                  AND ap.step_order = $alias.current_step
+                  AND ap.status = 'pending'
+                  AND (ap.candidate_user_id = ? OR ap.candidate_role = ?)
+            )";
+            $params[] = (int)$filters['approvable_by']['user_id'];
+            $params[] = (string)$filters['approvable_by']['role'];
+        }
         if (!empty($filters['searchTerm'])) {
             $where[]  = "($alias.title ILIKE ? OR $alias.description ILIKE ?)";
             $kw = '%' . $filters['searchTerm'] . '%';

@@ -447,7 +447,7 @@ try {
             if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET' && !$resourceId) {
-                Response::success($appService->getApplications($projectId, $_GET), '获取申请列表成功');
+                Response::success($appService->getApplications($projectId, $_GET, $currentUser), '获取申请列表成功');
             } elseif ($method === 'GET' && $resourceId && $subEndpoint === 'approvals') {
                 require_once __DIR__ . '/services/ApprovalService.php';
                 $approvalSvc = new ApprovalService($db);
@@ -459,8 +459,9 @@ try {
                 $body['project_id']   = $projectId;
                 $body['submitter_id'] = $body['submitterId'] ?? $currentUser['id'];
                 $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
-                $body['related_party'] = $body['relatedParty'] ?? null;
-                $body['due_date']      = $body['dueDate'] ?? null;
+                // 空串不能直接写进 date 列（invalid input syntax for type date）
+                $body['due_date']      = ($body['dueDate'] ?? '') !== '' ? $body['dueDate'] : null;
+                $body['related_party'] = ($body['relatedParty'] ?? '') !== '' ? $body['relatedParty'] : null;
                 $body['type']          = $body['applicationType'] ?? $body['type'] ?? null;
                 $body['shareholder_id'] = $body['shareholderId'] ?? $body['shareholder_id'] ?? null;
                 $body['allocated_account_id'] = $body['accountId'] ?? $body['allocated_account_id'] ?? null;

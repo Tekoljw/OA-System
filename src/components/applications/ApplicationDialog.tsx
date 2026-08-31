@@ -195,8 +195,8 @@ export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: App
             setDepartments(departmentsList);
             
             // 如果用户没有部门信息，但有部门列表，默认选中第一个
-            if (!user?.department && departmentsList.length > 0) {
-              form.setValue('department', departmentsList[0].name);
+            if (departmentsList.length > 0 && !form.getValues('department')) {
+              form.setValue('department', String(departmentsList[0].id));
             }
           } else {
             console.error('加载部门列表返回错误:', result.message);
@@ -699,11 +699,19 @@ export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: App
               name="department"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>申请部门</FormLabel>
-                  {/* 显示静态文本而不是选择框 */}
-                  <div className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-muted-foreground">
-                    {field.value || (user?.department ? user.department : "未指定部门")}
-                  </div>
+                  <FormLabel>申请部门 *</FormLabel>
+                  {/* 此前是只读文本、且只提交部门名；
+                      审批链的第一级是部门主管，后端需要 departmentId */}
+                  <Select value={field.value} onValueChange={field.onChange}>
+                    <FormControl>
+                      <SelectTrigger><SelectValue placeholder="请选择申请部门" /></SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {departments.map((d: any) => (
+                        <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                   <FormMessage />
                 </FormItem>
               )}
