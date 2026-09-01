@@ -59,10 +59,11 @@ class ShareholderRepository extends BaseRepository {
         $stmt = $this->db->prepare("
             SELECT
                 s.id, s.name, s.share_ratio,
-                COALESCE(SUM(CASE WHEN t.type = 'income' AND sub.code = 'income-shareholder' THEN t.amount ELSE 0 END), 0) AS total_contribution
+                -- 入资由一级流水类型标识，不再靠科目 code：
+                -- 科目现在按类型分池、可自由增删，拿它当业务标记必然失准
+                COALESCE(SUM(CASE WHEN t.transaction_type_code = 'shareholder_investment' THEN t.amount ELSE 0 END), 0) AS total_contribution
             FROM shareholders s
             LEFT JOIN transactions t ON t.shareholder_id = s.id AND t.project_id = s.project_id AND t.status = 'completed'
-            LEFT JOIN subjects sub ON sub.id = t.subject_id
             WHERE s.project_id = ?
             GROUP BY s.id, s.name, s.share_ratio
             ORDER BY s.share_ratio DESC
@@ -78,10 +79,9 @@ class ShareholderRepository extends BaseRepository {
         $stmt = $this->db->prepare("
             SELECT
                 s.id, s.name, s.share_ratio,
-                COALESCE(SUM(CASE WHEN t.type = 'expense' AND sub.code = 'expense-dividend' THEN t.amount ELSE 0 END), 0) AS total_dividend
+                COALESCE(SUM(CASE WHEN t.transaction_type_code = 'shareholder_dividend' THEN t.amount ELSE 0 END), 0) AS total_dividend
             FROM shareholders s
             LEFT JOIN transactions t ON t.shareholder_id = s.id AND t.project_id = s.project_id AND t.status = 'completed'
-            LEFT JOIN subjects sub ON sub.id = t.subject_id
             WHERE s.project_id = ?
             GROUP BY s.id, s.name, s.share_ratio
             ORDER BY s.share_ratio DESC

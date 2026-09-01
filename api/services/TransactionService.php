@@ -219,14 +219,11 @@ class TransactionService {
      * 股东入资/分红科目必须关联股东，且股东属于当前项目
      */
     private function validateShareholderRequired(array $data): void {
-        if (empty($data['subject_id'])) return;
-        $stmt = $this->db->prepare("SELECT code FROM subjects WHERE id = ?");
-        $stmt->execute([(int)$data['subject_id']]);
-        $code = $stmt->fetchColumn();
-        if (!$code) return;
+        // 是否股东往来看一级流水类型，不看科目
+        $ttCode = $data['transaction_type_code'] ?? null;
+        if (!$ttCode) return;
 
-        $shareholderCodes = ['income-shareholder', 'expense-dividend'];
-        if (in_array($code, $shareholderCodes, true)) {
+        if (in_array($ttCode, ['shareholder_investment', 'shareholder_dividend'], true)) {
             if (empty($data['shareholder_id'])) {
                 throw new \InvalidArgumentException('股东入资/分红交易必须选择对应的股东');
             }
@@ -301,13 +298,9 @@ class TransactionService {
         $stmt->execute([$delta, $accountId]);
     }
 
-    /**
-     * 该科目是否为股东入资/分红科目（此类交易仅管理员可操作）
-     */
-    public function isShareholderSubject(int $subjectId): bool {
-        $stmt = $this->db->prepare("SELECT code FROM subjects WHERE id = ?");
-        $stmt->execute([$subjectId]);
-        return in_array($stmt->fetchColumn(), ['income-shareholder', 'expense-dividend'], true);
+    /** 是否股东入资/分红流水（此类交易仅管理员可操作） */
+    public function isShareholderTransactionType(?string $transactionTypeCode): bool {
+        return in_array($transactionTypeCode, ['shareholder_investment', 'shareholder_dividend'], true);
     }
 
     /**
@@ -342,7 +335,9 @@ class TransactionService {
      */
     public function getCurrencyStats(int $projectId, string $currency): array {
         $currency = strtoupper(trim($currency));
-        if (!preg_match('/^[A-Z]{3,10}$/', $currency)) {
+        // 币种由用户自建，代码不限于 ISO 字母码（实际存在「208」这类数字代码），
+        // 此前只认字母，导致这些币种的统计接口一律 400
+        if (!preg_match('/^[A-Z0-9]{2,10}$/', $currency)) {
             throw new \InvalidArgumentException('币种代码无效');
         }
 

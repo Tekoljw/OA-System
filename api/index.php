@@ -382,6 +382,7 @@ try {
                     'type' => $_GET['type'] ?? null,
                     'status' => $_GET['status'] ?? null,
                     'account_id' => $_GET['account_id'] ?? null,
+                    'transaction_type_code' => $_GET['transactionTypeCode'] ?? null,
                 ]);
                 $result = $txService->getTransactions($projectId, $filters, $page, $limit);
                 Response::paginated($result['items'], $result['total'], $page, $limit);
@@ -889,7 +890,8 @@ try {
             } elseif ($method === 'PUT') {
                 $body = JsonMiddleware::getRequestBody();
                 $code = strtoupper(trim((string)($body['baseCurrency'] ?? '')));
-                if (!preg_match('/^[A-Z]{2,10}$/', $code)) {
+                // 与币种管理保持一致：允许数字代码
+                if (!preg_match('/^[A-Z0-9]{2,10}$/', $code)) {
                     Response::error('币种代码无效', 'VALIDATION_ERROR');
                 }
                 $uRepo->setBaseCurrency((int)$currentUser['id'], $code);

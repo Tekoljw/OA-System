@@ -78,7 +78,22 @@ class AuthService {
         if ($isSuperAdmin) {
             return RoleRepository::ALL_PERMISSIONS;
         }
-        return (new RoleRepository($this->db))->permissionsOfCode((string)($user['role'] ?? ''));
+        $perms = (new RoleRepository($this->db))->permissionsOfCode((string)($user['role'] ?? ''));
+
+        // 部门主管的审批职责是写死的对应关系，与角色无关：
+        // 哪个部门的员工提交，就由哪个部门的主管审批。
+        // 若不在这里补上，普通角色的主管连待审批页都进不去，整条审批链卡死。
+        if ($this->isAnyDepartmentManager((int)$user['id'])
+            && !in_array('manage_pending_approvals', $perms, true)) {
+            $perms[] = 'manage_pending_approvals';
+        }
+        return $perms;
+    }
+
+    private function isAnyDepartmentManager(int $userId): bool {
+        $stmt = $this->db->prepare("SELECT 1 FROM departments WHERE manager_id = ? LIMIT 1");
+        $stmt->execute([$userId]);
+        return (bool)$stmt->fetchColumn();
     }
 
     public function getUserInfo(int $userId): array {
