@@ -187,7 +187,10 @@ function ShareholderTransactionDialog({
   }, [open]);
 
   const title = mode === "contribution" ? "股东入资" : "股东分红";
-  const subjectCode = mode === "contribution" ? "income-shareholder" : "expense-dividend";
+  // 入资/分红由一级流水类型标识。原先靠 income-shareholder / expense-dividend
+  // 两个科目 code 识别，而科目改为按流水类型分池后这两个 code 已不存在，
+  // 提交必然停在「未找到科目」上
+  const transactionTypeCode = mode === "contribution" ? "shareholder_investment" : "shareholder_dividend";
   const txType = mode === "contribution" ? "income" : "expense";
 
   const handleSubmit = async () => {
@@ -199,16 +202,6 @@ function ShareholderTransactionDialog({
 
     setLoading(true);
     try {
-      // 先获取科目 ID
-      const subjectsRes = await apiRequest("GET", "/api/subjects");
-      const subjects = subjectsRes.data || [];
-      const subject = subjects.find((s: any) => s.code === subjectCode);
-      if (!subject) {
-        toast({ title: `未找到「${title}」科目，请先在配置管理中创建`, variant: "destructive" });
-        setLoading(false);
-        return;
-      }
-
       const shName = shareholders.find(s => s.id === parseInt(shareholderId))?.name || "";
       // 入资/分红同样是收入/支出，不能绕过审批直接记账：
       // 提交申请单，审批通过并执行后由系统生成流水。
@@ -220,7 +213,8 @@ function ShareholderTransactionDialog({
         departmentId: parseInt(departmentId),
         shareholderId: parseInt(shareholderId),
         accountId: parseInt(accountId),
-        subjectId: subject.id,
+        // 二级选的是股东本人（shareholderId），不再挂科目
+        transaction_type_code: transactionTypeCode,
         description: description || `${title} - ${shName}`,
       });
       if (!res?.success) throw new Error(res?.message || "提交失败");

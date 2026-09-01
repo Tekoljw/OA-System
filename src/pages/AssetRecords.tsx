@@ -132,6 +132,10 @@ const AssetRecordsContent: React.FC = () => {
   const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [assets, setAssets] = useState<Asset[]>([]);
+  const [page, setPage] = useState(1);
+  // 服务端总数，用于判断还有没有下一页
+  const [total, setTotal] = useState(0);
+  const PAGE_SIZE = 50;
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
@@ -152,8 +156,8 @@ const AssetRecordsContent: React.FC = () => {
     fetchAssets();
   }, []);
 
-  const fetchAssets = async () => {
-    setIsLoading(true);
+  const fetchAssets = async (pageNum: number = 1, append: boolean = false) => {
+    if (!append) setIsLoading(true);
     setError(null);
     
     try {
@@ -175,14 +179,19 @@ const AssetRecordsContent: React.FC = () => {
       console.log('使用项目ID:', projectId);
       
       // 从API获取资产数据
-      const result = await apiRequest('GET', `/api/assets?projectId=${projectId}`);
+      // 带上分页：服务端默认只给一页，不传的话后面的资产取不到
+      const result = await apiRequest(
+        'GET', `/api/assets?projectId=${projectId}&page=${pageNum}&limit=${PAGE_SIZE}`
+      );
 
       if (result && result.success) {
         // 获取资产数据
         const assetsData = result.data?.assets || result.data || [];
+        setTotal(result.data?.total ?? assetsData.length);
 
         if (!Array.isArray(assetsData) || assetsData.length === 0) {
-          setAssets([]);
+          // 追加模式下拉到空页，保留已有数据
+          if (!append) setAssets([]);
         } else {
           // 转换为前端需要的格式
           const formattedAssets: Asset[] = assetsData.map((item: any) => ({
@@ -205,7 +214,7 @@ const AssetRecordsContent: React.FC = () => {
           }));
           
           console.log('格式化后的资产数据:', formattedAssets);
-          setAssets(formattedAssets);
+          setAssets(prev => append ? [...prev, ...formattedAssets] : formattedAssets);
         }
       } else {
         throw new Error('获取资产列表失败');
@@ -218,8 +227,8 @@ const AssetRecordsContent: React.FC = () => {
         description: err.message || '请稍后重试',
         variant: "destructive"
       });
-      // 当获取失败时设置空数组，显示暂无数据
-      setAssets([]);
+      // 获取失败时清空并显示暂无数据；追加失败则保留已加载的部分
+      if (!append) setAssets([]);
     } finally {
       setIsLoading(false);
     }
@@ -286,10 +295,20 @@ const AssetRecordsContent: React.FC = () => {
     }
   };
 
+  /**
+   * 加载更多。
+   * 此前这里只是等 1 秒然后什么都不做 —— 按钮点了没有任何效果，
+   * 超出首页的资产永远看不到。
+   */
   const handleLoadMore = async () => {
     setIsLoadingMore(true);
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    setIsLoadingMore(false);
+    try {
+      const next = page + 1;
+      await fetchAssets(next, true);
+      setPage(next);
+    } finally {
+      setIsLoadingMore(false);
+    }
   };
   
   // 根据类型筛选资产
@@ -525,7 +544,7 @@ const AssetRecordsContent: React.FC = () => {
             ) : error ? (
               <div className="flex flex-col items-center justify-center h-64">
                 <p className="text-red-500 mb-2">加载失败: {error}</p>
-                <Button onClick={fetchAssets} variant="outline">重试</Button>
+                <Button onClick={() => fetchAssets(1, false)} variant="outline">重试</Button>
               </div>
             ) : filteredAssets.length === 0 ? (
               <NoDataDisplay />
@@ -657,7 +676,7 @@ const AssetRecordsContent: React.FC = () => {
                   </TableBody>
                 </Table>
                 
-                {filteredAssets.length > 10 && (
+                {assets.length < total && (
                   <div className="mt-4 flex justify-center">
                     <LoadMoreButton 
                       onClick={handleLoadMore} 
