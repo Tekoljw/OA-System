@@ -2,6 +2,7 @@ import React, { useContext } from "react";
 import { Bell, ChevronDown, LogOut, Lock } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { SidebarTrigger, useSidebar } from "./NewSidebar";
+import BaseCurrencySwitcher from "./BaseCurrencySwitcher";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -113,6 +114,8 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
           <ProjectSwitcher />
           
           <LanguageSwitcher />
+
+          <BaseCurrencySwitcher />
           
           <button className="relative p-1.5 rounded-md hover:bg-secondary transition-colors" title={t('common.notifications')}>
             <Bell className="h-5 w-5" />

@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import PageLayout from "../components/layout/PageLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useAuth } from "../contexts/AuthContext";
+import { useBaseCurrency } from "../contexts/BaseCurrencyContext";
 import { ArrowDown, ArrowUp, DollarSign, PieChart, LoaderCircle, AlertCircle } from "lucide-react";
 import { PieChart as RechartsPieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from "recharts";
 import { toast } from "../hooks/use-toast";
@@ -89,6 +90,8 @@ const Dashboard: React.FC = () => {
   const [reportType, setReportType] = useState<"daily" | "monthly">("daily");
   
   // 状态管理
+  // 后端按币种分组返回，换算放到前端做——本位币是每个用户各自的选择
+  const [summaryRows, setSummaryRows] = useState<Array<{ currency_type: string; total_balance: string }>>([]);
   const [accountSummaryData, setAccountSummaryData] = useState<AccountSummaryData>(defaultAccountSummaryData);
   const [transactionData, setTransactionData] = useState<TransactionData>(defaultTransactionData);
   const [incomeBySubject, setIncomeBySubject] = useState<ChartDataItem[]>([]);
@@ -109,10 +112,57 @@ const Dashboard: React.FC = () => {
   const [expenseSubjectChartError, setExpenseSubjectChartError] = useState<boolean>(false);
   const [expenseDeptChartError, setExpenseDeptChartError] = useState<boolean>(false);
   
-  // 格式化货币
+  const { baseCurrency, convert, rates } = useBaseCurrency();
+
+  // 格式化货币 —— 一律按当前本位币展示
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: 'CNY' }).format(value);
+    try {
+      return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: baseCurrency }).format(value);
+    } catch {
+      // 自定义币种代码 Intl 不认识，退化为「代码 + 数字」
+      return `${baseCurrency} ${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    }
   };
+
+  /**
+   * 把按币种分组的余额换算成本位币。
+   * 只要有一个币种汇率失效就整体报错，不做「跳过该币种」的处理——
+   * 少算一个币种的总额看上去正常，实际是错的，比直接报错危险得多。
+   */
+  const { convertedSummary, rateError } = useMemo(() => {
+    if (summaryRows.length === 0) return { convertedSummary: null, rateError: null as string | null };
+    let total = 0;
+    const bad: string[] = [];
+    for (const row of summaryRows) {
+      const amount = parseFloat(row.total_balance || '0');
+      const converted = convert(amount, row.currency_type);
+      if (converted === null) bad.push(row.currency_type);
+      else total += converted;
+    }
+    if (bad.length) {
+      return {
+        convertedSummary: null,
+        rateError: `${bad.join('、')} 汇率已失效，请先在「配置管理 → 账户分类 → 币种管理」中更新`,
+      };
+    }
+    return { convertedSummary: total, rateError: null };
+  }, [summaryRows, convert, rates, baseCurrency]);
+
+  useEffect(() => {
+    if (convertedSummary === null) {
+      setAccountSummaryData(defaultAccountSummaryData);
+      return;
+    }
+    setAccountSummaryData({
+      totalAssets: convertedSummary > 0 ? convertedSummary : 0,
+      totalLiabilities: convertedSummary < 0 ? Math.abs(convertedSummary) : 0,
+      netAssets: convertedSummary,
+      operatingCash: convertedSummary,
+      capitalCash: 0,
+      forexCash: 0,
+      investmentCash: 0,
+    });
+  }, [convertedSummary]);
   
   // 格式化百分比
   const formatPercent = (value: number) => {
@@ -204,17 +254,9 @@ const Dashboard: React.FC = () => {
         // API 返回按货币分组的数组，转换为前端需要的格式
         const rawData = responseData.data;
         if (Array.isArray(rawData)) {
-          const totalBalance = rawData.reduce((sum: number, item: any) => sum + parseFloat(item.total_balance || 0), 0);
-          setAccountSummaryData({
-            totalAssets: totalBalance > 0 ? totalBalance : 0,
-            totalLiabilities: totalBalance < 0 ? Math.abs(totalBalance) : 0,
-            netAssets: totalBalance,
-            operatingCash: totalBalance,
-            capitalCash: 0,
-            forexCash: 0,
-            investmentCash: 0
-          });
+          setSummaryRows(rawData);
         } else {
+          setSummaryRows([]);
           setAccountSummaryData(rawData);
         }
       } else {
@@ -415,6 +457,17 @@ const Dashboard: React.FC = () => {
   }, [currentProject?.id]);
 
   // 错误展示组件
+  /** 汇率失效：不给数字，只说清楚该去哪儿修 */
+  const RateExpiredDisplay = () => (
+    <div className="flex flex-col items-start py-2">
+      <div className="flex items-center text-destructive">
+        <AlertCircle className="h-5 w-5 mr-2 shrink-0" />
+        <span className="text-base font-medium">汇率已失效</span>
+      </div>
+      <p className="text-xs text-muted-foreground mt-1">{rateError}</p>
+    </div>
+  );
+
   const ErrorDisplay = ({ message }: { message: string }) => (
     <div className="flex flex-col items-center justify-center py-4 px-2 text-center">
       <AlertCircle className="h-8 w-8 text-destructive mb-2" />
@@ -464,6 +517,8 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : summaryError ? (
                 <ErrorDisplay message="加载资产数据失败" />
+              ) : rateError ? (
+                <RateExpiredDisplay />
               ) : (
                 <>
                   <div className="text-2xl font-bold min-w-[180px]">{formatCurrency(accountSummaryData.totalAssets)}</div>
@@ -488,6 +543,8 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : summaryError ? (
                 <ErrorDisplay message="加载负债数据失败" />
+              ) : rateError ? (
+                <RateExpiredDisplay />
               ) : (
                 <>
                   <div className="text-2xl font-bold min-w-[180px]">{formatCurrency(accountSummaryData.totalLiabilities)}</div>
@@ -512,6 +569,8 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : summaryError ? (
                 <ErrorDisplay message="加载净资产数据失败" />
+              ) : rateError ? (
+                <RateExpiredDisplay />
               ) : (
                 <>
                   <div className="text-2xl font-bold min-w-[180px]">{formatCurrency(accountSummaryData.netAssets)}</div>
@@ -536,6 +595,8 @@ const Dashboard: React.FC = () => {
                 </div>
               ) : summaryError ? (
                 <ErrorDisplay message="加载现金数据失败" />
+              ) : rateError ? (
+                <RateExpiredDisplay />
               ) : (
                 <>
                   <div className="text-2xl font-bold min-w-[180px]">{formatCurrency(accountSummaryData.operatingCash)}</div>
