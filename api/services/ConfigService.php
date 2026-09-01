@@ -183,6 +183,9 @@ class ConfigService {
     }
 
     public function deleteAssetType(int $id, int $projectId = 0): bool {
+        // 外键是 ON DELETE SET NULL：直接删会让已有资产悄悄失去归类，
+        // 报表里凭空多出一堆「无分类」资产，且无从追回原来属于哪类
+        $this->assertNotReferenced('assets', 'asset_type_id', $id, '资产分类', '资产记录');
         $ok = $this->repo->deleteItem('asset_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'asset_types', $id,
@@ -229,6 +232,20 @@ class ConfigService {
     /**
      * 检查配置项是否被交易引用，有引用则禁止删除
      */
+    /** 被业务记录引用的配置项不能删 —— 删掉会让历史记录失去归类 */
+    private function assertNotReferenced(
+        string $table, string $column, int $id, string $label, string $refLabel
+    ): void {
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM {$table} WHERE {$column} = ?");
+        $stmt->execute([$id]);
+        $n = (int)$stmt->fetchColumn();
+        if ($n > 0) {
+            throw new \InvalidArgumentException(sprintf(
+                '该%s已被 %d 条%s引用，无法删除。请先处理这些记录。', $label, $n, $refLabel
+            ));
+        }
+    }
+
     private function checkTransactionReference(string $column, int $id, string $label): void {
         // 列名白名单防止注入
         $allowed = ['subject_id', 'department_id'];

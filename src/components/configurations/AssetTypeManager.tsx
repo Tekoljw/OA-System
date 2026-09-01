@@ -36,7 +36,6 @@ const AssetTypeManager = () => {
     name: "", 
     description: "", 
     depreciationRate: 0,
-    depreciationMethod: "直线法" 
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,8 +89,7 @@ const AssetTypeManager = () => {
       name: "", 
       description: "", 
       depreciationRate: 10,
-      depreciationMethod: "直线法" 
-    });
+      });
     setIsDialogOpen(true);
   };
 
@@ -101,7 +99,6 @@ const AssetTypeManager = () => {
       name: assetType.name, 
       description: assetType.description,
       depreciationRate: assetType.depreciationRate,
-      depreciationMethod: assetType.depreciationMethod 
     });
     setIsDialogOpen(true);
   };
@@ -255,26 +252,17 @@ const AssetTypeManager = () => {
                         <span className="inline-block w-20">折旧率:</span>
                         <span>{assetType.depreciationRate}%</span>
                       </div>
-                      <div className="flex items-center">
-                        <span className="inline-block w-20">折旧方法:</span>
-                        <span>{assetType.depreciationMethod}</span>
-                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    {/* 只对非系统默认分类（ID大于4的分类）显示编辑和删除按钮 */}
-                    {parseInt(assetType.id) > 4 ? (
-                      <>
-                        <Button variant="ghost" size="icon" onClick={() => handleEdit(assetType)}>
-                          <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button variant="ghost" size="icon" onClick={() => handleDelete(assetType.id)}>
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </>
-                    ) : (
-                      <span className="text-xs text-muted-foreground px-2 py-1 bg-muted rounded">系统默认</span>
-                    )}
+                    <Button variant="ghost" size="icon" aria-label="编辑资产分类"
+                            onClick={() => handleEdit(assetType)}>
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" aria-label="删除资产分类"
+                            onClick={() => handleDelete(assetType.id)}>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -288,7 +276,6 @@ const AssetTypeManager = () => {
               <TableRow>
                 <TableHead>名称</TableHead>
                 <TableHead>折旧率</TableHead>
-                <TableHead>折旧方法</TableHead>
                 <TableHead className="hidden md:table-cell">描述</TableHead>
                 <TableHead className="w-[120px] text-right">操作</TableHead>
               </TableRow>
@@ -298,23 +285,19 @@ const AssetTypeManager = () => {
                 <TableRow key={assetType.id}>
                   <TableCell className="font-medium">{assetType.name}</TableCell>
                   <TableCell>{assetType.depreciationRate}%</TableCell>
-                  <TableCell>{assetType.depreciationMethod}</TableCell>
                   <TableCell className="hidden md:table-cell">{assetType.description}</TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-2">
-                      {/* 只对非系统默认分类（ID大于4的分类）显示编辑和删除按钮 */}
-                      {parseInt(assetType.id) > 4 ? (
-                        <>
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(assetType)}>
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDelete(assetType.id)}>
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </>
-                      ) : (
-                        <span className="text-xs text-muted-foreground">系统默认</span>
-                      )}
+                      {/* 资产分类允许自由增删改。原先按 id > 4 判定「系统默认」而锁死，
+                          是把种子数据的 id 当成了业务规则 */}
+                      <Button variant="ghost" size="icon" aria-label="编辑资产分类"
+                              onClick={() => handleEdit(assetType)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" aria-label="删除资产分类"
+                              onClick={() => handleDelete(assetType.id)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -357,21 +340,8 @@ const AssetTypeManager = () => {
                 placeholder="输入折旧率（0-100）"
               />
               <p className="text-xs text-muted-foreground">
-                每年折旧的百分比，例如：20表示每年折旧20%
-              </p>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="depreciationMethod" className="text-sm font-medium">
-                折旧方法 <span className="text-red-500">*</span>
-              </label>
-              <Input
-                id="depreciationMethod"
-                value={formData.depreciationMethod}
-                onChange={e => handleFormChange("depreciationMethod", e.target.value)}
-                placeholder="输入折旧方法"
-              />
-              <p className="text-xs text-muted-foreground">
-                例如：直线法、双倍余额递减法等
+                供会计参考的年折旧比例。系统不会自动折旧 ——
+                资产账面价值只在出售（走流水）或会计手工报损/减值时才变动
               </p>
             </div>
             <div className="space-y-2">
@@ -412,7 +382,7 @@ const AssetTypeManager = () => {
             <AlertDialogTitle>确认删除</AlertDialogTitle>
             <AlertDialogDescription>
               <p className="mb-2">确定要删除此资产分类吗？此操作无法撤销。</p>
-              <p className="font-semibold text-destructive">注意：如果此资产分类为系统默认分类，删除操作将失败。</p>
+              <p className="font-semibold text-destructive">注意：已被资产记录引用的分类无法删除，需先处理相关资产。</p>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

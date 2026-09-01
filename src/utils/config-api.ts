@@ -99,21 +99,18 @@ export interface AssetType {
   name: string;
   description: string;
   depreciationRate: number;
-  depreciationMethod: string;
 }
 
 export interface AssetTypeCreate {
   name: string;
   description: string;
   depreciationRate: number;
-  depreciationMethod: string;
 }
 
 export interface AssetTypeUpdate {
   name?: string;
   description?: string;
   depreciationRate?: number;
-  depreciationMethod?: string;
 }
 
 export interface AccountTypeCreate {
