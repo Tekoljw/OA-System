@@ -1,4 +1,5 @@
 <?php
+require_once __DIR__ . '/../repositories/RoleRepository.php';
 require_once __DIR__ . '/../repositories/UserRepository.php';
 require_once __DIR__ . '/../utils/auth.php';
 
@@ -58,11 +59,26 @@ class AuthService {
             'isSuperAdmin' => $isSuperAdmin,
             'is_super_admin' => $isSuperAdmin,
             'token' => $token,
+            'permissions' => $this->permissionsFor($user, $isSuperAdmin),
             'projectsList' => $projects,
             'currentProject' => $currentProject,
             'projectId' => $currentProject ? $currentProject['id'] : null,
             'hasMultipleProjects' => count($projects) > 1
         ];
+    }
+
+
+    /**
+     * 当前用户的权限清单，供前端控制菜单与操作入口的可见性。
+     * 超级管理员拥有全部权限。
+     * 注意：这只是「显示层」的依据，服务端仍会独立校验，
+     * 前端拿到什么并不影响后端是否放行。
+     */
+    private function permissionsFor(array $user, bool $isSuperAdmin): array {
+        if ($isSuperAdmin) {
+            return RoleRepository::ALL_PERMISSIONS;
+        }
+        return (new RoleRepository($this->db))->permissionsOfCode((string)($user['role'] ?? ''));
     }
 
     public function getUserInfo(int $userId): array {
@@ -82,6 +98,7 @@ class AuthService {
             'email' => $user['email'],
             'isSuperAdmin' => $isSuperAdmin,
             'is_super_admin' => $isSuperAdmin,
+            'permissions' => $this->permissionsFor($user, $isSuperAdmin),
             'projectsList' => $projects,
             'currentProject' => !empty($projects) ? $projects[0] : null,
             'projectId' => !empty($projects) ? $projects[0]['id'] : null,

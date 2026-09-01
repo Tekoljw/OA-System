@@ -4,6 +4,8 @@ import { Menu, X, ChevronDown, ChevronRight } from "lucide-react";
 import { ScrollArea } from "../ui/scroll-area";
 import { cn } from "../../lib/utils";
 import { menuItems } from "../../constants/menuItems";
+import { usePermissions } from "../../hooks/use-permissions";
+import { useAuth } from "../../contexts/AuthContext";
 import { useIsMobile } from "../../hooks/use-mobile";
 import { MenuItem } from "../../types/menu";
 
@@ -234,6 +236,10 @@ export const SidebarTrigger: React.FC<SidebarTriggerProps> = ({ className }) => 
 
 // 主侧边栏组件
 const NewSidebar: React.FC = () => {
+  // 按当前用户权限过滤菜单：无权限的入口不显示
+  const { filterMenu } = usePermissions();
+  const { user } = useAuth();
+  const visibleMenuItems = filterMenu(menuItems);
   const { expanded, mobileOpen, setMobileOpen, setExpanded } = useSidebar();
   const isMobile = useIsMobile();
   
@@ -274,7 +280,7 @@ const NewSidebar: React.FC = () => {
         <ScrollArea className="flex-1">
           <nav className="p-2">
             <ul className="space-y-1">
-              {menuItems.map(item => (
+              {visibleMenuItems.map(item => (
                 <SidebarSubMenu key={item.title} item={item} />
               ))}
             </ul>
@@ -283,13 +289,14 @@ const NewSidebar: React.FC = () => {
         
         <div className="p-4 border-t mt-auto">
           <div className="flex items-center gap-3">
+            {/* 此前这里硬编码「管理员 / Admin」，与实际登录身份无关 */}
             <div className="h-9 w-9 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-              A
+              {(user?.fullName || user?.username || 'U').charAt(0).toUpperCase()}
             </div>
             {(expanded || isMobile) && (
               <div>
-                <p className="text-sm font-medium">管理员</p>
-                <p className="text-xs text-muted-foreground">Admin</p>
+                <p className="text-sm font-medium">{user?.fullName || user?.username || '未登录'}</p>
+                <p className="text-xs text-muted-foreground">{user?.username || ''}</p>
               </div>
             )}
           </div>

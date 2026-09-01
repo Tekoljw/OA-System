@@ -4,6 +4,7 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { Menu, X } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { menuItems } from "../../constants/menuItems";
+import { usePermissions } from "../../hooks/use-permissions";
 import MenuItem from "./menu/MenuItem";
 import { MenuItem as MenuItemType } from "../../types/menu";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -23,6 +24,9 @@ export const SidebarContext = createContext<SidebarContextType>({
 export const useSidebarMobile = () => useContext(SidebarContext);
 
 const Sidebar: React.FC = () => {
+  // 按当前用户权限过滤菜单：无权限的入口不显示
+  const { filterMenu } = usePermissions();
+  const visibleMenuItems = filterMenu(menuItems);
   // 从localStorage加载菜单状态或使用默认值
   const [isCollapsed, setIsCollapsed] = useState(() => {
     const saved = localStorage.getItem('sidebar_collapsed');
@@ -57,7 +61,7 @@ const Sidebar: React.FC = () => {
     const currentPath = location.pathname;
     
     // 找到当前路径对应的父级菜单
-    const activeParentMenu = menuItems.find(item => 
+    const activeParentMenu = visibleMenuItems.find(item => 
       item.submenu?.some(subItem => subItem.path === currentPath)
     );
     
@@ -145,7 +149,7 @@ const Sidebar: React.FC = () => {
         <ScrollArea className="flex-1 overflow-hidden py-2">
           <nav className="h-full">
             <ul className="space-y-1 px-2">
-              {menuItems.map((item) => (
+              {visibleMenuItems.map((item) => (
                 <MenuItem
                   key={item.title}
                   item={item}
