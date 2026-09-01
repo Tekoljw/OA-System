@@ -609,7 +609,14 @@ const PendingExecution: React.FC = () => {
     const apiStatus = tab === 'completed' ? 'completed' : 'to_be_executed';
     try {
       setLoading(true);
-      const result = await getApplications({ type: apiStatus, page: pageNum, limit: PAGE_SIZE });
+      // 搜索与日期交给服务端：只在本地过滤的话，搜索范围就只有已加载的那一页
+      const result = await getApplications({
+        type: apiStatus,
+        page: pageNum,
+        limit: PAGE_SIZE,
+        searchTerm: searchTerm.trim() || undefined,
+        date: dateFilter ? format(dateFilter, 'yyyy-MM-dd') : undefined,
+      });
       const apps = result?.applications || [];
       setTotals(prev => ({ ...prev, [tab]: result?.total ?? apps.length }));
       setApplications(prev => ({
@@ -733,25 +740,8 @@ const PendingExecution: React.FC = () => {
       };
 
       Object.keys(applications).forEach(key => {
-        results[key] = applications[key].filter(app => {
-          // 文本搜索匹配
-          const textMatch = searchTerm === "" || 
-            app.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            `${app.amount}`.includes(searchTerm);
-          
-          // 日期过滤匹配
-          let dateMatch = true;
-          if (dateFilter) {
-            const appDate = parse(app.date, 'yyyy-MM-dd', new Date());
-            const filterDate = dateFilter;
-            dateMatch = appDate.getFullYear() === filterDate.getFullYear() &&
-                        appDate.getMonth() === filterDate.getMonth() &&
-                        appDate.getDate() === filterDate.getDate();
-          }
-          
-          return textMatch && dateMatch;
-        });
+        // 筛选已经在服务端完成，这里不再二次过滤
+        results[key] = applications[key];
       });
 
       setFilteredApplications(results);
@@ -760,10 +750,18 @@ const PendingExecution: React.FC = () => {
     filterApplications();
   }, [applications, searchTerm, dateFilter]);
 
-  // 页码只在筛选条件变化时归零。跟着 applications 一起重置的话，
-  // 「加载更多」刚追加的数据会立刻被打回第一页，点了等于没点。
+  // 筛选条件变化：页码归零并重新向服务端要第一页。
+  // 页码原先跟着 applications 一起重置，「加载更多」刚追加的数据会立刻被打回第一页。
+  const isFirstFilterRun = React.useRef(true);
   useEffect(() => {
     setPage({ pending: 1, completed: 1, all: 1 });
+    if (isFirstFilterRun.current) {   // 首屏已由初始加载拉过，不重复请求
+      isFirstFilterRun.current = false;
+      return;
+    }
+    // 防抖：避免每敲一个字都打一次接口
+    const timer = setTimeout(() => { fetchApplications(activeTab, 1, false); }, 400);
+    return () => clearTimeout(timer);
   }, [searchTerm, dateFilter]);
 
   // 根据页码更新可见申请

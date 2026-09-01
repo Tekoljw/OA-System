@@ -768,9 +768,17 @@ const PendingApprovals = () => {
       
       // 必须带分页参数：服务端一页最多 50 条，此前只拉第一页，
       // 「加载更多」仅在本地切片，第 51 条起的单据永远看不到
-      const response = { data: await apiRequest(
-        'GET', `/api/applications?status=${apiStatus}&page=${pageNum}&limit=${PAGE_SIZE}`
-      ) };
+      // 搜索与日期一并交给服务端：只在本地过滤的话，
+      // 搜索范围就只有已加载的那一页，第 51 条起的单据搜不到也没有任何提示
+      const qs = new URLSearchParams({
+        status: apiStatus,
+        page: String(pageNum),
+        limit: String(PAGE_SIZE),
+      });
+      if (searchTerm.trim()) qs.append('searchTerm', searchTerm.trim());
+      if (dateFilter) qs.append('date', format(dateFilter, 'yyyy-MM-dd'));
+
+      const response = { data: await apiRequest('GET', `/api/applications?${qs.toString()}`) };
       
       // 创建默认的空数组
       let fetchedApps: Application[] = [];
@@ -887,25 +895,9 @@ const PendingApprovals = () => {
       };
 
       Object.keys(applications).forEach(key => {
-        results[key] = applications[key].filter(app => {
-          // 文本搜索匹配
-          const textMatch = searchTerm === "" || 
-            app.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            app.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            `${app.amount}`.includes(searchTerm);
-          
-          // 日期过滤匹配
-          let dateMatch = true;
-          if (dateFilter) {
-            const appDate = parse(app.date, 'yyyy-MM-dd', new Date());
-            const filterDate = dateFilter;
-            dateMatch = appDate.getFullYear() === filterDate.getFullYear() &&
-                        appDate.getMonth() === filterDate.getMonth() &&
-                        appDate.getDate() === filterDate.getDate();
-          }
-          
-          return textMatch && dateMatch;
-        });
+        // 筛选已经在服务端完成，这里不再二次过滤 ——
+        // 再筛一遍只会把服务端匹配到、但字段口径略有差异的记录误伤掉
+        results[key] = applications[key];
       });
 
       setFilteredApplications(results);
@@ -914,11 +906,19 @@ const PendingApprovals = () => {
     filterApplications();
   }, [applications, searchTerm, dateFilter]);
 
-  // 页码只在筛选条件变化时归零。
-  // 原先跟着 applications 一起重置，导致「加载更多」拉回来的数据刚追加进去，
+  // 筛选条件变化：页码归零并重新向服务端要第一页。
+  // 页码原先跟着 applications 一起重置，导致「加载更多」拉回来的数据刚追加进去，
   // 页码就被打回第 1 页，可见区间仍是前 50 条，点了等于没点。
+  const isFirstFilterRun = React.useRef(true);
   useEffect(() => {
     setPage({ pending: 1, approved: 1, rejected: 1, all: 1 });
+    if (isFirstFilterRun.current) {   // 首屏已由初始加载拉过，不重复请求
+      isFirstFilterRun.current = false;
+      return;
+    }
+    // 防抖：避免每敲一个字都打一次接口
+    const timer = setTimeout(() => { fetchApplications('pending', 1, false); }, 400);
+    return () => clearTimeout(timer);
   }, [searchTerm, dateFilter]);
 
   // 根据页码更新可见申请

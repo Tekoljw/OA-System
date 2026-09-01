@@ -153,8 +153,19 @@ const AssetRecordsContent: React.FC = () => {
 
   // 从数据库API获取资产列表
   useEffect(() => {
-    fetchAssets();
+    fetchAssets(1, false);
   }, []);
+
+  // 搜索交给服务端，条件变化时重新拉第一页（防抖，避免每敲一个字都发请求）
+  const isFirstSearchRun = React.useRef(true);
+  useEffect(() => {
+    if (isFirstSearchRun.current) {
+      isFirstSearchRun.current = false;
+      return;
+    }
+    const timer = setTimeout(() => { setPage(1); fetchAssets(1, false); }, 400);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   const fetchAssets = async (pageNum: number = 1, append: boolean = false) => {
     if (!append) setIsLoading(true);
@@ -180,9 +191,15 @@ const AssetRecordsContent: React.FC = () => {
       
       // 从API获取资产数据
       // 带上分页：服务端默认只给一页，不传的话后面的资产取不到
-      const result = await apiRequest(
-        'GET', `/api/assets?projectId=${projectId}&page=${pageNum}&limit=${PAGE_SIZE}`
-      );
+      // 搜索交给服务端：本地过滤只能在已加载的那一页里找，
+      // 超出首页的资产搜不到，界面上也没有任何提示
+      const qs = new URLSearchParams({
+        projectId: String(projectId),
+        page: String(pageNum),
+        limit: String(PAGE_SIZE),
+      });
+      if (searchTerm.trim()) qs.append('search', searchTerm.trim());
+      const result = await apiRequest('GET', `/api/assets?${qs.toString()}`);
 
       if (result && result.success) {
         // 获取资产数据
@@ -311,14 +328,10 @@ const AssetRecordsContent: React.FC = () => {
     }
   };
   
-  // 根据类型筛选资产
+  // 类型页签仍在本地切分（数据量小且服务端按 assetTypeId 分页会打乱「全部」视图），
+  // 搜索则已交给服务端，这里不再二次过滤
   const filteredAssets = assets.filter(asset => {
-    // 先按搜索词筛选
-    const matchesSearch = searchTerm === "" || 
-      asset.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      asset.department.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.type.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      asset.id.toString().includes(searchTerm);
+    const matchesSearch = true;
     
     // 再按标签筛选
     if (!matchesSearch) return false;
