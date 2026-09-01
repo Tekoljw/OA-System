@@ -10,6 +10,8 @@ class RoleRepository extends BaseRepository {
         'view_assets', 'manage_assets', 'manage_my_applications', 'manage_pending_approvals',
         'manage_pending_accounting', 'manage_pending_execution',
         'manage_configurations', 'manage_personnel',
+        // 会计专属：资产报损/减值、借贷手工销账、汇率维护、账户增改
+        'manage_accounting',
     ];
 
     public function findAllRoles(): array {

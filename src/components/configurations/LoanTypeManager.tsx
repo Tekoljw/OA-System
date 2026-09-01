@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Button } from "../ui/button";
 import { Plus, FileQuestion } from "lucide-react";
 import {
@@ -12,27 +12,45 @@ import {
 import { Card, CardContent } from "../ui/card";
 import { useIsMobile } from "../../hooks/use-mobile";
 import EmptyState from "../common/EmptyState";
+import { Badge } from "../ui/badge";
+import { Loader2 } from "lucide-react";
+import { LoanTypeDef, getLoanTypeDefs } from "../../utils/transaction-types-api";
 
-const LOAN_TYPES = [
-  { id: "1", name: "应收款", description: "他人或其他组织应付予我方的债务" },
-  { id: "2", name: "预收款", description: "预先收取的与服务或产品相关的款项" },
-  { id: "3", name: "应付款", description: "我方应付予他人或其他组织的债务" },
-  { id: "4", name: "预付款", description: "预先支付的与服务或产品相关的款项" },
-  { id: "5", name: "押金", description: "为担保某种行为或物品而缴纳的一定数额的金钱" },
-  { id: "6", name: "借出", description: "借给他人或其他组织的资金" },
-  { id: "7", name: "借入", description: "从他人或其他组织借入的资金" }
-];
-
+/**
+ * 借贷分类：系统固定，只读。
+ * 原先在前端写死一份，与后端各说各话；现在一律从后端取，
+ * 增减类型只需改数据库，界面自动跟随。
+ */
 const LoanTypeManager = () => {
   const isMobile = useIsMobile();
+  const [LOAN_TYPES, setLoanTypes] = useState<LoanTypeDef[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getLoanTypeDefs()
+      .then(setLoanTypes)
+      .catch(() => setLoanTypes([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" />加载中…
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center">
+      <div className="flex items-center justify-between">
         <Button size="sm" disabled>
           <Plus className="h-4 w-4 mr-2" />
           系统分类
         </Button>
+        <p className="text-sm text-muted-foreground">
+          借贷分类由系统固定，不可增删改；「借出」表示钱在外面别人欠我们，「借入」表示我们欠别人
+        </p>
       </div>
 
       {LOAN_TYPES.length === 0 ? (
@@ -45,11 +63,16 @@ const LoanTypeManager = () => {
         isMobile ? (
           <div className="space-y-4">
             {LOAN_TYPES.map(type => (
-              <Card key={type.id} className="overflow-hidden">
+              <Card key={type.code} className="overflow-hidden">
                 <CardContent className="p-4">
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-medium">{type.name}</h4>
+                      <h4 className="font-medium flex items-center gap-2">
+                        {type.name}
+                        <Badge variant={type.direction === 'lend' ? 'default' : 'secondary'}>
+                          {type.direction === 'lend' ? '借出' : '借入'}
+                        </Badge>
+                      </h4>
                       <p className="text-sm text-muted-foreground mt-1">{type.description}</p>
                     </div>
                   </div>
@@ -63,13 +86,19 @@ const LoanTypeManager = () => {
               <TableHeader>
                 <TableRow>
                   <TableHead>名称</TableHead>
+                  <TableHead className="w-[120px]">方向</TableHead>
                   <TableHead>描述</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {LOAN_TYPES.map(type => (
-                  <TableRow key={type.id}>
+                  <TableRow key={type.code}>
                     <TableCell className="font-medium">{type.name}</TableCell>
+                    <TableCell>
+                      <Badge variant={type.direction === 'lend' ? 'default' : 'secondary'}>
+                        {type.direction === 'lend' ? '我们借出' : '我们借入'}
+                      </Badge>
+                    </TableCell>
                     <TableCell>{type.description}</TableCell>
                   </TableRow>
                 ))}

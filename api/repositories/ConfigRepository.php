@@ -16,14 +16,51 @@ class ConfigRepository extends BaseRepository {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    public function getSubjects(int $projectId, ?string $type = null): array {
+    /**
+     * 科目列表。
+     * 科目按一级流水类型分池（主营收入/其他收入/营业支出/其他支出各挂各的），
+     * 传 $transactionTypeCode 才是申请单表单该用的口径；只传 $type 是配置页的全量视图。
+     */
+    public function getSubjects(int $projectId, ?string $type = null, ?string $transactionTypeCode = null): array {
         $where = 'WHERE project_id = ?';
         $params = [$projectId];
         if ($type) {
             $where .= ' AND type = ?';
             $params[] = $type;
         }
+        if ($transactionTypeCode) {
+            $where .= ' AND transaction_type_code = ?';
+            $params[] = $transactionTypeCode;
+        }
         $stmt = $this->db->prepare("SELECT * FROM subjects $where ORDER BY id");
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    /** 一级流水类型（系统固定，全局共用） */
+    public function getTransactionTypes(?string $direction = null): array {
+        $sql = "SELECT * FROM transaction_types";
+        $params = [];
+        if ($direction) { $sql .= " WHERE direction = ?"; $params[] = $direction; }
+        $sql .= " ORDER BY direction DESC, sort_order";
+        $stmt = $this->db->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function findTransactionType(string $code): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM transaction_types WHERE code = ?");
+        $stmt->execute([$code]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
+    /** 借贷分类（系统固定，不可编辑）；direction: lend=我们借出 borrow=我们借入 */
+    public function getLoanTypes(?string $direction = null): array {
+        $sql = "SELECT * FROM loan_types";
+        $params = [];
+        if ($direction) { $sql .= " WHERE direction = ?"; $params[] = $direction; }
+        $sql .= " ORDER BY sort_order";
+        $stmt = $this->db->prepare($sql);
         $stmt->execute($params);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
@@ -74,9 +111,21 @@ class ConfigRepository extends BaseRepository {
     }
 
     public function createSubject(array $data): array {
-        $stmt = $this->db->prepare("INSERT INTO subjects (name, code, type, description, project_id) VALUES (?, ?, ?, ?, ?) RETURNING *");
-        $stmt->execute([$data['name'], self::nullIfBlank($data['code'] ?? null), $data['type'], $data['description'] ?? '', $data['project_id']]);
+        $stmt = $this->db->prepare(
+            "INSERT INTO subjects (name, code, type, description, project_id, transaction_type_code)
+             VALUES (?, ?, ?, ?, ?, ?) RETURNING *"
+        );
+        $stmt->execute([
+            $data['name'], self::nullIfBlank($data['code'] ?? null), $data['type'],
+            $data['description'] ?? '', $data['project_id'], $data['transaction_type_code'],
+        ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
+    }
+
+    public function findSubject(int $id, int $projectId): ?array {
+        $stmt = $this->db->prepare("SELECT * FROM subjects WHERE id = ? AND project_id = ?");
+        $stmt->execute([$id, $projectId]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
     }
 
     public function getAssetTypes(int $projectId): array {

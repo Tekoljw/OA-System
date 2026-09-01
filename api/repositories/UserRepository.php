@@ -93,6 +93,18 @@ class UserRepository extends BaseRepository {
         return $user;
     }
 
+    /** 用户偏好的展示本位币；未设置时按 USD */
+    public function getBaseCurrency(int $userId): string {
+        $stmt = $this->db->prepare("SELECT base_currency FROM users WHERE id = ?");
+        $stmt->execute([$userId]);
+        return (string)($stmt->fetchColumn() ?: 'USD');
+    }
+
+    public function setBaseCurrency(int $userId, string $code): void {
+        $stmt = $this->db->prepare("UPDATE users SET base_currency = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([$code, $userId]);
+    }
+
     /** 用户是否隶属于指定项目 */
     public function belongsToProject(int $userId, int $projectId): bool {
         $stmt = $this->db->prepare("SELECT 1 FROM user_projects WHERE user_id = ? AND project_id = ?");

@@ -107,8 +107,10 @@ class ApplicationRepository extends BaseRepository {
         $stmt = $this->db->prepare("
             INSERT INTO applications
                 (project_id, type, title, amount, currency_type, department_id, submitter_id,
-                 status, related_party, due_date, content, description, images, shareholder_id)
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *
+                 status, related_party, due_date, content, description, images, shareholder_id,
+                 transaction_type_code, loan_type_code, related_loan_id, related_asset_id,
+                 asset_type_id, quantity)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING *
         ");
         $stmt->execute([
             $d['project_id'], $d['type'], $d['title'], $d['amount'],
@@ -117,6 +119,12 @@ class ApplicationRepository extends BaseRepository {
             $d['content'] ?? null, $d['description'] ?? null,
             json_encode($d['images'] ?? [], JSON_UNESCAPED_UNICODE),
             !empty($d['shareholder_id']) ? (int)$d['shareholder_id'] : null,
+            $d['transaction_type_code'] ?? null,
+            !empty($d['loan_type_code'])   ? $d['loan_type_code']        : null,
+            !empty($d['related_loan_id'])  ? (int)$d['related_loan_id']  : null,
+            !empty($d['related_asset_id']) ? (int)$d['related_asset_id'] : null,
+            !empty($d['asset_type_id'])    ? (int)$d['asset_type_id']    : null,
+            max(1, (int)($d['quantity'] ?? 1)),
         ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }

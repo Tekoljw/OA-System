@@ -3,6 +3,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/ta
 import { toast } from "sonner";
 import { LoanList } from "./LoanList";
 import { LoanSettlementDialog } from "./LoanSettlementDialog";
+import { usePermissions } from "../../hooks/use-permissions";
 import PageLayout from "../../components/layout/PageLayout";
 import LoadMoreButton from "../../components/common/LoadMoreButton";
 import { useIsMobile } from "../../hooks/use-mobile";
@@ -48,6 +49,8 @@ const loanTypes: LoanType[] = [
 export default function LoanRecords() {
   const isMobile = useIsMobile();
   const { currentProject } = useAuth();
+  const { can } = usePermissions();
+  const canSettle = can('manage_accounting');
   const [selectedType, setSelectedType] = useState<LoanType | "全部">("全部");
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [isSettlementDialogOpen, setIsSettlementDialogOpen] = useState(false);
@@ -107,6 +110,14 @@ export default function LoanRecords() {
     }
   };
 
+  /** 重新拉取当前筛选条件下的列表，写操作之后必须调用，否则界面停留在旧数据上 */
+  const reload = async () => {
+    const loans = await fetchLoans(1, selectedType);
+    setAllLoans(loans);
+    setVisibleLoans(loans.slice(0, PAGE_SIZE));
+    setPage(1);
+  };
+
   // 根据选择的类型初始化数据
   useEffect(() => {
     // 重置分页
@@ -144,16 +155,37 @@ export default function LoanRecords() {
     setIsSettlementDialogOpen(true);
   };
 
-  const handleSettleSubmit = (data: { amount: number; description: string }) => {
-    console.log("Settlement submitted:", data);
-    toast.success("销账成功");
-    setIsSettlementDialogOpen(false);
-    setSelectedLoan(null);
+  /**
+   * 手工销账：收不回的借款、不打算还的贷款，由会计做平。
+   * 正常还款应走「申请收款/付款 → 还款收入/还款支出」，由流水自动回冲。
+   * 此前这里只弹了一句「销账成功」而没有调接口，界面显示已销、库里分文未动。
+   */
+  const handleSettleSubmit = async (data: { amount: number; description: string }) => {
+    if (!selectedLoan) return;
+    try {
+      const res = await fetchAPI(`/api/loans/${selectedLoan.id}/settle`, {
+        method: 'POST',
+        body: JSON.stringify({ amount: data.amount, description: data.description }),
+      });
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '销账失败');
+      toast.success("销账成功");
+      setIsSettlementDialogOpen(false);
+      setSelectedLoan(null);
+      await reload();
+    } catch (e: any) {
+      toast.error(e?.message || '销账失败');
+    }
   };
 
-  const handleDelete = (loan: Loan) => {
-    console.log("Deleting loan:", loan);
-    toast.success("删除成功");
+  const handleDelete = async (loan: Loan) => {
+    try {
+      const res = await fetchAPI(`/api/loans/${loan.id}`, { method: 'DELETE' });
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '删除失败');
+      toast.success("删除成功");
+      await reload();
+    } catch (e: any) {
+      toast.error(e?.message || '删除失败');
+    }
   };
 
   return (
@@ -236,6 +268,7 @@ export default function LoanRecords() {
             <LoanList
               loans={visibleLoans}
               onSettle={handleSettle}
+              canSettle={canSettle}
               onDelete={handleDelete}
             />
           </TabsContent>
@@ -245,6 +278,7 @@ export default function LoanRecords() {
               <LoanList
                 loans={visibleLoans}
                 onSettle={handleSettle}
+                canSettle={canSettle}
                 onDelete={handleDelete}
               />
             </TabsContent>

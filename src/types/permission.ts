@@ -18,7 +18,9 @@ export type PermissionKey =
   | "manage_pending_accounting"
   | "manage_pending_execution"
   | "manage_configurations"
-  | "manage_personnel";
+  | "manage_personnel"
+  /** 会计操作：账户增改、资产报损减值、借贷手工销账、汇率维护 */
+  | "manage_accounting";
 
 export type Role = {
   id: string;

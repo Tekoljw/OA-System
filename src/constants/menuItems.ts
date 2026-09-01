@@ -67,7 +67,8 @@ export const menuItems: MenuItem[] = [
     path: "/configurations",
     icon: Settings,
     submenu: [
-      { title: "账户配置", path: "/configurations/account-categories", icon: CreditCard, permission: "manage_configurations" },
+      // 币种配置里的汇率归会计维护，账户类型归配置管理员，两类角色都要能进
+      { title: "账户配置", path: "/configurations/account-categories", icon: CreditCard, permission: ["manage_configurations", "manage_accounting"] },
       { title: "资产分类", path: "/configurations/asset-categories", icon: ChartPie, permission: "manage_configurations" },
       { title: "科目分类", path: "/configurations/subject-categories", icon: FolderClosed, permission: "manage_configurations" },
       { title: "流水类型", path: "/configurations/transaction-types", icon: ArrowDownUp, permission: "manage_configurations" },

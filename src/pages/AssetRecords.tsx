@@ -8,6 +8,8 @@ import LoadMoreButton from "../components/common/LoadMoreButton";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "../components/ui/table";
 import { Button } from "../components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { usePermissions } from "../hooks/use-permissions";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
 import { Form, FormField, FormItem, FormLabel, FormControl } from "../components/ui/form";
 import { Input } from "../components/ui/input";
@@ -103,9 +105,15 @@ interface DepreciationFormData {
   quantity: number;
   amount: number;
   description: string;
+  /** 报损=资产没了，减值=还在但不值那么多。两者都永久留痕，只是原因不同 */
+  reason: 'writeoff' | 'impairment';
 }
 
 const AssetRecordsContent: React.FC = () => {
+  // 报损/减值是把资产做平的最后一步，只有会计能做；
+  // 非会计仍可查看资产和处置记录，只是按钮不可点
+  const { can } = usePermissions();
+  const canAccount = can('manage_accounting');
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -124,6 +132,7 @@ const AssetRecordsContent: React.FC = () => {
       quantity: 1,
       amount: 0,
       description: "",
+      reason: 'impairment',
     },
   });
 
@@ -388,10 +397,12 @@ const AssetRecordsContent: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
+            disabled={!canAccount}
+            title={canAccount ? '报损 / 减值' : '只有会计可以报损或减值'}
             onClick={() => handleDepreciation(asset)}
           >
             <X className="h-4 w-4 mr-1" />
-            核销
+            报损/减值
           </Button>
           <Button
             variant="outline"
@@ -567,9 +578,11 @@ const AssetRecordsContent: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={!canAccount}
+                              title={canAccount ? '报损 / 减值' : '只有会计可以报损或减值'}
                               onClick={() => handleDepreciation(asset)}
                             >
-                              核销
+                              报损/减值
                             </Button>
                             <Button
                               variant="outline"
@@ -648,8 +661,12 @@ const AssetRecordsContent: React.FC = () => {
       <Dialog open={isDepreciationDialogOpen} onOpenChange={setIsDepreciationDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>资产核销</DialogTitle>
+            <DialogTitle>资产报损 / 减值</DialogTitle>
           </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-2">
+            出售资产请走「申请收款 → 出售资产收入」，由流水自动冲减账面价值；
+            这里只处理卖不掉的部分：报损或减值。记录永久保留。
+          </p>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmitDepreciation)} className="space-y-4">
@@ -686,6 +703,25 @@ const AssetRecordsContent: React.FC = () => {
                         min={0}
                         max={selectedAsset ? parseFloat(selectedAsset.remainingValue.toString()) : 0}
                       />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="reason"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>处置原因</FormLabel>
+                    <FormControl>
+                      <Select value={field.value} onValueChange={field.onChange}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="impairment">减值（资产还在，但不值原价）</SelectItem>
+                          <SelectItem value="writeoff">报损（资产灭失、报废）</SelectItem>
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                   </FormItem>
                 )}

@@ -93,6 +93,16 @@ export async function createApplication(data: {
   applicationType?: 'payment' | 'income' | 'purchase' | 'sales' | 'borrowing' | 'lending'; // 申请类型
   relatedParty?: string; // 关联方（供应商/客户）
   dueDate?: string; // 期限日期
+  /** 一级流水类型，决定二级选项与衍生行为，后端必填 */
+  transaction_type_code?: string;
+  /** 以下按一级类型的 second_level 二选一填写 */
+  subject_id?: number;
+  loan_type_code?: string;
+  related_loan_id?: number;
+  related_asset_id?: number;
+  asset_type_id?: number;
+  shareholder_id?: number;
+  quantity?: number;
 }): Promise<Application> {
   try {
     // 重命名 userId 为 submitterId 以匹配后端 API 期望

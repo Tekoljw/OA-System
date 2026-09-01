@@ -63,6 +63,7 @@ export function PermissionManagementDialog({ role, onSaved }: Props) {
     manage_pending_execution:  { name: '执行管理',   description: '执行已审批的操作并落账' },
     manage_configurations:     { name: '配置管理',   description: '管理科目、币种、审批规则等配置' },
     manage_personnel:          { name: '人员管理',   description: '管理用户、部门、角色与权限' },
+    manage_accounting:         { name: '会计操作',   description: '账户增改、资产报损减值、借贷手工销账、汇率维护' },
   };
 
   const fetchPermissions = async () => {

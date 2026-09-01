@@ -67,7 +67,8 @@ $projectBoundEndpoints = [
     'dashboard-data', 'income-by-subject', 'expense-by-subject',
     'expense-by-department', 'recent-transactions', 'project-stats',
     'activity-logs', 'users', 'shareholders',
-    'applications', 'transfers', 'approval-rules',
+    'applications', 'transfers', 'approval-rules', 'exchange-rates',
+    'loan-types',
 ];
 if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
     $requestedProjectId = (int)($_GET['projectId'] ?? $_POST['projectId'] ?? $currentUser['projectId'] ?? 0);
@@ -91,7 +92,8 @@ if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
 // 「某个自定义角色能不能做这件事」。改为查该角色是否具备对应权限。
 // 注意：transactions / users 有更细粒度的规则（见各自分支），不在此处统一拦截
 $writePermissionMap = [
-    'accounts'       => 'verify_accounts',
+    // 账户的新增/编辑只有会计能做，其他角色只读（view_accounts 仍可查看）
+    'accounts'       => 'manage_accounting',
     'account-types'  => 'manage_configurations',
     'subjects'       => 'manage_configurations',
     'subject-types'  => 'manage_configurations',
@@ -479,7 +481,10 @@ try {
                 $body['type']          = $body['applicationType'] ?? $body['type'] ?? null;
                 $body['shareholder_id'] = $body['shareholderId'] ?? $body['shareholder_id'] ?? null;
                 $body['allocated_account_id'] = $body['accountId'] ?? $body['allocated_account_id'] ?? null;
-                $body['allocated_subject_id'] = $body['subjectId'] ?? $body['allocated_subject_id'] ?? null;
+                // 科目在提交时就选好了，直接预置为归账结果，
+                // 会计归账时只需指定账户，不必再挑一次科目
+                $body['allocated_subject_id'] = $body['subjectId'] ?? $body['subject_id']
+                    ?? $body['allocated_subject_id'] ?? null;
                 Response::success($appService->create($body), '申请提交成功', 201);
             } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'status') {
                 $body = JsonMiddleware::getRequestBody();
@@ -489,6 +494,10 @@ try {
                     '审批完成'
                 );
             } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'allocate') {
+                // 归账＝指定钱从哪个账户进出，是会计的职责
+                if (!$roleService->can($currentUser, 'manage_pending_accounting')) {
+                    Response::error('权限不足，归账只能由会计操作', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 Response::success($appService->allocate((int)$resourceId, $projectId, $body, $currentUser), '归帐完成');
             } elseif ($method === 'PUT' && $resourceId && $subEndpoint === 'execute') {
@@ -574,7 +583,9 @@ try {
 
             if ($method === 'GET') {
                 $type = $_GET['type'] ?? null;
-                Response::success($configService->getSubjects($projectId, $type), '获取科目列表成功');
+                // 申请单表单按一级类型取二级科目池；配置页不传则返回全量
+                $ttCode = $_GET['transactionTypeCode'] ?? null;
+                Response::success($configService->getSubjects($projectId, $type, $ttCode), '获取科目列表成功');
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
@@ -607,6 +618,10 @@ try {
             } elseif ($method === 'GET' && $resourceId) {
                 Response::success($assetService->getAsset((int)$resourceId, $projectId), '获取资产详情成功');
             } elseif ($method === 'POST' && $resourceId && $subEndpoint === 'depreciate') {
+                // 报损/减值是把资产做平的最后一步，只能会计操作
+                if (!$roleService->can($currentUser, 'manage_accounting')) {
+                    Response::error('权限不足，资产报损/减值只能由会计操作', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 Response::success(
                     $assetService->depreciate((int)$resourceId, $projectId, $body, $currentUser),
@@ -647,6 +662,11 @@ try {
             } elseif ($method === 'GET' && $resourceId) {
                 Response::success($loanService->getLoan((int)$resourceId, $projectId), '获取借贷详情成功');
             } elseif ($method === 'POST' && $resourceId && $subEndpoint === 'settle') {
+                // 手工销账（坏账、不打算还的贷款）只能会计操作；
+                // 正常还款请走还款流水，由归账执行时自动回冲
+                if (!$roleService->can($currentUser, 'manage_accounting')) {
+                    Response::error('权限不足，手工销账只能由会计操作', 'FORBIDDEN', 403);
+                }
                 $body = JsonMiddleware::getRequestBody();
                 Response::success($loanService->settle((int)$resourceId, $projectId, $body, $currentUser), '结算成功');
             } elseif ($method === 'POST' && !$resourceId) {
@@ -721,22 +741,30 @@ try {
             }
             break;
 
+        // ===== 一级流水类型（系统固定，只读） =====
+        // 一笔流水先选一级类型，二级选项由它的 second_level 决定从哪个池子里取；
+        // derives 决定归账执行后要不要衍生资产/借贷/股东记录。
         case 'transaction-types':
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
-            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
 
             if ($method !== 'GET') {
-                Response::error('不支持的请求方法，流水类型请通过科目接口管理', 'METHOD_NOT_ALLOWED', 405);
+                Response::error('流水类型是系统固定的，不能增删改', 'FORBIDDEN', 403);
             }
-            // 流水类型通过科目表的 type 字段区分
-            if ($resourceId === 'income') {
-                Response::success($configService->getSubjects($projectId, 'income'), '获取收入类型成功');
-            } elseif ($resourceId === 'expense') {
-                Response::success($configService->getSubjects($projectId, 'expense'), '获取支出类型成功');
-            } else {
-                Response::success($configService->getSubjects($projectId), '获取流水类型成功');
+            $direction = in_array($resourceId, ['income', 'expense'], true) ? $resourceId : null;
+            Response::success($configService->getTransactionTypes($direction), '获取流水类型成功');
+            break;
+
+        // ===== 借贷分类（系统固定，只读） =====
+        case 'loan-types':
+            require_once __DIR__ . '/services/ConfigService.php';
+            $configService = new ConfigService($db);
+
+            if ($method !== 'GET') {
+                Response::error('借贷分类是系统固定的，不能增删改', 'FORBIDDEN', 403);
             }
+            $dir = in_array($_GET['direction'] ?? '', ['lend', 'borrow'], true) ? $_GET['direction'] : null;
+            Response::success($configService->getLoanTypes($dir), '获取借贷分类成功');
             break;
 
         // ===== 仪表盘 =====
@@ -824,6 +852,53 @@ try {
             break;
 
         // ===== 角色管理（系统预定义角色） =====
+        // ===== 汇率 =====
+        case 'exchange-rates':
+            require_once __DIR__ . '/services/ExchangeRateService.php';
+            $rateSvc = new ExchangeRateService($db);
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
+
+            if ($method === 'GET') {
+                Response::success($rateSvc->listRates($projectId), '获取汇率成功');
+            } elseif ($method === 'POST' && $resourceId === 'refresh') {
+                if (!$roleService->can($currentUser, 'manage_accounting')) {
+                    Response::error('权限不足，汇率只能由会计维护', 'FORBIDDEN', 403);
+                }
+                Response::success($rateSvc->refreshAuto($projectId), '汇率刷新完成');
+            } elseif ($method === 'PUT' && $resourceId) {
+                if (!$roleService->can($currentUser, 'manage_accounting')) {
+                    Response::error('权限不足，汇率只能由会计维护', 'FORBIDDEN', 403);
+                }
+                Response::success(
+                    $rateSvc->updateSettings((int)$resourceId, $projectId, JsonMiddleware::getRequestBody()),
+                    '汇率已更新'
+                );
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
+        // ===== 用户展示本位币偏好 =====
+        case 'base-currency':
+            require_once __DIR__ . '/repositories/UserRepository.php';
+            $uRepo = new UserRepository($db);
+
+            if ($method === 'GET') {
+                Response::success(['baseCurrency' => $uRepo->getBaseCurrency((int)$currentUser['id'])], 'OK');
+            } elseif ($method === 'PUT') {
+                $body = JsonMiddleware::getRequestBody();
+                $code = strtoupper(trim((string)($body['baseCurrency'] ?? '')));
+                if (!preg_match('/^[A-Z]{2,10}$/', $code)) {
+                    Response::error('币种代码无效', 'VALIDATION_ERROR');
+                }
+                $uRepo->setBaseCurrency((int)$currentUser['id'], $code);
+                Response::success(['baseCurrency' => $code], '本位币已切换');
+            } else {
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+            }
+            break;
+
         // ===== 角色与权限 =====
         case 'roles':
             $roleSvc = $roleService; // 已在 4.6 处实例化
@@ -880,8 +955,11 @@ try {
                 if (strlen($body['password']) < 6) {
                     Response::error('密码长度不能少于6位', 'VALIDATION_ERROR');
                 }
-                if (!in_array($body['role'] ?? 'user', ['admin', 'user'], true)) {
-                    Response::error('角色无效', 'VALIDATION_ERROR');
+                // 角色可自定义后不能再写死白名单：那样新建的角色（含系统角色「会计」）
+                // 都无法分配给用户，角色管理形同虚设
+                $roleCode = $body['role'] ?? 'user';
+                if (!$roleService->roleExists($roleCode)) {
+                    Response::error('角色无效：' . $roleCode, 'VALIDATION_ERROR');
                 }
                 $newUser = $userRepo->createWithProject([
                     'username'  => $body['username'],

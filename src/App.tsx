@@ -4,6 +4,11 @@ import { Toaster as Sonner } from "./components/ui/sonner";
 import { TooltipProvider } from "./components/ui/tooltip";
 import { SidebarProvider } from "./components/layout/NewSidebar";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { BaseCurrencyProvider } from "./contexts/BaseCurrencyContext";
+import { usePermissions } from "./hooks/use-permissions";
+import type { PermissionKey } from "./types/permission";
+import { ShieldAlert } from "lucide-react";
+import PageLayout from "./components/layout/PageLayout";
 import ApiErrorHandler from "./components/common/ApiErrorHandler";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -66,12 +71,59 @@ const withProtectedRoute = (Component: React.ComponentType<any>) => {
   };
 };
 
+/**
+ * 无权限时的提示页。
+ * 不做静默跳转 —— 用户点了链接却被弹回首页，会以为系统坏了；
+ * 明确告知无权访问，并留一个返回首页的出口。
+ */
+const NoPermission: React.FC<{ permission: PermissionKey | PermissionKey[] }> = ({ permission }) => (
+  // 必须套在 PageLayout 里，否则侧边栏不渲染，用户被困在这一页只能点返回
+  <PageLayout title="无权访问" subtitle="当前角色不具备访问该页面的权限">
+    <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4 px-6 text-center">
+      <ShieldAlert className="h-12 w-12 text-muted-foreground" />
+      <div>
+        <h2 className="text-lg font-medium">无权访问该页面</h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          当前角色不具备
+          「{(Array.isArray(permission) ? permission : [permission])
+              .map(k => PERMISSION_TITLES[k] ?? k).join(' 或 ')}」
+          权限，如需使用请联系管理员。
+        </p>
+      </div>
+    </div>
+  </PageLayout>
+);
+
+/** 权限项对应的中文名，用于提示文案 */
+const PERMISSION_TITLES: Record<string, string> = {
+  view_dashboard: '查看仪表盘',
+  view_accounts: '查看账户',
+  verify_accounts: '管理账户',
+  manage_accounting: '会计操作',
+  view_transactions: '查看交易',
+  view_assets: '查看资产',
+  manage_assets: '管理资产',
+  manage_my_applications: '我的申请',
+  manage_pending_approvals: '审批管理',
+  manage_pending_accounting: '归帐管理',
+  manage_pending_execution: '执行管理',
+  manage_configurations: '配置管理',
+  manage_personnel: '人员管理',
+};
+
 // 创建受保护的侧边栏包装器
-const ProtectedSidebarPage = withProtectedRoute(({ children }: { children: React.ReactNode }) => (
-  <SidebarProvider>
-    {children}
-  </SidebarProvider>
-));
+// permission 可选：标注后，无该权限的用户看到提示页而非页面内容。
+// 这只是显示层，服务端对每个写操作仍独立校验。
+const ProtectedSidebarPage = withProtectedRoute(
+  ({ children, permission }: { children: React.ReactNode; permission?: PermissionKey | PermissionKey[] }) => {
+    const { can } = usePermissions();
+    return (
+      <SidebarProvider>
+        {permission && !can(permission) ? <NoPermission permission={permission} /> : children}
+      </SidebarProvider>
+    );
+  }
+);
 
 /**
  * 路由子树。key 绑定当前项目 id：切换项目时整棵子树重新挂载，
@@ -107,72 +159,72 @@ const AppRoutes = () => {
                 
                 {/* 账户管理 */}
                 <Route path="/accounts" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="view_accounts">
                     <AccountManagement />
                   </ProtectedSidebarPage>
                 } />
                 
                 {/* 股东管理 */}
                 <Route path="/shareholders" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_configurations">
                     <ShareholderManagement />
                   </ProtectedSidebarPage>
                 } />
 
                 {/* 交易管理 */}
                 <Route path="/transactions/external" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="view_transactions">
                     <ExternalTransactions />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/transactions/internal" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="view_transactions">
                     <InternalTransactions />
                   </ProtectedSidebarPage>
                 } />
                 
                 {/* 资产管理 */}
                 <Route path="/assets/records" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="view_assets">
                     <AssetRecords />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/assets/loans" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="view_assets">
                     <LoanRecords />
                   </ProtectedSidebarPage>
                 } />
                 
                 {/* 工作流管理 */}
                 <Route path="/workflows/my-applications" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_my_applications">
                     <MyApplications />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/workflows/pending-approvals" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_pending_approvals">
                     <PendingApprovals />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/workflows/pending-accounting" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_pending_accounting">
                     <PendingAccounting />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/workflows/pending-execution" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_pending_execution">
                     <PendingExecution />
                   </ProtectedSidebarPage>
                 } />
                 
                 {/* 人员管理 */}
                 <Route path="/personnel/user-management" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_personnel">
                     <UserManagement />
                   </ProtectedSidebarPage>
                 } />
@@ -185,39 +237,40 @@ const AppRoutes = () => {
                 } />
                 
                 {/* 配置管理 */}
+                {/* 会计要进这页维护汇率，配置管理员要进这页改账户类型 */}
                 <Route path="/configurations/account-categories" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission={["manage_configurations", "manage_accounting"]}>
                     <AccountCategories />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/configurations/asset-categories" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_configurations">
                     <AssetCategories />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/configurations/subject-categories" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_configurations">
                     <SubjectCategories />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/configurations/transaction-types" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_configurations">
                     <TransactionTypes />
                   </ProtectedSidebarPage>
                 } />
 
                 <Route path="/configurations/approval-rules" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_configurations">
                     <ApprovalRules />
                   </ProtectedSidebarPage>
                 } />
                 
                 {/* 部门管理 */}
                 <Route path="/configurations/departments" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_personnel">
                     <DepartmentManagement />
                   </ProtectedSidebarPage>
                 } />
@@ -226,25 +279,25 @@ const AppRoutes = () => {
                 
                 {/* 人员管理 */}
                 <Route path="/personnel/departments" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_personnel">
                     <DepartmentManagement />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/personnel/permissions" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_personnel">
                     <PermissionManagement />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/personnel/users" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_personnel">
                     <UserManagement />
                   </ProtectedSidebarPage>
                 } />
                 
                 <Route path="/personnel/activity-logs" element={
-                  <ProtectedSidebarPage>
+                  <ProtectedSidebarPage permission="manage_personnel">
                     <ActivityLogs />
                   </ProtectedSidebarPage>
                 } />
@@ -260,7 +313,9 @@ const App = () => (
   <AuthProvider>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <AppRoutes />
+        <BaseCurrencyProvider>
+          <AppRoutes />
+        </BaseCurrencyProvider>
       </TooltipProvider>
     </QueryClientProvider>
   </AuthProvider>

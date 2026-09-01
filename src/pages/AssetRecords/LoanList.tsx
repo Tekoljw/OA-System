@@ -22,10 +22,12 @@ import EmptyState from "../../components/common/EmptyState";
 interface LoanListProps {
   loans: Loan[];
   onSettle: (loan: Loan) => void;
+  /** 手工销账只有会计能做，其他角色仍可查看记录 */
+  canSettle?: boolean;
   onDelete: (loan: Loan) => void;
 }
 
-export function LoanList({ loans, onSettle, onDelete }: LoanListProps) {
+export function LoanList({ loans, onSettle, onDelete, canSettle = true }: LoanListProps) {
   const isMobile = useIsMobile();
 
   const getStatusColor = (status: string): string => {
@@ -168,9 +170,10 @@ export function LoanList({ loans, onSettle, onDelete }: LoanListProps) {
                 variant="outline"
                 size="sm"
                 onClick={() => onSettle(loan)}
-                disabled={loan.remainingAmount <= 0}
+                disabled={loan.remainingAmount <= 0 || !canSettle}
+                title={canSettle ? '手工销账（收不回 / 不打算还）' : '只有会计可以手工销账'}
               >
-                销账
+                手工销账
               </Button>
               <AlertDialog>
                 <AlertDialogTrigger asChild>
@@ -339,10 +342,11 @@ export function LoanList({ loans, onSettle, onDelete }: LoanListProps) {
                         variant="outline"
                         size="sm"
                         onClick={() => onSettle(loan)}
-                        disabled={loan.remainingAmount <= 0}
+                        disabled={loan.remainingAmount <= 0 || !canSettle}
+                        title={canSettle ? '手工销账（收不回 / 不打算还）' : '只有会计可以手工销账'}
                       >
                         <Receipt className="h-4 w-4 mr-1" />
-                        销账
+                        手工销账
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>

@@ -113,6 +113,12 @@ class ApplicationService {
 
         $this->assertBelongsToProject('departments', (int)$d['department_id'], (int)$d['project_id'], '部门');
 
+        // 一级流水类型决定二级选什么、以及执行后要不要衍生记录。
+        // 在提交环节就校验，填错当场知道，不必走完整条审批链才失败。
+        require_once __DIR__ . '/DerivationService.php';
+        $derivation = new DerivationService($this->db);
+        $derivation->validateApplication($d, (int)$d['project_id']);
+
         $this->db->beginTransaction();
         try {
             $d['status'] = 'pending';
@@ -120,16 +126,20 @@ class ApplicationService {
 
             // 入资/分红等场景在提交时就已确定账户与科目，
             // 预置为归帐结果，审批通过后直接执行即可，无需再走一次归帐。
-            if (!empty($d['allocated_account_id'])) {
-                $this->assertBelongsToProject('accounts', (int)$d['allocated_account_id'], (int)$d['project_id'], '账户');
+            // 账户和科目哪个在提交时已确定就先存哪个：
+            // 科目由申请人按一级类型选定，账户由会计归账时指定，两者互不依赖
+            if (!empty($d['allocated_account_id']) || !empty($d['allocated_subject_id'])) {
+                $extra = [];
+                if (!empty($d['allocated_account_id'])) {
+                    $this->assertBelongsToProject('accounts', (int)$d['allocated_account_id'], (int)$d['project_id'], '账户');
+                    $extra['allocated_account_id'] = (int)$d['allocated_account_id'];
+                    $extra['allocated_at']         = date('Y-m-d H:i:s');
+                }
                 if (!empty($d['allocated_subject_id'])) {
                     $this->assertBelongsToProject('subjects', (int)$d['allocated_subject_id'], (int)$d['project_id'], '科目');
+                    $extra['allocated_subject_id'] = (int)$d['allocated_subject_id'];
                 }
-                $this->repo->updateStatus((int)$app['id'], 'pending', [
-                    'allocated_account_id' => (int)$d['allocated_account_id'],
-                    'allocated_subject_id' => !empty($d['allocated_subject_id']) ? (int)$d['allocated_subject_id'] : null,
-                    'allocated_at'         => date('Y-m-d H:i:s'),
-                ]);
+                $this->repo->updateStatus((int)$app['id'], 'pending', $extra);
             }
 
             // 生成审批链；部门无主管、会签人数不足等情况会在此抛出并回滚
@@ -261,17 +271,19 @@ class ApplicationService {
             throw new \RuntimeException('该申请单当前状态不可归帐：' . $app['status']);
         }
 
+        // 归账不传科目时保留申请人已选的科目，否则会把它清成空，
+        // 落账后这笔流水就没有归类了
+        $subjectId = !empty($d['subject_id'])
+            ? (int)$d['subject_id']
+            : (!empty($app['allocated_subject_id']) ? (int)$app['allocated_subject_id'] : null);
+
         $stmt = $this->db->prepare(
             "UPDATE applications
              SET status = 'to_be_executed', allocated_account_id = ?, allocated_subject_id = ?,
                  allocated_at = NOW(), updated_at = NOW()
              WHERE id = ?"
         );
-        $stmt->execute([
-            (int)$d['account_id'],
-            isset($d['subject_id']) ? (int)$d['subject_id'] : null,
-            $id,
-        ]);
+        $stmt->execute([(int)$d['account_id'], $subjectId, $id]);
 
         $this->logActivity('allocate', $id, sprintf('申请单 #%d 完成归帐，转入待执行', $id), $user['id'], $projectId);
         return $this->getApplication($id, $projectId);
@@ -312,7 +324,18 @@ class ApplicationService {
                 'status'           => 'completed',
                 'project_id'       => $projectId,
                 'created_by'       => $user['id'],
+                'transaction_type_code' => $app['transaction_type_code'] ?? null,
             ]);
+
+            // 落账后按一级类型衍生资产/借贷记录。放在同一事务里：
+            // 衍生失败流水也要回滚，否则会出现钱动了但资产没记上的悬空账
+            require_once __DIR__ . '/DerivationService.php';
+            $derived = (new DerivationService($this->db))->apply($app, $tx, $projectId, $user);
+            if ($derived) {
+                $this->logActivity('derive', $id, sprintf(
+                    '申请单 #%d 衍生 %s 记录 #%d', $id, $derived['kind'], $derived['id']
+                ), $user['id'], $projectId);
+            }
 
             $this->repo->updateStatus($id, 'completed', [
                 'transaction_id' => (int)$tx['id'],

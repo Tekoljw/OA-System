@@ -338,8 +338,10 @@ const MyApplications: React.FC = () => {
     // 三处此前都是错的：userId 写死为 1（提交人会记成管理员）、
     // department 传的是部门名而后端要 departmentId、
     // type 传 'payment' 而后端只认 income / expense。
+    const num = (v: any) => (v !== undefined && v !== null && v !== '' ? Number(v) : undefined);
     const requestData = {
-      type: presetType === 'income' ? 'income' : 'expense',
+      // 收支方向以弹窗里选的一级类型为准，不再靠 presetType 猜
+      type: data.direction || (presetType === 'income' ? 'income' : 'expense'),
       title: data.title,
       amount: parseFloat(data.amount),
       departmentId: data.department ? Number(data.department) : undefined,
@@ -348,7 +350,16 @@ const MyApplications: React.FC = () => {
       content: data.description || '', // 添加内容/描述字段
       description: data.description || '', // 备注说明
       relatedParty: data.relatedParty, // 供应商/客户信息
-      dueDate: data.dueDate // 期限日期
+      dueDate: data.dueDate, // 期限日期
+      // 一级类型与二级选项：后端据此校验并在归账执行后衍生资产/借贷/股东记录
+      transaction_type_code: data.transactionTypeCode,
+      subject_id:       num(data.subjectId),
+      loan_type_code:   data.loanTypeCode || undefined,
+      related_loan_id:  num(data.relatedLoanId),
+      related_asset_id: num(data.relatedAssetId),
+      asset_type_id:    num(data.assetTypeId),
+      shareholder_id:   num(data.shareholderId),
+      quantity:         num(data.quantity),
     };
     
     console.log("准备提交申请数据:", requestData);

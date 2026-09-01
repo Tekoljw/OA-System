@@ -78,17 +78,46 @@ class ConfigService {
     }
 
     // 科目
-    public function getSubjects(int $projectId, ?string $type = null): array {
-        return $this->repo->getSubjects($projectId, $type);
+    public function getSubjects(int $projectId, ?string $type = null, ?string $transactionTypeCode = null): array {
+        return $this->repo->getSubjects($projectId, $type, $transactionTypeCode);
+    }
+
+    /** 一级流水类型：系统固定，只读 */
+    public function getTransactionTypes(?string $direction = null): array {
+        return $this->repo->getTransactionTypes($direction);
+    }
+
+    /** 借贷分类：系统固定，只读 */
+    public function getLoanTypes(?string $direction = null): array {
+        return $this->repo->getLoanTypes($direction);
+    }
+
+    /**
+     * 只有「不衍生其他记录」的一级类型才有自建科目：
+     * 主营收入 / 其他收入 / 营业支出 / 其他支出。
+     * 衍生类（借贷、资产、股东）的二级选项来自各自的记录表，不走科目。
+     */
+    private function assertSubjectPoolAllowed(string $ttCode): array {
+        $tt = $this->repo->findTransactionType($ttCode);
+        if (!$tt) throw new \InvalidArgumentException('流水类型不存在：' . $ttCode);
+        if ($tt['second_level'] !== 'subject') {
+            throw new \InvalidArgumentException(
+                sprintf('「%s」的二级选项来自%s，不能在此新增科目', $tt['name'],
+                    ['loan_type' => '借贷分类', 'loan' => '借贷记录', 'asset_type' => '资产分类',
+                     'asset' => '资产记录', 'shareholder' => '股东列表'][$tt['second_level']] ?? '其他记录')
+            );
+        }
+        return $tt;
     }
 
     public function createSubject(array $data): array {
         if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
-        if (empty($data['type'])) throw new \InvalidArgumentException('类型不能为空');
-        $allowedSubjectTypes = ['income', 'expense'];
-        if (!in_array($data['type'], $allowedSubjectTypes, true)) {
-            throw new \InvalidArgumentException('科目类型无效，仅支持: income, expense');
+        if (empty($data['transaction_type_code'])) {
+            throw new \InvalidArgumentException('必须指定所属流水类型');
         }
+        $tt = $this->assertSubjectPoolAllowed($data['transaction_type_code']);
+        // 收支方向由一级类型决定，不接受前端传入，避免出现「挂在支出类型下的收入科目」
+        $data['type'] = $tt['direction'];
         $result = $this->repo->createSubject($data);
         $this->logActivity('create', 'subjects', (int)$result['id'],
             sprintf('创建科目「%s」(%s)', $data['name'], $data['type']),
@@ -97,7 +126,15 @@ class ConfigService {
     }
 
     public function updateSubject(int $id, array $data): ?array {
-        $result = $this->repo->updateItem('subjects', $id, $data, (int)($data['project_id'] ?? 0));
+        $projectId = (int)($data['project_id'] ?? 0);
+        $cur = $this->repo->findSubject($id, $projectId);
+        if (!$cur) return null;
+        if (!empty($cur['is_system'])) {
+            throw new \InvalidArgumentException('系统科目不可修改');
+        }
+        // 归属的一级类型和收支方向都不允许改：改了会让已有流水的二级选项凭空错位
+        unset($data['transaction_type_code'], $data['type'], $data['is_system']);
+        $result = $this->repo->updateItem('subjects', $id, $data, $projectId);
         if ($result) {
             $this->logActivity('update', 'subjects', $id,
                 sprintf('更新科目 #%d', $id),
@@ -107,7 +144,11 @@ class ConfigService {
     }
 
     public function deleteSubject(int $id, int $projectId = 0): bool {
-        // 检查是否有关联交易
+        $cur = $this->repo->findSubject($id, $projectId);
+        if ($cur && !empty($cur['is_system'])) {
+            throw new \InvalidArgumentException('系统科目不可删除');
+        }
+        // 已被流水引用的科目不能删：删了历史流水就失去归类，报表对不上
         $this->checkTransactionReference('subject_id', $id, '科目');
         $ok = $this->repo->deleteItem('subjects', $id, $projectId);
         if ($ok) {

@@ -13,10 +13,16 @@ export function usePermissions() {
   const permissions: PermissionKey[] = (user as any)?.permissions ?? [];
   const isSuperAdmin = Boolean((user as any)?.isSuperAdmin ?? (user as any)?.is_super_admin);
 
-  const can = (permission?: PermissionKey) => {
+  /**
+   * 传数组表示「任一满足即可」。
+   * 有的页面对两类角色都开放但理由不同——比如币种配置，
+   * 配置管理员进去改账户类型，会计进去维护汇率。
+   */
+  const can = (permission?: PermissionKey | PermissionKey[]) => {
     if (!permission) return true;      // 未标注权限的入口对所有登录用户开放
     if (isSuperAdmin) return true;
-    return permissions.includes(permission);
+    const required = Array.isArray(permission) ? permission : [permission];
+    return required.some(k => permissions.includes(k));
   };
 
   /**

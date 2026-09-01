@@ -28,6 +28,7 @@ import {
   deleteAccount 
 } from "../../utils/config-api";
 import { useToast } from "../../hooks/use-toast";
+import { usePermissions } from "../../hooks/use-permissions";
 
 // 使用从config-api导入的Account接口
 // 定义自己的LocalAccount接口，与API接口兼容
@@ -77,6 +78,9 @@ const getCurrencySymbol = (currency: string | undefined | null) => {
 };
 
 const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
+  // 账户的新增/编辑/删除只有会计能做，其他角色只读
+  const { can } = usePermissions();
+  const canManageAccounts = can('manage_accounting');
   const { t } = useTranslation();
   const { toast } = useToast();
   const [accounts, setAccounts] = useState<LocalAccount[]>([]);
@@ -420,7 +424,11 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
   return (
     <>
       <div className="flex justify-start gap-2 mb-4">
-        <Button onClick={() => setFormDialogOpen(true)}>
+        <Button
+          onClick={() => setFormDialogOpen(true)}
+          disabled={!canManageAccounts}
+          title={canManageAccounts ? undefined : '只有会计可以新增账户'}
+        >
           <Plus className="h-4 w-4 mr-2" />
           {t('accounts.addAccount') || '添加账户'}
         </Button>
@@ -430,7 +438,8 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
             setDeletingAccount(null);
             setDeleteDialogOpen(true);
           }}
-          disabled={selectedAccounts.length === 0}
+          disabled={selectedAccounts.length === 0 || !canManageAccounts}
+          title={canManageAccounts ? undefined : '只有会计可以删除账户'}
         >
           <Trash2 className="h-4 w-4 mr-2" />
           {t('accounts.deleteAccount') || '删除账户'}
@@ -513,6 +522,8 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
                           setFormDialogOpen(true);
                         }}
                         aria-label="编辑账户"
+                        disabled={!canManageAccounts}
+                        title={canManageAccounts ? '编辑账户' : '只有会计可以编辑账户'}
                       >
                         <Edit className="h-5 w-5" />
                       </Button>
@@ -526,6 +537,8 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
                           setDeleteDialogOpen(true);
                         }}
                         aria-label="删除账户"
+                        disabled={!canManageAccounts}
+                        title={canManageAccounts ? '删除账户' : '只有会计可以删除账户'}
                       >
                         <Trash2 className="h-5 w-5" />
                       </Button>

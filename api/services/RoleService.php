@@ -44,6 +44,11 @@ class RoleService {
         return $this->repo->findAllRoles();
     }
 
+    /** 角色码是否存在（用于建/改用户时校验，避免写死白名单） */
+    public function roleExists(string $code): bool {
+        return $this->repo->findByCode($code) !== null;
+    }
+
     public function allPermissions(): array {
         return RoleRepository::ALL_PERMISSIONS;
     }
