@@ -74,9 +74,11 @@ const PendingAccounting: React.FC = () => {
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [dateString, setDateString] = useState("");
   const PAGE_SIZE = 50;
+  // 服务端返回的总数，用于判断「加载更多」还要不要显示
+  const [totals, setTotals] = useState<Record<string, number>>({});
 
   // 获取应用列表数据
-  const fetchApplications = async (status: string) => {
+  const fetchApplications = async (status: string, pageNum: number = 1, append: boolean = false) => {
     setLoading(true);
     
     try {
@@ -87,9 +89,12 @@ const PendingAccounting: React.FC = () => {
       console.log(`获取应用数据，状态: ${apiStatus}`);
       
       // 使用getApplications API获取数据
+      // 带上分页参数：服务端一页最多 50 条，只拉第一页的话
+      // 「加载更多」就只能在本地切片，后面的单据永远看不到
       const result = await getApplications({
         type: apiStatus,
-        limit: 50 // 限制条数
+        page: pageNum,
+        limit: PAGE_SIZE,
       });
       
       // 创建默认的空数组
@@ -118,23 +123,12 @@ const PendingAccounting: React.FC = () => {
         fetchedApps = generateEmptyData();
       }
       
-      // 更新状态
-      if (status === "pending") {
-        setApplications(prev => ({
-          ...prev,
-          pending: fetchedApps
-        }));
-      } else if (status === "completed") {
-        setApplications(prev => ({
-          ...prev,
-          completed: fetchedApps
-        }));
-      } else if (status === "all") {
-        setApplications(prev => ({
-          ...prev,
-          all: fetchedApps
-        }));
-      }
+      // 记下服务端总数，用于判断还有没有下一页
+      setTotals(prev => ({ ...prev, [status]: result?.total ?? fetchedApps.length }));
+      setApplications(prev => ({
+        ...prev,
+        [status]: append ? [...(prev[status] || []), ...fetchedApps] : fetchedApps,
+      }));
       
     } catch (error) {
       console.error('获取应用数据出错:', error);
@@ -205,16 +199,16 @@ const PendingAccounting: React.FC = () => {
       });
 
       setFilteredApplications(results);
-      // 重置页码
-      setPage({
-        pending: 1,
-        completed: 1,
-        all: 1
-      });
     };
 
     filterApplications();
   }, [applications, searchTerm, dateFilter]);
+
+  // 页码只在筛选条件变化时归零。跟着 applications 一起重置的话，
+  // 「加载更多」刚追加的数据会立刻被打回第一页，点了等于没点。
+  useEffect(() => {
+    setPage({ pending: 1, completed: 1, all: 1 });
+  }, [searchTerm, dateFilter]);
 
   // 根据页码更新可见申请
   useEffect(() => {
@@ -225,17 +219,11 @@ const PendingAccounting: React.FC = () => {
     });
   }, [filteredApplications, activeTab, page]);
 
-  const handleLoadMore = () => {
-    setLoading(true);
-    
-    // 模拟网络请求延迟
-    setTimeout(() => {
-      setPage(prev => ({
-        ...prev,
-        [activeTab]: prev[activeTab] + 1
-      }));
-      setLoading(false);
-    }, 500);
+  /** 向服务端要下一页并追加，而不是在本地切片 */
+  const handleLoadMore = async () => {
+    const next = (page[activeTab] || 1) + 1;
+    await fetchApplications(activeTab, next, true);
+    setPage(prev => ({ ...prev, [activeTab]: next }));
   };
 
   const handleTabChange = (value: string) => {
@@ -366,7 +354,7 @@ const PendingAccounting: React.FC = () => {
           )
          ) : (
            visibleApplications[activeTab]?.length > 0 && 
-           visibleApplications[activeTab]?.length < filteredApplications[activeTab]?.length && (
+           (applications[activeTab]?.length ?? 0) < (totals[activeTab] ?? 0) && (
              <div className="flex justify-center mt-6">
                <LoadMoreButton 
                  onClick={handleLoadMore}

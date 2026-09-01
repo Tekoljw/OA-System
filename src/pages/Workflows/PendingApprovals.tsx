@@ -751,9 +751,11 @@ const PendingApprovals = () => {
   const [dateFilter, setDateFilter] = useState<Date | undefined>(undefined);
   const [dateString, setDateString] = useState("");
   const PAGE_SIZE = 50;
+  // 服务端返回的总数，用于判断「加载更多」还要不要显示
+  const [totals, setTotals] = useState<Record<string, number>>({});
 
   // 获取应用列表数据
-  const fetchApplications = async (status: string) => {
+  const fetchApplications = async (status: string, pageNum: number = 1, append: boolean = false) => {
     setLoading(true);
     
     try {
@@ -764,7 +766,11 @@ const PendingApprovals = () => {
       
       console.log(`获取应用数据，状态: ${apiStatus}`);
       
-      const response = { data: await apiRequest('GET', `/api/applications?status=${apiStatus}`) };
+      // 必须带分页参数：服务端一页最多 50 条，此前只拉第一页，
+      // 「加载更多」仅在本地切片，第 51 条起的单据永远看不到
+      const response = { data: await apiRequest(
+        'GET', `/api/applications?status=${apiStatus}&page=${pageNum}&limit=${PAGE_SIZE}`
+      ) };
       
       // 创建默认的空数组
       let fetchedApps: Application[] = [];
@@ -804,8 +810,11 @@ const PendingApprovals = () => {
         fetchedApps = generateEmptyData();
       }
       
-      // 更新状态
-      updateApplicationState(status, fetchedApps);
+      // 记下服务端总数，用于判断还有没有下一页
+      const serverTotal = response.data?.data?.total ?? response.data?.total ?? fetchedApps.length;
+      setTotals(prev => ({ ...prev, [status]: serverTotal }));
+
+      updateApplicationState(status, fetchedApps, append);
       
     } catch (error) {
       console.error('获取应用数据出错:', error);
@@ -823,10 +832,10 @@ const PendingApprovals = () => {
   };
 
   // 更新应用状态的辅助函数
-  const updateApplicationState = (status: string, apps: Application[]) => {
+  const updateApplicationState = (status: string, apps: Application[], append: boolean = false) => {
     setApplications(prev => ({
       ...prev,
-      [status]: apps
+      [status]: append ? [...(prev[status] || []), ...apps] : apps
     }));
   };
 
@@ -900,17 +909,17 @@ const PendingApprovals = () => {
       });
 
       setFilteredApplications(results);
-      // 重置页码
-      setPage({
-        pending: 1,
-        approved: 1,
-        rejected: 1,
-        all: 1
-      });
     };
 
     filterApplications();
   }, [applications, searchTerm, dateFilter]);
+
+  // 页码只在筛选条件变化时归零。
+  // 原先跟着 applications 一起重置，导致「加载更多」拉回来的数据刚追加进去，
+  // 页码就被打回第 1 页，可见区间仍是前 50 条，点了等于没点。
+  useEffect(() => {
+    setPage({ pending: 1, approved: 1, rejected: 1, all: 1 });
+  }, [searchTerm, dateFilter]);
 
   // 根据页码更新可见申请
   useEffect(() => {
@@ -921,17 +930,11 @@ const PendingApprovals = () => {
     });
   }, [filteredApplications, page]);
 
-  const handleLoadMore = () => {
-    setLoading(true);
-    
-    // 模拟网络请求延迟
-    setTimeout(() => {
-      setPage(prev => ({
-        ...prev,
-        'pending': prev['pending'] + 1
-      }));
-      setLoading(false);
-    }, 500);
+  /** 向服务端要下一页并追加，而不是在本地切片 */
+  const handleLoadMore = async () => {
+    const next = (page['pending'] || 1) + 1;
+    await fetchApplications('pending', next, true);
+    setPage(prev => ({ ...prev, 'pending': next }));
   };
 
   const handleMainTabChange = (value: string) => {
@@ -1094,8 +1097,8 @@ const PendingApprovals = () => {
                 </div>
               )
             ) : (
-              visibleApplications['pending']?.length > 0 && 
-              visibleApplications['pending']?.length < filteredApplications['pending']?.length && (
+              visibleApplications['pending']?.length > 0 &&
+              (applications['pending']?.length ?? 0) < (totals['pending'] ?? 0) && (
                 <div className="flex justify-center mt-6">
                   <LoadMoreButton 
                     onClick={handleLoadMore}

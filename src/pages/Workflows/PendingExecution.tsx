@@ -601,6 +601,28 @@ const PendingExecution: React.FC = () => {
   const [dateString, setDateString] = useState("");
   const { toast } = useToast();
   const PAGE_SIZE = 50;
+  // 服务端返回的总数，用于判断「加载更多」还要不要显示
+  const [totals, setTotals] = useState<Record<string, number>>({});
+
+  /** 按状态分页拉取申请单。append 为真时追加到已有数据后面 */
+  const fetchApplications = async (tab: string, pageNum: number = 1, append: boolean = false) => {
+    const apiStatus = tab === 'completed' ? 'completed' : 'to_be_executed';
+    try {
+      setLoading(true);
+      const result = await getApplications({ type: apiStatus, page: pageNum, limit: PAGE_SIZE });
+      const apps = result?.applications || [];
+      setTotals(prev => ({ ...prev, [tab]: result?.total ?? apps.length }));
+      setApplications(prev => ({
+        ...prev,
+        [tab]: append ? [...(prev[tab] || []), ...apps] : apps,
+        all: append ? [...(prev.all || []), ...apps] : prev.all,
+      }));
+    } catch (error) {
+      console.error('加载申请单失败:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
   
   // 加载所有数据 - 内部划款和外部付款
   useEffect(() => {
@@ -621,13 +643,21 @@ const PendingExecution: React.FC = () => {
             // 加载待执行数据
             const pendingResult = await getApplications({
               type: statusMapping.pending,
-              limit: 50
+              page: 1,
+              limit: PAGE_SIZE
             });
             
             // 加载已完成数据
             const completedResult = await getApplications({
               type: statusMapping.completed,
-              limit: 50
+              page: 1,
+              limit: PAGE_SIZE
+            });
+
+            // 总数用于判断「加载更多」还要不要显示
+            setTotals({
+              pending: pendingResult.total ?? (pendingResult.applications || []).length,
+              completed: completedResult.total ?? (completedResult.applications || []).length,
             });
             
             // 合并所有数据
@@ -725,16 +755,16 @@ const PendingExecution: React.FC = () => {
       });
 
       setFilteredApplications(results);
-      // 重置页码
-      setPage({
-        pending: 1,
-        completed: 1,
-        all: 1
-      });
     };
 
     filterApplications();
   }, [applications, searchTerm, dateFilter]);
+
+  // 页码只在筛选条件变化时归零。跟着 applications 一起重置的话，
+  // 「加载更多」刚追加的数据会立刻被打回第一页，点了等于没点。
+  useEffect(() => {
+    setPage({ pending: 1, completed: 1, all: 1 });
+  }, [searchTerm, dateFilter]);
 
   // 根据页码更新可见申请
   useEffect(() => {
@@ -745,17 +775,11 @@ const PendingExecution: React.FC = () => {
     });
   }, [filteredApplications, activeTab, page]);
 
-  const handleLoadMore = () => {
-    setLoading(true);
-    
-    // 模拟网络请求延迟
-    setTimeout(() => {
-      setPage(prev => ({
-        ...prev,
-        [activeTab]: prev[activeTab] + 1
-      }));
-      setLoading(false);
-    }, 500);
+  /** 向服务端要下一页并追加，而不是在本地切片 */
+  const handleLoadMore = async () => {
+    const next = (page[activeTab] || 1) + 1;
+    await fetchApplications(activeTab, next, true);
+    setPage(prev => ({ ...prev, [activeTab]: next }));
   };
 
   const handleMainTabChange = (value: string) => {
@@ -933,7 +957,7 @@ const PendingExecution: React.FC = () => {
               )
             ) : (
               visibleApplications[activeTab]?.length > 0 && 
-              visibleApplications[activeTab]?.length < filteredApplications[activeTab]?.length && (
+              (applications[activeTab]?.length ?? 0) < (totals[activeTab] ?? 0) && (
                 <div className="flex justify-center mt-6">
                   <LoadMoreButton 
                     onClick={handleLoadMore}
