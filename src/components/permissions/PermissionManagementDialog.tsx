@@ -11,6 +11,7 @@ import * as z from "zod";
 import { useToast } from "../../hooks/use-toast";
 import { Role, Permission, PermissionKey } from "../../types/permission";
 import { PermissionList } from "./PermissionList";
+import { createRole, updateRole, getPermissionKeys } from "../../utils/roles-api";
 
 const roleFormSchema = z.object({
   name: z.string().min(2, "Role name must be at least 2 characters"),
@@ -47,25 +48,33 @@ export function PermissionManagementDialog({ role, onSaved }: Props) {
     }
   }, [dialogOpen]);
 
+  // 权限项的中文名与说明。可选项本身以后端返回为准，
+  // 这里只负责展示文案，避免前后端各维护一份清单而走样。
+  const PERMISSION_LABELS: Record<string, { name: string; description: string }> = {
+    view_dashboard:            { name: '查看仪表盘', description: '查看财务仪表盘和统计数据' },
+    view_accounts:             { name: '查看账户',   description: '查看账户列表和详情' },
+    verify_accounts:           { name: '管理账户',   description: '创建、编辑和删除账户' },
+    view_transactions:         { name: '查看交易',   description: '查看交易记录' },
+    view_assets:               { name: '查看资产',   description: '查看资产与借贷记录' },
+    manage_assets:             { name: '管理资产',   description: '创建、编辑、核销资产与借贷' },
+    manage_my_applications:    { name: '我的申请',   description: '提交和管理个人申请' },
+    manage_pending_approvals:  { name: '审批管理',   description: '审批他人提交的申请' },
+    manage_pending_accounting: { name: '归帐管理',   description: '处理待归帐记录' },
+    manage_pending_execution:  { name: '执行管理',   description: '执行已审批的操作并落账' },
+    manage_configurations:     { name: '配置管理',   description: '管理科目、币种、审批规则等配置' },
+    manage_personnel:          { name: '人员管理',   description: '管理用户、部门、角色与权限' },
+  };
+
   const fetchPermissions = async () => {
     setIsLoading(true);
     try {
-      // 系统预定义权限列表
-      const predefinedPermissions: Permission[] = [
-        { id: '1', name: '查看仪表盘', description: '查看财务仪表盘和统计数据', key: 'view_dashboard' },
-        { id: '2', name: '查看账户', description: '查看账户列表和详情', key: 'view_accounts' },
-        { id: '3', name: '审核账户', description: '审核和验证账户信息', key: 'verify_accounts' },
-        { id: '4', name: '查看交易', description: '查看交易记录', key: 'view_transactions' },
-        { id: '5', name: '查看资产', description: '查看资产记录', key: 'view_assets' },
-        { id: '6', name: '管理资产', description: '创建、编辑和删除资产', key: 'manage_assets' },
-        { id: '7', name: '我的申请', description: '提交和管理个人申请', key: 'manage_my_applications' },
-        { id: '8', name: '审批管理', description: '审批他人提交的申请', key: 'manage_pending_approvals' },
-        { id: '9', name: '归帐管理', description: '处理待归帐记录', key: 'manage_pending_accounting' },
-        { id: '10', name: '执行管理', description: '执行已审批的操作', key: 'manage_pending_execution' },
-        { id: '11', name: '配置管理', description: '管理系统配置项', key: 'manage_configurations' },
-        { id: '12', name: '人员管理', description: '管理用户和权限', key: 'manage_personnel' },
-      ];
-      setPermissions(predefinedPermissions);
+      const keys = await getPermissionKeys();
+      setPermissions(keys.map((k, i) => ({
+        id: String(i + 1),
+        key: k,
+        name: PERMISSION_LABELS[k]?.name ?? k,
+        description: PERMISSION_LABELS[k]?.description ?? '',
+      })));
     } catch (error: any) {
       console.error('获取权限列表失败:', error);
       toast({
@@ -90,23 +99,19 @@ export function PermissionManagementDialog({ role, onSaved }: Props) {
     setIsSubmitting(true);
     
     try {
-      const roleData = {
-        id: role ? role.id : (Date.now().toString()),
-        ...values,
+      // 此前新建角色只写入 localStorage.newRoles、编辑分支什么都不做，
+      // 界面却提示「角色已创建」，刷新即消失。改为真正调用接口。
+      const payload = {
+        name: values.name,
+        description: values.description,
         permissions: selectedPermissions,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
       };
-      console.log(`${role ? '更新' : '创建'}角色数据:`, roleData);
-      
-      if (!role) {
-        // 新创建的角色保存到localStorage
-        const newRoles = JSON.parse(localStorage.getItem('newRoles') || '[]');
-        newRoles.push(roleData);
-        localStorage.setItem('newRoles', JSON.stringify(newRoles));
-        console.log('新角色已保存到localStorage:', roleData);
+      if (role) {
+        await updateRole(String(role.id), payload);
+      } else {
+        await createRole(payload);
       }
-      
+
       // 重置表单
       form.reset();
       setSelectedPermissions([]);

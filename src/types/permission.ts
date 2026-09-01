@@ -22,7 +22,13 @@ export type PermissionKey =
 
 export type Role = {
   id: string;
+  /** 与 users.role 对应的标识；内置角色为 admin / user */
+  code?: string;
   name: string;
   description: string;
+  /** 系统内置角色不可删除 */
+  isSystem?: boolean;
+  /** 该角色下的用户数 */
+  userCount?: number;
   permissions: PermissionKey[];
 };

@@ -86,20 +86,34 @@ if ($currentUser && in_array($endpoint, $projectBoundEndpoints)) {
     }
 }
 
-// 4.6 写操作权限校验 — 以下端点的增删改仅管理员可执行
+// 4.6 写操作权限校验 — 按端点映射到所需权限项
+// 角色可自定义后，不能再直接比较 role === 'admin'：那样无法表达
+// 「某个自定义角色能不能做这件事」。改为查该角色是否具备对应权限。
 // 注意：transactions / users 有更细粒度的规则（见各自分支），不在此处统一拦截
-$adminWriteEndpoints = [
-    'accounts', 'account-types',
-    'subjects', 'subject-types',
-    'asset-types', 'departments', 'assets', 'loans',
-    'projects', 'shareholders', 'activity-logs', 'approval-rules',
+$writePermissionMap = [
+    'accounts'       => 'verify_accounts',
+    'account-types'  => 'manage_configurations',
+    'subjects'       => 'manage_configurations',
+    'subject-types'  => 'manage_configurations',
+    'asset-types'    => 'manage_configurations',
+    'currency-types' => 'manage_configurations',
+    'approval-rules' => 'manage_configurations',
+    'departments'    => 'manage_personnel',
+    'assets'         => 'manage_assets',
+    'loans'          => 'manage_assets',
+    'projects'       => 'manage_configurations',
+    'shareholders'   => 'manage_configurations',
+    'activity-logs'  => 'manage_personnel',
 ];
+require_once __DIR__ . '/services/RoleService.php';
+$roleService = new RoleService($db);
+
 if ($currentUser
-    && in_array($endpoint, $adminWriteEndpoints, true)
+    && isset($writePermissionMap[$endpoint])
     && in_array($method, ['POST', 'PUT', 'PATCH', 'DELETE'], true)
-    && ($currentUser['role'] ?? '') !== 'admin'
+    && !$roleService->can($currentUser, $writePermissionMap[$endpoint])
 ) {
-    Response::error('权限不足，仅管理员可执行该操作', 'FORBIDDEN', 403);
+    Response::error('权限不足，当前角色无权执行该操作', 'FORBIDDEN', 403);
 }
 
 /**
@@ -810,45 +824,39 @@ try {
             break;
 
         // ===== 角色管理（系统预定义角色） =====
+        // ===== 角色与权限 =====
         case 'roles':
-            $allPermissions = [
-                'view_dashboard', 'view_accounts', 'verify_accounts',
-                'view_transactions', 'view_assets', 'manage_assets',
-                'manage_my_applications', 'manage_pending_approvals',
-                'manage_pending_accounting', 'manage_pending_execution',
-                'manage_configurations', 'manage_personnel',
-            ];
-            $roles = [
-                [
-                    'id' => '1',
-                    'name' => '管理员',
-                    'description' => '拥有系统全部权限，可管理用户、配置和所有业务数据',
-                    'permissions' => $allPermissions,
-                ],
-                [
-                    'id' => '2',
-                    'name' => '普通用户',
-                    'description' => '可查看仪表盘、账户、交易和资产，可提交申请',
-                    'permissions' => [
-                        'view_dashboard', 'view_accounts', 'view_transactions',
-                        'view_assets', 'manage_my_applications',
-                    ],
-                ],
-            ];
-            if ($method === 'GET' && !$resourceId) {
-                Response::success($roles, '获取角色列表成功');
+            $roleSvc = $roleService; // 已在 4.6 处实例化
+
+            if ($method === 'GET' && $resourceId === 'permissions') {
+                Response::success($roleSvc->allPermissions(), '获取权限项成功');
+            } elseif ($method === 'GET' && !$resourceId) {
+                Response::success($roleSvc->listRoles(), '获取角色列表成功');
             } elseif ($method === 'GET' && $resourceId) {
+                $all = $roleSvc->listRoles();
                 $found = null;
-                foreach ($roles as $r) {
-                    if ($r['id'] === (string)$resourceId) { $found = $r; break; }
-                }
+                foreach ($all as $r) { if ((string)$r['id'] === (string)$resourceId) { $found = $r; break; } }
                 $found ? Response::success($found) : Response::error('角色不存在', 'NOT_FOUND', 404);
+            } elseif (in_array($method, ['POST', 'PUT', 'DELETE'], true)) {
+                // 角色配置属于人员管理范畴
+                if (!$roleSvc->can($currentUser, 'manage_personnel')) {
+                    Response::error('权限不足，无权管理角色', 'FORBIDDEN', 403);
+                }
+                if ($method === 'POST') {
+                    Response::success($roleSvc->createRole(JsonMiddleware::getRequestBody()), '角色创建成功', 201);
+                } elseif ($method === 'PUT' && $resourceId) {
+                    Response::success($roleSvc->updateRole((int)$resourceId, JsonMiddleware::getRequestBody()), '角色更新成功');
+                } elseif ($method === 'DELETE' && $resourceId) {
+                    $roleSvc->deleteRole((int)$resourceId);
+                    Response::success(null, '角色删除成功');
+                } else {
+                    Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+                }
             } else {
-                Response::error('系统预定义角色不支持修改', 'METHOD_NOT_ALLOWED', 405);
+                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
             }
             break;
 
-        // ===== 用户管理 =====
         case 'users':
             require_once __DIR__ . '/repositories/UserRepository.php';
             $userRepo = new UserRepository($db);
@@ -861,9 +869,9 @@ try {
                 $user = $userRepo->findByIdSafe((int)$resourceId);
                 $user ? Response::success($user) : Response::error('用户不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'POST' && !$resourceId) {
-                // 内部系统不开放自助注册，用户由管理员在此创建
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可创建用户', 'FORBIDDEN', 403);
+                // 内部系统不开放自助注册，用户由具备人员管理权限的角色创建
+                if (!$roleService->can($currentUser, 'manage_personnel')) {
+                    Response::error('权限不足，无权创建用户', 'FORBIDDEN', 403);
                 }
                 $body = JsonMiddleware::getRequestBody();
                 if (empty($body['username']) || empty($body['password'])) {
@@ -886,15 +894,16 @@ try {
                 ], $projectId);
                 Response::success($newUser, '用户创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
-                // 仅管理员或本人可修改用户信息
-                if (($currentUser['role'] ?? '') !== 'admin' && (int)$resourceId !== (int)$currentUser['id']) {
-                    Response::error('权限不足，仅管理员或本人可修改用户信息', 'FORBIDDEN', 403);
+                // 具备人员管理权限者可改任何人，其余只能改自己
+                $canManagePersonnel = $roleService->can($currentUser, 'manage_personnel');
+                if (!$canManagePersonnel && (int)$resourceId !== (int)$currentUser['id']) {
+                    Response::error('权限不足，只能修改本人信息', 'FORBIDDEN', 403);
                 }
                 $body = JsonMiddleware::getRequestBody();
                 // 字段白名单：仅允许修改安全的字段
                 $allowedFields = ['full_name', 'email'];
-                // 管理员额外可修改 role 和 is_active
-                if (($currentUser['role'] ?? '') === 'admin') {
+                // 具备人员管理权限者额外可修改 role 和 is_active
+                if ($canManagePersonnel) {
                     $allowedFields = array_merge($allowedFields, ['role', 'is_active', 'username']);
                 }
                 $safeBody = array_intersect_key($body, array_flip($allowedFields));
@@ -909,9 +918,9 @@ try {
                     Response::error('用户不存在', 'NOT_FOUND', 404);
                 }
             } elseif ($method === 'DELETE' && $resourceId) {
-                // 仅管理员可删除用户
-                if (($currentUser['role'] ?? '') !== 'admin') {
-                    Response::error('权限不足，仅管理员可删除用户', 'FORBIDDEN', 403);
+                // 删除用户需要人员管理权限
+                if (!$roleService->can($currentUser, 'manage_personnel')) {
+                    Response::error('权限不足，无权删除用户', 'FORBIDDEN', 403);
                 }
                 // 禁止删除自己
                 if ((int)$resourceId === (int)$currentUser['id']) {

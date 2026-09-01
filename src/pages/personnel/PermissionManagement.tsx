@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Trash2, ShieldCheck, Users, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { getRoles, deleteRole as deleteRoleApi } from "../../utils/roles-api";
 import { PermissionManagementDialog } from "@/components/permissions/PermissionManagementDialog";
 import { Role } from "@/types/permission";
 import PageLayout from "@/components/layout/PageLayout";
@@ -49,21 +50,7 @@ export default function PermissionManagement() {
     setIsLoading(true);
     setError(null);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) throw new Error('未授权，请先登录');
-
-      const response = await fetch('/api/roles', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error(`获取角色数据失败: ${response.status}`);
-      }
-
-      const result = await response.json();
+      const result = { success: true, data: await getRoles() };
 
       if (result.success && Array.isArray(result.data)) {
         const processedRoles = result.data.map((role: any) => ({
@@ -73,7 +60,7 @@ export default function PermissionManagement() {
         }));
         setRoles(processedRoles);
       } else {
-        throw new Error(result.error?.message || '角色数据格式错误');
+        throw new Error('角色数据格式错误');
       }
     } catch (error) {
       console.error('获取角色列表失败:', error);
@@ -105,21 +92,9 @@ export default function PermissionManagement() {
     
     setIsDeleting(roleToDelete);
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        throw new Error('未授权，请先登录');
-      }
-
-      const response = await fetch(`/api/roles/${roleToDelete}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('删除角色失败');
-      }
+      // 走统一 API：后端会给出具体拒绝原因（内置角色不可删、角色下仍有用户等），
+      // 此前只笼统抛「删除角色失败」，用户无从判断该怎么办
+      await deleteRoleApi(roleToDelete);
 
       // 从本地状态中移除角色
       setRoles(roles.filter(role => role.id !== roleToDelete));
@@ -212,7 +187,7 @@ export default function PermissionManagement() {
                       </div>
                       
                       <div className="flex justify-end gap-2 mt-3">
-                        {role.id === "1" ? (
+                        {role.isSystem ? (
                           <Button
                             variant="outline"
                             size="sm"
@@ -273,7 +248,7 @@ export default function PermissionManagement() {
                           </TableCell>
                           <TableCell className="text-right">
                             <div className="flex justify-end gap-2">
-                              {role.id === "1" ? (
+                              {role.isSystem ? (
                                 <Button
                                   variant="outline"
                                   size="sm"
