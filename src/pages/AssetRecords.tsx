@@ -50,6 +50,9 @@ interface DepreciationRecord {
   date: string;
   approver: string;
   description: string;
+  /** sale 由出售流水自动产生，其余三种是会计手动登记 */
+  reason?: 'sale' | 'depreciation' | 'impairment' | 'writeoff';
+  reasonText?: string;
 }
 
 // 后端返回的资产数据接口
@@ -94,20 +97,27 @@ interface Asset {
   deletionCountdown?: string; // 可选字段
 }
 
-/** 后端状态枚举 → 中文展示 */
+/**
+ * 后端状态枚举 → 中文展示。
+ * 账面价值的减少可能来自折旧、减值、报损或出售，统称「处置」，
+ * 原先一律叫「核销」，看不出这笔资产是正常折旧还是已经报废。
+ */
 const ASSET_STATUS_LABELS: Record<string, string> = {
   normal: '正常',
-  depreciating: '核销中',
-  written_off: '已核销',
-  disposed: '已处置',
+  depreciating: '部分处置',
+  written_off: '账面已归零',
+  disposed: '已出售',
 };
 
 interface DepreciationFormData {
   quantity: number;
   amount: number;
   description: string;
-  /** 报损=资产没了，减值=还在但不值那么多。两者都永久留痕，只是原因不同 */
-  reason: 'writeoff' | 'impairment';
+  /**
+   * 折旧＝正常损耗分摊，减值＝价值下跌，报损＝资产灭失。
+   * 三者都由会计手动操作、都永久留痕，区别只在原因。
+   */
+  reason: 'depreciation' | 'impairment' | 'writeoff';
 }
 
 const AssetRecordsContent: React.FC = () => {
@@ -133,7 +143,7 @@ const AssetRecordsContent: React.FC = () => {
       quantity: 1,
       amount: 0,
       description: "",
-      reason: 'impairment',
+      reason: 'depreciation',
     },
   });
 
@@ -254,19 +264,19 @@ const AssetRecordsContent: React.FC = () => {
 
       if (response.success) {
         toast({
-          title: "核销成功",
-          description: "资产已成功核销",
+          title: "登记成功",
+          description: "资产账面价值已更新，处置记录已保留",
         });
         
         // 重新获取数据
         fetchAssets();
       } else {
-        throw new Error(response.message || '核销失败');
+        throw new Error(response.message || '登记失败');
       }
     } catch (err: any) {
-      console.error('核销失败:', err);
+      console.error('资产处置登记失败:', err);
       toast({
-        title: "核销失败",
+        title: "登记失败",
         description: err.message || '请稍后重试',
         variant: "destructive"
       });
@@ -396,11 +406,11 @@ const AssetRecordsContent: React.FC = () => {
             variant="outline"
             size="sm"
             disabled={!canAccount}
-            title={canAccount ? '报损 / 减值' : '只有会计可以报损或减值'}
+            title={canAccount ? '折旧 / 减值 / 报损' : '只有会计可以登记资产处置'}
             onClick={() => handleDepreciation(asset)}
           >
             <X className="h-4 w-4 mr-1" />
-            报损/减值
+            折旧/减值/报损
           </Button>
           <Button
             variant="outline"
@@ -438,12 +448,13 @@ const AssetRecordsContent: React.FC = () => {
             
             {asset.depreciationRecords.length > 0 && (
               <div className="mt-4">
-                <h4 className="font-medium mb-2 text-sm">消耗记录</h4>
+                <h4 className="font-medium mb-2 text-sm">处置记录</h4>
                 {asset.depreciationRecords.map((record) => (
                   <div key={record.id} className="mb-2 p-2 bg-muted/30 rounded-sm text-xs">
                     <div className="grid grid-cols-2 gap-1">
-                      <div><span className="text-muted-foreground">减值金额:</span> {formatCurrency(record.amount)}</div>
-                      <div><span className="text-muted-foreground">核销数量:</span> {record.quantity}</div>
+                      <div><span className="text-muted-foreground">原因:</span> {record.reasonText || '减值'}</div>
+                      <div><span className="text-muted-foreground">冲减金额:</span> {formatCurrency(record.amount)}</div>
+                      <div><span className="text-muted-foreground">数量:</span> {record.quantity}</div>
                       <div><span className="text-muted-foreground">日期:</span> {record.date}</div>
                       <div><span className="text-muted-foreground">审批人:</span> {record.approver}</div>
                     </div>
@@ -577,10 +588,10 @@ const AssetRecordsContent: React.FC = () => {
                               variant="outline"
                               size="sm"
                               disabled={!canAccount}
-                              title={canAccount ? '报损 / 减值' : '只有会计可以报损或减值'}
+                              title={canAccount ? '折旧 / 减值 / 报损' : '只有会计可以登记资产处置'}
                               onClick={() => handleDepreciation(asset)}
                             >
-                              报损/减值
+                              折旧/减值/报损
                             </Button>
                             <Button
                               variant="outline"
@@ -613,12 +624,17 @@ const AssetRecordsContent: React.FC = () => {
                                 <div>
                                   {asset.depreciationRecords.length > 0 ? (
                                     <>
-                                      <h4 className="font-medium mb-2">核销记录</h4>
+                                      <h4 className="font-medium mb-2">处置记录</h4>
                                       <div className="space-y-2">
                                         {asset.depreciationRecords.map((record) => (
                                           <div key={record.id} className="p-2 bg-background border rounded-sm text-sm">
                                             <div className="flex justify-between">
-                                              <span>{formatCurrency(record.amount)}</span>
+                                              <span>
+                                                <span className="text-muted-foreground mr-2">
+                                                  {record.reasonText || '减值'}
+                                                </span>
+                                                {formatCurrency(record.amount)}
+                                              </span>
                                               <span>{record.date}</span>
                                             </div>
                                             <div className="text-muted-foreground text-xs mt-1">{record.description}</div>
@@ -628,7 +644,7 @@ const AssetRecordsContent: React.FC = () => {
                                     </>
                                   ) : (
                                     <div className="h-full flex items-center justify-center">
-                                      <span className="text-muted-foreground text-sm">暂无核销记录</span>
+                                      <span className="text-muted-foreground text-sm">暂无处置记录</span>
                                     </div>
                                   )}
                                 </div>
@@ -659,11 +675,12 @@ const AssetRecordsContent: React.FC = () => {
       <Dialog open={isDepreciationDialogOpen} onOpenChange={setIsDepreciationDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>资产报损 / 减值</DialogTitle>
+            <DialogTitle>资产折旧 / 减值 / 报损</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground -mt-2">
-            出售资产请走「申请收款 → 出售资产收入」，由流水自动冲减账面价值；
-            这里只处理卖不掉的部分：报损或减值。记录永久保留。
+            出售资产请走「申请收款 → 出售资产收入」，由流水自动冲减账面价值。
+            这里处理不涉及现金的账面变动：折旧、减值、报损。系统不自动折旧，
+            由会计按需登记；每一笔都永久保留。
           </p>
 
           <Form {...form}>
@@ -673,7 +690,7 @@ const AssetRecordsContent: React.FC = () => {
                 name="quantity"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>核销数量</FormLabel>
+                    <FormLabel>涉及数量</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
@@ -692,7 +709,7 @@ const AssetRecordsContent: React.FC = () => {
                 name="amount"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>减值金额</FormLabel>
+                    <FormLabel>冲减金额</FormLabel>
                     <FormControl>
                       <Input 
                         type="number" 
@@ -716,6 +733,7 @@ const AssetRecordsContent: React.FC = () => {
                       <Select value={field.value} onValueChange={field.onChange}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
+                          <SelectItem value="depreciation">折旧（正常损耗，按期分摊）</SelectItem>
                           <SelectItem value="impairment">减值（资产还在，但不值原价）</SelectItem>
                           <SelectItem value="writeoff">报损（资产灭失、报废）</SelectItem>
                         </SelectContent>
@@ -730,16 +748,16 @@ const AssetRecordsContent: React.FC = () => {
                 name="description"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>核销说明</FormLabel>
+                    <FormLabel>说明</FormLabel>
                     <FormControl>
-                      <Textarea {...field} placeholder="请输入核销原因和说明" />
+                      <Textarea {...field} placeholder="写清这次处置的缘由，将永久保留" />
                     </FormControl>
                   </FormItem>
                 )}
               />
 
               <DialogFooter>
-                <Button type="submit">确认核销</Button>
+                <Button type="submit">确认登记</Button>
               </DialogFooter>
             </form>
           </Form>

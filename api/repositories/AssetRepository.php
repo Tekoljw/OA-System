@@ -134,12 +134,14 @@ class AssetRepository extends BaseRepository {
 
     public function insertDepreciation(array $d): array {
         $stmt = $this->db->prepare("
-            INSERT INTO asset_depreciations (asset_id, project_id, quantity, amount, description, approver_id)
-            VALUES (?,?,?,?,?,?) RETURNING *
+            INSERT INTO asset_depreciations
+                (asset_id, project_id, quantity, amount, description, approver_id, reason)
+            VALUES (?,?,?,?,?,?,?) RETURNING *
         ");
         $stmt->execute([
             $d['asset_id'], $d['project_id'], $d['quantity'], $d['amount'],
             $d['description'] ?? null, $d['approver_id'] ?? null,
+            $d['reason'] ?? 'impairment',
         ]);
         return $stmt->fetch(PDO::FETCH_ASSOC);
     }

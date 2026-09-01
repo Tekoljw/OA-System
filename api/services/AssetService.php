@@ -53,6 +53,13 @@ class AssetService {
             'amount'      => (float)$dp['amount'],
             'description' => $dp['description'],
             'approver'    => $dp['approver_name'] ?? '',
+            'reason'      => $dp['reason'] ?? 'impairment',
+            'reasonText'  => [
+                'depreciation' => '折旧',
+                'impairment'   => '减值',
+                'writeoff'     => '报损',
+                'sale'         => '出售',
+            ][$dp['reason'] ?? 'impairment'] ?? $dp['reason'],
         ];
     }
 
@@ -133,6 +140,14 @@ class AssetService {
         if ($amount <= 0)   throw new \InvalidArgumentException('核销金额必须大于0');
         if ($quantity <= 0) throw new \InvalidArgumentException('核销数量必须大于0');
 
+        // 系统不自动折旧，三种原因都由会计手动操作，但记录上要分得开：
+        // depreciation 正常损耗分摊 / impairment 价值下跌 / writeoff 资产灭失
+        // （sale 只能由出售流水产生，不接受手工传入）
+        $reason = $d['reason'] ?? 'impairment';
+        if (!in_array($reason, ['depreciation', 'impairment', 'writeoff'], true)) {
+            throw new \InvalidArgumentException('处置原因无效，仅支持：折旧、减值、报损');
+        }
+
         $this->db->beginTransaction();
         try {
             $asset = $this->repo->findForUpdate($id, $projectId);
@@ -158,6 +173,7 @@ class AssetService {
                 'amount'      => $amount,
                 'description' => $d['description'] ?? null,
                 'approver_id' => $user['id'] ?? null,
+                'reason'      => $reason,
             ]);
 
             $newRemaining = round($remaining - $amount, 2);
@@ -167,8 +183,9 @@ class AssetService {
                 'status' => $newRemaining <= 0 ? 'written_off' : 'depreciating',
             ], $projectId);
 
+            $reasonText = ['depreciation' => '折旧', 'impairment' => '减值', 'writeoff' => '报损'][$reason];
             $this->logActivity('depreciate', $id,
-                sprintf('核销资产「%s」%.2f，剩余 %.2f', $asset['name'], $amount, $newRemaining),
+                sprintf('%s资产「%s」%.2f，剩余 %.2f', $reasonText, $asset['name'], $amount, $newRemaining),
                 $user['id'] ?? null, $projectId);
 
             $this->db->commit();
