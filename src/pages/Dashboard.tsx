@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
+import { safeFormatCurrency } from "../utils/formatter";
 import PageLayout from "../components/layout/PageLayout";
 import { Card, CardHeader, CardTitle, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
@@ -115,14 +116,7 @@ const Dashboard: React.FC = () => {
   const { baseCurrency, convert, rates } = useBaseCurrency();
 
   // 格式化货币 —— 一律按当前本位币展示
-  const formatCurrency = (value: number) => {
-    try {
-      return new Intl.NumberFormat('zh-CN', { style: 'currency', currency: baseCurrency }).format(value);
-    } catch {
-      // 自定义币种代码 Intl 不认识，退化为「代码 + 数字」
-      return `${baseCurrency} ${value.toLocaleString('zh-CN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-    }
-  };
+  const formatCurrency = (value: number) => safeFormatCurrency(value, baseCurrency);
 
   /**
    * 把按币种分组的余额换算成本位币。

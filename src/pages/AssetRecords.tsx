@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { safeFormatCurrency } from "../utils/formatter";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -332,10 +333,7 @@ const AssetRecordsContent: React.FC = () => {
   const formatCurrency = (amount: number | string, currency: string = "CNY") => {
     // 确保金额是数字类型
     const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount;
-    return new Intl.NumberFormat('zh-CN', {
-      style: 'currency',
-      currency: currency
-    }).format(numAmount);
+    return safeFormatCurrency(numAmount, currency, 'zh-CN');
   };
 
   // 空数据显示组件

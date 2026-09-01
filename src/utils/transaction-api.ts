@@ -11,6 +11,9 @@ export interface TransactionData {
   currency: string;
   type: "收入" | "支出";
   category: string;
+  /** 一级流水类型的中文名，如「购买资产支出」 */
+  transactionTypeName?: string;
+  transactionTypeCode?: string;
   subject: string;
   department: string;
   description: string;
@@ -37,6 +40,35 @@ export interface TransactionQueryParams {
   page?: number;
   limit?: number;
   search?: string;
+  /** 按一级流水类型筛选 */
+  transactionTypeCode?: string;
+}
+
+/**
+ * 后端返回 snake_case，列表组件按 TransactionData 取值。
+ * 此前没有这层转换，界面上类型直接显示成 income，
+ * 币种、科目、部门、提交人、提交时间全是空白。
+ */
+function normalizeTransaction(r: any): TransactionData {
+  return {
+    id: r.id,
+    currency: r.currency_type || r.currency || '',
+    type: r.type === 'income' ? '收入' : '支出',
+    category: r.transaction_type_name || r.category || '',
+    transactionTypeName: r.transaction_type_name || undefined,
+    transactionTypeCode: r.transaction_type_code || undefined,
+    subject: r.subject_name || r.subject || '',
+    department: r.department_name || r.department || '',
+    description: r.description || '',
+    submitter: r.submitter_name || r.submitter || '',
+    submitTime: (r.created_at || r.submitTime || '').slice(0, 19),
+    approver: r.approver || null,
+    approveTime: r.approveTime || null,
+    amount: Number(r.amount) || 0,
+    balance: Number(r.balance) || 0,
+    status: r.status === 'completed' ? '已完成' : (r.status || ''),
+    accountId: r.account_id ?? r.accountId,
+  };
 }
 
 /**
@@ -55,6 +87,7 @@ export async function getTransactions(params: TransactionQueryParams = {}): Prom
     if (params.page) queryParams.append('page', params.page.toString());
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.search) queryParams.append('search', params.search);
+    if (params.transactionTypeCode) queryParams.append('transactionTypeCode', params.transactionTypeCode);
     
     const queryString = queryParams.toString();
     const url = `/api/transactions${queryString ? `?${queryString}` : ''}`;
@@ -82,7 +115,7 @@ export async function getTransactions(params: TransactionQueryParams = {}): Prom
         if (response.data) {
           // 如果API返回的是我们期望的TransactionListResponse结构
           if (response.data.transactions) {
-            result.transactions = response.data.transactions;
+            result.transactions = response.data.transactions.map(normalizeTransaction);
             result.total = response.data.total || 0;
             result.page = response.data.page || params.page || 1;
             result.limit = response.data.limit || params.limit || 10;
@@ -90,7 +123,7 @@ export async function getTransactions(params: TransactionQueryParams = {}): Prom
           // 实际形态：交易列表走 Response::paginated —— data 是数组，
           // 总数在顶层 pagination.total。此前用当前页长度当总数，分页必然算错。
           else if (Array.isArray(response.data)) {
-            result.transactions = response.data;
+            result.transactions = response.data.map(normalizeTransaction);
             result.total = response.pagination?.total ?? response.data.length;
             result.page = response.pagination?.page ?? params.page ?? 1;
             result.limit = response.pagination?.limit ?? params.limit ?? 10;
@@ -99,7 +132,7 @@ export async function getTransactions(params: TransactionQueryParams = {}): Prom
           else if (typeof response.data === 'object') {
             if (response.data.records) {
               // 如果字段名不同但结构类似
-              result.transactions = response.data.records;
+              result.transactions = response.data.records.map(normalizeTransaction);
               result.total = response.data.total || 0;
               result.page = response.data.page || params.page || 1;
               result.limit = response.data.limit || params.limit || 10; 

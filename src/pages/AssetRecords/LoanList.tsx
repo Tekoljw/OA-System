@@ -1,5 +1,6 @@
 
 import React from "react";
+import { safeFormatCurrency } from "../../utils/formatter";
 import {
   Table,
   TableBody,
@@ -216,10 +217,7 @@ export function LoanList({ loans, onSettle, onDelete, canSettle = true }: LoanLi
 
   // 格式化货币
   const formatCurrency = (amount: number, currency: string = "CNY") => {
-    return new Intl.NumberFormat('zh-CN', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
+    return safeFormatCurrency(amount, currency, 'zh-CN');
   };
 
   // 将使用内联的无数据展示而不是单独的组件

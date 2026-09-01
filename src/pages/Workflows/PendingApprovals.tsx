@@ -780,6 +780,9 @@ const PendingApprovals = () => {
           fetchedApps = applications.map((app: any) => ({
             id: app.id,
             type: app.type || 'payment',
+            // 一级流水类型：列表展示它比 income/expense 有信息量
+            transactionTypeName: app.transactionTypeName || null,
+            transactionTypeCode: app.transactionTypeCode || null,
             title: app.title || '未命名申请',
             amount: parseFloat(app.amount) || 0,
             status: app.status || 'pending',

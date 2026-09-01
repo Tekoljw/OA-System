@@ -38,15 +38,37 @@ export function formatCurrency(amount: number, currency: string = 'CNY'): string
       locale = 'zh-CN';
   }
   
-  // 使用Intl格式化数字
-  const formatter = new Intl.NumberFormat(locale, {
-    style: 'currency',
-    currency: currency,
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 2
-  });
-  
-  return formatter.format(amount);
+  return safeFormatCurrency(amount, currency, locale, { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+
+/**
+ * 安全的货币格式化。
+ *
+ * 币种由用户自建，代码不一定是合法的 ISO 4217（比如「850」），
+ * 直接交给 Intl 会抛 RangeError: Invalid currency code，整页白屏。
+ * 认不出来的代码退化成「代码 + 数字」，宁可样式朴素，也不能把页面打崩。
+ */
+export function safeFormatCurrency(
+  amount: number,
+  currency: string = 'CNY',
+  locale: string = 'zh-CN',
+  options: Intl.NumberFormatOptions = {},
+): string {
+  const value = Number(amount) || 0;
+  try {
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+      ...options,
+    }).format(value);
+  } catch {
+    const num = value.toLocaleString(locale, {
+      minimumFractionDigits: 2, maximumFractionDigits: 2, ...options,
+    });
+    return `${currency} ${num}`;
+  }
 }
 
 /**

@@ -193,15 +193,16 @@ export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: App
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">标题</label>
-            <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })}
+            <label className="text-sm font-medium" htmlFor="title">标题</label>
+            <Input id="title" name="title" value={form.title}
+                   onChange={e => setForm({ ...form, title: e.target.value })}
                    placeholder="简述这笔申请" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium">金额</label>
-              <Input type="number" step="0.01" value={form.amount}
+              <label className="text-sm font-medium" htmlFor="amount">金额</label>
+              <Input id="amount" name="amount" type="number" step="0.01" value={form.amount}
                      onChange={e => setForm({ ...form, amount: e.target.value })} />
               {limit !== null && (
                 <p className="text-xs text-muted-foreground">所选记录剩余 {limit.toFixed(2)}，不能超过</p>
@@ -225,21 +226,21 @@ export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: App
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <label className="text-sm font-medium">对方</label>
-                <Input value={form.relatedParty}
+                <Input id="relatedParty" name="relatedParty" value={form.relatedParty}
                        onChange={e => setForm({ ...form, relatedParty: e.target.value })}
                        placeholder="借款人 / 公司名称" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium">约定还款日</label>
-                <Input type="date" value={form.dueDate}
+                <Input id="dueDate" name="dueDate" type="date" value={form.dueDate}
                        onChange={e => setForm({ ...form, dueDate: e.target.value })} />
               </div>
             </div>
           )}
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">备注</label>
-            <Textarea rows={3} value={form.description}
+            <label className="text-sm font-medium" htmlFor="description">备注</label>
+            <Textarea id="description" name="description" rows={3} value={form.description}
                       onChange={e => setForm({ ...form, description: e.target.value })} />
           </div>
 

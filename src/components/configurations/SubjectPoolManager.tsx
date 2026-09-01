@@ -212,17 +212,17 @@ const SubjectPoolManager = () => {
           </DialogHeader>
           <div className="space-y-4 py-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium">科目名称</label>
-              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
+              <label className="text-sm font-medium" htmlFor="name">科目名称</label>
+              <Input id="name" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
                      placeholder="如：用户充值、增值服务" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">编码（可选）</label>
-              <Input value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
+              <label className="text-sm font-medium" htmlFor="code">编码（可选）</label>
+              <Input id="code" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value })} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium">说明</label>
-              <Textarea rows={3} value={formData.description}
+              <label className="text-sm font-medium" htmlFor="description">说明</label>
+              <Textarea id="description" rows={3} value={formData.description}
                         onChange={e => setFormData({ ...formData, description: e.target.value })} />
             </div>
           </div>

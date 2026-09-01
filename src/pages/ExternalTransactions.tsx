@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { safeFormatCurrency } from "../utils/formatter";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "../components/ui/tabs";
 import PageLayout from "../components/layout/PageLayout";
 import {
@@ -193,13 +194,9 @@ const MonthlyStats = ({ currency }: { currency: string }) => {
   const { stats, isLoading } = useCurrencyStats(currency);
   
   // 使用formatCurrency根据当前币种格式化金额
-  const formatCurrencyWithCode = (amount: number) => {
-    return new Intl.NumberFormat('zh-CN', {
-      style: 'currency',
-      currency: currency,
-      currencyDisplay: 'symbol'
-    }).format(amount);
-  };
+  // 币种代码可能是用户自建的非 ISO 代码，必须走安全格式化，否则整页崩
+  const formatCurrencyWithCode = (amount: number) =>
+    safeFormatCurrency(amount, currency);
 
   if (isLoading) {
     return (
@@ -324,7 +321,10 @@ const MobileTransactionCard = ({ transaction }: { transaction: TransactionData }
               <span className="text-muted-foreground">分类:</span> {transaction.category}
             </div>
             <div>
-              <span className="text-muted-foreground">科目:</span> {transaction.subject}
+              <span className="text-muted-foreground">流水类型:</span> {transaction.transactionTypeName || '—'}
+            </div>
+            <div>
+              <span className="text-muted-foreground">科目:</span> {transaction.subject || '—'}
             </div>
             <div>
               <span className="text-muted-foreground">提交人:</span> {transaction.submitter}
@@ -396,7 +396,8 @@ const TransactionTable = ({ transactions }: { transactions: TransactionData[] })
               <TableRow>
                 <TableHead className="w-[100px]">交易ID</TableHead>
                 <TableHead className="w-[80px]">币种</TableHead>
-                <TableHead>类型</TableHead>
+                <TableHead>收支</TableHead>
+                <TableHead className="min-w-[130px]">流水类型</TableHead>
                 <TableHead className="min-w-[180px]">金额</TableHead>
                 <TableHead className="min-w-[120px]">科目</TableHead>
                 <TableHead className="min-w-[100px]">部门</TableHead>
@@ -416,6 +417,8 @@ const TransactionTable = ({ transactions }: { transactions: TransactionData[] })
                       {tx.type}
                     </Badge>
                   </TableCell>
+                  {/* 一级流水类型：决定了这笔钱有没有在资产或借贷里留下记录 */}
+                  <TableCell className="text-sm">{tx.transactionTypeName || '—'}</TableCell>
                   <TableCell className={tx.type === "收入" ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
                     {formatCurrency(Math.abs(tx.amount))}
                   </TableCell>

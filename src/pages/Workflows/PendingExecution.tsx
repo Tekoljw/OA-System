@@ -1,5 +1,6 @@
 
 import React, { useState, useEffect } from "react";
+import { safeFormatCurrency } from "../../utils/formatter";
 import PageLayout from "../../components/layout/PageLayout";
 import { Button } from "../../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
@@ -269,10 +270,7 @@ const formatCurrency = (amount: number, currency: string) => {
   }
   
   try {
-    return new Intl.NumberFormat('zh-CN', {
-      style: 'currency',
-      currency: currency
-    }).format(amount);
+    return safeFormatCurrency(amount, currency, 'zh-CN');
   } catch (error) {
     // 出错时的备用格式化方法
     return `${amount.toLocaleString('zh-CN')} ${currency}`;

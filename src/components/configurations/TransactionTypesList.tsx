@@ -1,208 +1,143 @@
-
-import React, { useState, useEffect } from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "../ui/table";
-import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import React, { useEffect, useState } from "react";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../ui/table";
+import { Card, CardContent } from "../ui/card";
+import { Badge } from "../ui/badge";
 import { useIsMobile } from "../../hooks/use-mobile";
-import { ArrowDownIcon, ArrowUpIcon, Tag, FileText, HelpCircle, Loader2 } from "lucide-react";
-import { useAuth } from "../../contexts/AuthContext";
-import LoadingState from "../common/LoadingState";
-import { TransactionType, getIncomeTypes, getExpenseTypes } from "../../utils/config-api";
+import { ArrowDownIcon, ArrowUpIcon, Loader2, HelpCircle, Lock } from "lucide-react";
+import { TransactionTypeDef, getTransactionTypeDefs } from "../../utils/transaction-types-api";
 
+/** 二级选项从哪里来 */
+const SECOND_LEVEL_LABEL: Record<string, string> = {
+  subject:     '科目（可自建）',
+  loan_type:   '借贷分类（固定）',
+  loan:        '具体借贷记录',
+  asset_type:  '资产分类（可自建）',
+  asset:       '具体资产记录',
+  shareholder: '股东',
+};
+
+/** 落账后会在别处留下什么 */
+const DERIVES_LABEL: Record<string, { text: string; tone: 'none' | 'new' | 'settle' }> = {
+  none:          { text: '不衍生',           tone: 'none' },
+  loan_new:      { text: '新建借贷记录',     tone: 'new' },
+  loan_settle:   { text: '冲减借贷记录',     tone: 'settle' },
+  asset_new:     { text: '新建资产记录',     tone: 'new' },
+  asset_dispose: { text: '冲减资产账面价值', tone: 'settle' },
+  shareholder:   { text: '记入股东往来',     tone: 'new' },
+};
+
+/**
+ * 流水类型总览。
+ * 类型由系统固定，这里只做说明：让人看清选了某个类型之后，
+ * 二级要选什么、落账后会在资产或借贷里留下什么。
+ */
 const TransactionTypesList = () => {
   const isMobile = useIsMobile();
-  const { isLoggedIn } = useAuth();
-  const [incomeTypes, setIncomeTypes] = useState<TransactionType[]>([]);
-  const [expenseTypes, setExpenseTypes] = useState<TransactionType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [types, setTypes] = useState<TransactionTypeDef[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   useEffect(() => {
-    if (isLoggedIn) {
-      const fetchTransactionTypes = async () => {
-        try {
-          setIsLoading(true);
-          setError(null);
-          
-          // 使用API工具函数获取流水类型数据
-          let incomeTypesData = await getIncomeTypes();
-          let expenseTypesData = await getExpenseTypes();
-          
-          setIncomeTypes(Array.isArray(incomeTypesData) ? incomeTypesData : []);
-          setExpenseTypes(Array.isArray(expenseTypesData) ? expenseTypesData : []);
-        } catch (err) {
-          console.error("获取流水类型失败:", err);
-          
-          // 记录错误并显示明确的错误消息
-          console.error("API调用失败，无法获取流水类型数据");
-          
-          // 设置为空数组，不使用离线数据
-          setIncomeTypes([]);
-          setExpenseTypes([]);
-          
-          // 设置明确的错误状态
-          setError("获取数据失败，请检查网络连接后重试");
-        } finally {
-          setIsLoading(false);
-        }
-      };
-      
-      fetchTransactionTypes();
-    }
-  }, [isLoggedIn]);
-  
-  // 无数据时显示的组件
-  const NoDataDisplay = ({title}: {title: string}) => (
-    <Card className="p-6">
-      <div className="text-center py-8">
-        <div className="flex justify-center mb-4">
-          <HelpCircle className="h-12 w-12 text-muted-foreground opacity-50" />
-        </div>
-        <div className="text-lg font-medium text-muted-foreground">
-          暂无{title}数据
-        </div>
-        <p className="text-sm text-muted-foreground mt-2">
-          系统默认{title}类型将在此显示
-        </p>
+    getTransactionTypeDefs()
+      .then(setTypes)
+      .catch(() => setError('获取流水类型失败，请稍后重试'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-12 text-muted-foreground">
+        <Loader2 className="h-6 w-6 animate-spin mr-2" />加载中…
       </div>
-    </Card>
-  );
-  
-  if (isLoading) {
-    return <LoadingState title="正在加载流水类型数据" />;
+    );
   }
-  
+
   if (error) {
     return (
       <div className="flex flex-col items-center justify-center p-8 text-center">
-        <HelpCircle className="h-10 w-10 text-red-500 mb-4" />
-        <h3 className="text-lg font-medium mb-2">获取数据失败</h3>
+        <HelpCircle className="h-10 w-10 text-destructive mb-4" />
         <p className="text-muted-foreground">{error}</p>
       </div>
     );
   }
-  
+
+  const renderDerives = (d: string) => {
+    const info = DERIVES_LABEL[d] ?? { text: d, tone: 'none' as const };
+    if (info.tone === 'none') return <span className="text-muted-foreground">{info.text}</span>;
+    return (
+      <Badge variant={info.tone === 'new' ? 'default' : 'secondary'}>{info.text}</Badge>
+    );
+  };
+
+  const renderGroup = (direction: 'income' | 'expense') => {
+    const list = types.filter(t => t.direction === direction);
+    const isIncome = direction === 'income';
+    return (
+      <div key={direction}>
+        <div className="flex items-center gap-2 mb-4">
+          {isIncome
+            ? <ArrowUpIcon className="h-5 w-5 text-emerald-500" />
+            : <ArrowDownIcon className="h-5 w-5 text-destructive" />}
+          <h3 className="text-lg font-medium">{isIncome ? '收入' : '支出'}流水类型</h3>
+          <Badge variant="outline" className="gap-1">
+            <Lock className="h-3 w-3" />系统固定
+          </Badge>
+        </div>
+
+        <Card>
+          <CardContent className={isMobile ? "p-4 space-y-3" : "p-0"}>
+            {isMobile ? (
+              list.map(t => (
+                <div key={t.code} className="border rounded-md p-3 space-y-1">
+                  <div className="font-medium">{t.name}</div>
+                  <div className="text-sm text-muted-foreground">二级：{SECOND_LEVEL_LABEL[t.second_level]}</div>
+                  <div className="text-sm">{renderDerives(t.derives)}</div>
+                </div>
+              ))
+            ) : (
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">流水类型</TableHead>
+                    <TableHead className="w-[220px]">二级选什么</TableHead>
+                    <TableHead>落账后</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {list.map(t => (
+                    <TableRow key={t.code}>
+                      <TableCell className="font-medium">
+                        {t.name}
+                        {/* 借贷相关的类型限定方向，选错方向后端会拒 */}
+                        {t.loan_direction && (
+                          <Badge variant="outline" className="ml-2">
+                            {t.loan_direction === 'lend' ? '我们借出' : '我们借入'}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {SECOND_LEVEL_LABEL[t.second_level] ?? t.second_level}
+                      </TableCell>
+                      <TableCell>{renderDerives(t.derives)}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <ArrowUpIcon className="h-5 w-5 text-green-500" />
-          <h3 className="text-lg font-medium">收入流水类型</h3>
-        </div>
-        
-        {incomeTypes.length === 0 ? (
-          <NoDataDisplay title="收入流水类型" />
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              {isMobile ? (
-                <div className="grid gap-4 p-4">
-                  {incomeTypes.map((type) => (
-                    <Card key={type.id} className="overflow-hidden shadow-sm border hover:shadow-md transition-all">
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Tag className="h-4 w-4 text-green-500" />
-                            <div className="font-medium">{type.name}</div>
-                          </div>
-                          <div className="text-sm text-muted-foreground pl-6">
-                            {type.description}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>类型名称</TableHead>
-                      <TableHead>说明</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {incomeTypes.map((type) => (
-                      <TableRow key={type.id} className="hover:bg-muted/50">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Tag className="h-4 w-4 text-green-500" />
-                            <span>{type.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{type.description}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
-
-      <div>
-        <div className="flex items-center gap-2 mb-4">
-          <ArrowDownIcon className="h-5 w-5 text-red-500" />
-          <h3 className="text-lg font-medium">支出流水类型</h3>
-        </div>
-        
-        {expenseTypes.length === 0 ? (
-          <NoDataDisplay title="支出流水类型" />
-        ) : (
-          <Card>
-            <CardContent className="p-0">
-              {isMobile ? (
-                <div className="grid gap-4 p-4">
-                  {expenseTypes.map((type) => (
-                    <Card key={type.id} className="overflow-hidden shadow-sm border hover:shadow-md transition-all">
-                      <CardContent className="p-4">
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2">
-                            <Tag className="h-4 w-4 text-red-500" />
-                            <div className="font-medium">{type.name}</div>
-                          </div>
-                          <div className="text-sm text-muted-foreground pl-6">
-                            {type.description}
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>类型名称</TableHead>
-                      <TableHead>说明</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {expenseTypes.map((type) => (
-                      <TableRow key={type.id} className="hover:bg-muted/50">
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Tag className="h-4 w-4 text-red-500" />
-                            <span>{type.name}</span>
-                          </div>
-                        </TableCell>
-                        <TableCell>{type.description}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        )}
-      </div>
+      <p className="text-sm text-muted-foreground">
+        流水类型由系统固定，不能增删改。提交申请时先选类型，二级选项和落账后的衍生记录都由它决定；
+        只有「不衍生」的四种类型才可以在科目分类里自建二级科目。
+      </p>
+      {renderGroup('income')}
+      {renderGroup('expense')}
     </div>
   );
 };

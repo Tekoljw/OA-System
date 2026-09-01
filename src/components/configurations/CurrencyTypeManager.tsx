@@ -529,10 +529,12 @@ const CurrencyTypeManager = () => {
                           <div className="pr-4">{renderCountdown(currency)}</div>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(currency)}>
+                          <Button variant="ghost" size="icon" title="编辑币种" aria-label="编辑币种"
+                                  onClick={() => handleEdit(currency)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(currency.id)}>
+                          <Button variant="ghost" size="icon" title="删除币种" aria-label="删除币种"
+                                  onClick={() => handleDeleteClick(currency.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -584,10 +586,12 @@ const CurrencyTypeManager = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button variant="ghost" size="icon" onClick={() => handleEdit(currency)}>
+                          <Button variant="ghost" size="icon" title="编辑币种" aria-label="编辑币种"
+                                  onClick={() => handleEdit(currency)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" onClick={() => handleDeleteClick(currency.id)}>
+                          <Button variant="ghost" size="icon" title="删除币种" aria-label="删除币种"
+                                  onClick={() => handleDeleteClick(currency.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
