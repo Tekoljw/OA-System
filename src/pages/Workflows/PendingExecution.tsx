@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect } from "react";
 import { safeFormatCurrency } from "../../utils/formatter";
+import { apiRequest } from "../../api/client";
 import PageLayout from "../../components/layout/PageLayout";
 import { Button } from "../../components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
@@ -804,39 +805,35 @@ const PendingExecution: React.FC = () => {
   const hasFilters = searchTerm !== "" || dateFilter !== undefined;
 
   // 处理划款状态变更
-  const handleTransferStatusChange = (id: string, newStatus: string) => {
-    // 模拟网络请求
+  /**
+   * 执行划款：真正落账的一步。
+   *
+   * 此前这里用 setTimeout 模拟网络请求，只改前端状态、把审批人写成「当前用户」——
+   * 界面看着已完成，服务端分文未动，刷新就退回待执行。
+   */
+  const handleTransferStatusChange = async (id: string, newStatus: string) => {
+    if (newStatus !== '已完成') {
+      toast({ title: '不支持的操作', description: '待执行页只能执行划款', variant: 'destructive' });
+      return;
+    }
     setLoading(true);
-    setTimeout(() => {
-      setPendingTransfers(prev => 
-        prev.map(transfer => 
-          transfer.id === id 
-            ? { 
-                ...transfer, 
-                status: newStatus,
-                approveTime: newStatus === '已完成' ? new Date().toISOString().slice(0, 19).replace('T', ' ') : transfer.approveTime,
-                approver: newStatus === '已完成' ? '当前用户' : transfer.approver
-              } 
-            : transfer
-        )
-      );
-      
-      // 根据状态变更显示不同的通知
-      if (newStatus === '已完成') {
-        toast({
-          title: "操作成功",
-          description: `划款 ${id} 已标记为完成`,
-          variant: "default",
-        });
-      } else {
-        toast({
-          title: "状态已更新",
-          description: `划款 ${id} 状态已更新为 ${newStatus}`,
-        });
-      }
-      
+    try {
+      const res = await apiRequest('PUT', `/api/transfers/${id}/execute`, {});
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '执行失败');
+      toast({
+        title: "执行成功",
+        description: `划款 ${id} 已落账，账户余额已更新`,
+      });
+      setReloadTick(t => t + 1);
+    } catch (error: any) {
+      toast({
+        title: "执行失败",
+        description: error?.message || '请稍后重试',
+        variant: "destructive",
+      });
+    } finally {
       setLoading(false);
-    }, 600);
+    }
   };
 
   return (

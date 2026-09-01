@@ -125,7 +125,10 @@ const fetchTransactions = async (
     }
 
     return {
-      data: result.data?.transfers ?? [],
+      data: (result.data?.transfers ?? []).map((t: any) => ({
+        ...t,
+        status: toStatusLabel(t.status),
+      })),
       total: result.data?.total ?? 0
     };
   } catch (error) {
@@ -155,6 +158,21 @@ const formatCurrency = (amount: number, currency: string) => {
 };
 
 // 获取状态样式（可点击版本）
+/**
+ * 服务端状态码 → 界面标签。
+ * 服务端存的是 pending / approved / to_be_executed / completed / rejected，
+ * 而本页的样式判断和「能不能点」判断用的都是中文标签 —— 不映射的话，
+ * 状态徽章显示英文原文，审批入口也永远出不来（判断条件恒不成立）。
+ */
+const TRANSFER_STATUS_LABELS: Record<string, string> = {
+  pending: '待审批',
+  approved: '待执行',
+  to_be_executed: '待执行',
+  completed: '已完成',
+  rejected: '已拒绝',
+};
+const toStatusLabel = (status: string) => TRANSFER_STATUS_LABELS[status] ?? status;
+
 const getStatusStyle = (status: string) => {
   switch (status) {
     case "已完成":
@@ -1083,50 +1101,41 @@ const InternalTransactions: React.FC = () => {
   // 处理状态变更
   const { toast } = useToast();
 
-  const handleStatusChange = (id: string, newStatus: string) => {
-    // 更新状态
-    setAllTransfers(prev => 
-      prev.map(transfer => 
-        transfer.id === id 
-          ? { 
-              ...transfer, 
-              status: newStatus,
-              // 如果是变为已完成状态，设置审批人和审批时间
-              ...(newStatus === "已完成" 
-                ? { 
-                    approveTime: format(new Date(), 'yyyy-MM-dd HH:mm'),
-                    approver: "系统管理员"
-                  } 
-                : {}),
-              // 如果是变为已拒绝状态，添加拒绝时间
-              ...(newStatus === "已拒绝"
-                ? {
-                    approveTime: format(new Date(), 'yyyy-MM-dd HH:mm'),
-                    approver: "系统管理员" 
-                  }
-                : {})
-            } 
-          : transfer
-      )
-    );
-    
-    // 根据不同的状态变更显示不同的提示信息
-    let toastTitle = "状态更新成功";
-    let toastDesc = `划款 ${id} 状态已更新为 ${newStatus}`;
-    
-    if (newStatus === "已完成") {
-      toastTitle = "审批通过";
-      toastDesc = `划款 ${id} 已审批通过，状态已更新为已完成`;
-    } else if (newStatus === "已拒绝") {
-      toastTitle = "审批拒绝";
-      toastDesc = `划款 ${id} 已被拒绝`;
+  /**
+   * 划款审批。
+   *
+   * 此前这里只改前端数组里的状态、把审批人硬写成「系统管理员」，
+   * 服务端一无所知 —— 刷新页面状态就退回去了，而真正的审批链、
+   * 权限校验、落账都没有发生。改为调用服务端接口，再以服务端结果刷新列表。
+   */
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    const decision = newStatus === '已完成' ? 'approved'
+                   : newStatus === '已拒绝' ? 'rejected'
+                   : null;
+    if (!decision) {
+      toast({ title: '不支持的状态', description: `无法把划款置为「${newStatus}」`, variant: 'destructive' });
+      return;
     }
-    
-    // 显示操作结果通知
-    toast({
-      title: toastTitle,
-      description: toastDesc
-    });
+
+    try {
+      const res = await apiRequest('PUT', `/api/transfers/${id}/status`, { status: decision });
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '审批失败');
+
+      toast({
+        title: decision === 'approved' ? '审批通过' : '审批拒绝',
+        description: decision === 'approved'
+          ? `划款 ${id} 已审批通过`
+          : `划款 ${id} 已被拒绝`,
+      });
+      // 以服务端结果为准重新拉取，避免界面与库不一致
+      await loadTransactionData(1, true);
+    } catch (error: any) {
+      toast({
+        title: '审批失败',
+        description: error?.message || '请稍后重试',
+        variant: 'destructive',
+      });
+    }
   };
   
   // 可用账户列表 (实际应该从API获取)

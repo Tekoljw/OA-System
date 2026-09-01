@@ -29,6 +29,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogContent, AlertDialogDescript
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { Textarea } from "../../components/ui/textarea";
 import { apiRequest } from "@/api/client";
+import { getTransfers } from "@/utils/transfer-api";
 
 // 定义申请类型接口
 interface Application {
@@ -829,13 +830,40 @@ const PendingApprovals = () => {
     }));
   };
 
+  // 服务端状态码 → 界面标签。不映射的话状态徽章显示英文，
+  // 而且「能不能点」的判断（比对中文标签）恒不成立，审批入口出不来
+  const TRANSFER_STATUS_LABELS: Record<string, string> = {
+    pending: '待审批',
+    approved: '待执行',
+    to_be_executed: '待执行',
+    completed: '已完成',
+    rejected: '已拒绝',
+  };
+
+  /** 待审批的内部划款。此前这个 tab 只有一个空数组，从未向服务端要过数据 */
+  const fetchPendingTransfers = async () => {
+    try {
+      const result = await getTransfers({ status: 'pending', limit: 50 });
+      const list = (result?.transfers ?? []).map((t: any) => ({
+        ...t,
+        status: TRANSFER_STATUS_LABELS[t.status] ?? t.status,
+      }));
+      setPendingTransfers(list);
+    } catch (error) {
+      console.error('加载待审批划款失败:', error);
+      setPendingTransfers([]);
+    }
+  };
+
   // 初始加载数据
   useEffect(() => {
     const loadInitialData = async () => {
-      // 只加载待审批状态的数据
-      await fetchApplications("pending");
+      await Promise.all([
+        fetchApplications("pending"),
+        fetchPendingTransfers(),
+      ]);
     };
-    
+
     loadInitialData();
   }, []);
 
@@ -911,40 +939,39 @@ const PendingApprovals = () => {
   };
   
   // 处理划款状态变更
-  const handleTransferStatusChange = (id: string, newStatus: string) => {
-    // 在实际项目中，这里应该调用API更新状态
-    // 例如：api.updateTransferStatus(id, newStatus);
-    
-    // 状态变更提示信息
-    let successMessage = "";
-    switch (newStatus) {
-      case "已完成":
-        successMessage = `划款 ${id} 已审批通过并完成`;
-        break;
-      case "已拒绝":
-        successMessage = `划款 ${id} 已被拒绝`;
-        break;
-      default:
-        successMessage = `划款 ${id} 状态已更新为 ${newStatus}`;
+  /**
+   * 划款审批。
+   * 此前这里只改本地数组并弹提示，注释还写着「实际项目中这里应该调用API」——
+   * 界面看着审批完了，服务端一无所知，刷新就退回待审批。
+   */
+  const handleTransferStatusChange = async (id: string, newStatus: string) => {
+    const decision = newStatus === "已完成" ? 'approved'
+                   : newStatus === "已拒绝" ? 'rejected'
+                   : null;
+    if (!decision) {
+      toast({ title: "不支持的操作", description: `无法把划款置为「${newStatus}」`, variant: "destructive" });
+      return;
     }
-    
-    console.log(successMessage);
-    
-    // 更新本地状态数据
-    setPendingTransfers(prev => 
-      prev.map(transfer => 
-        transfer.id === id 
-          ? { ...transfer, status: newStatus } 
-          : transfer
-      )
-    );
-    
-    // 显示成功消息
-    toast({
-      title: "状态已更新",
-      description: successMessage,
-      variant: newStatus === "已拒绝" ? "destructive" : "default",
-    });
+
+    try {
+      const res = await apiRequest('PUT', `/api/transfers/${id}/status`, { status: decision });
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '审批失败');
+
+      toast({
+        title: decision === 'approved' ? "审批通过" : "审批拒绝",
+        description: decision === 'approved'
+          ? `划款 ${id} 已审批通过`
+          : `划款 ${id} 已被拒绝`,
+        variant: decision === 'rejected' ? "destructive" : "default",
+      });
+      await fetchPendingTransfers();
+    } catch (error: any) {
+      toast({
+        title: "审批失败",
+        description: error?.message || '请稍后重试',
+        variant: "destructive",
+      });
+    }
   };
 
   const handleDateSelect = (date: Date | undefined) => {
