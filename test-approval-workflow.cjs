@@ -68,6 +68,8 @@ async function run() {
     const mk = (amount, dept = DEPT_FINANCE, token = MGR, title = '测试申请') =>
         request('POST', `/api/applications?projectId=${P}`, {
             title: `${title} ${amount}`, amount, type: 'payment', departmentId: dept,
+            // 一级流水类型现在必填；这里只关心审批链，用不衍生的类型
+            transaction_type_code: 'other_expense',
         }, token);
 
     // ---------- 1. 小额档：只需部门主管 ----------

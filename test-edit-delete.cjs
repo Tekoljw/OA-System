@@ -89,7 +89,7 @@ function resetFixtures() {
 
     // ---------- 1. 科目：编辑 + 删除 ----------
     console.log('\n[1] 科目分类');
-    await api('POST', '/api/subjects?projectId=1', token, { name: `${TAG}科目`, type: 'income' });
+    await api('POST', '/api/subjects?projectId=1', token, { name: `${TAG}科目`, type: 'income', transaction_type_code: 'main_income' });
     await goto('/configurations/subject-categories');
     let row = rowOf(`${TAG}科目`);
     assert('新建科目出现在列表', await row.count() === 1);
@@ -141,7 +141,8 @@ function resetFixtures() {
     row = rowOf(`${TAG}币`);
     assert('新建币种出现在列表', await row.count() === 1);
     if (await row.count()) {
-        await row.locator('button').first().click();
+        // 币种行内还有汇率开关和输入框，不能再按「第一个按钮」定位编辑
+        await row.locator('button[aria-label="编辑币种"]').first().click();
         await page.waitForTimeout(900);
         const inp = page.locator('[role="dialog"] input').first();
         await inp.fill(`${TAG}币改`);

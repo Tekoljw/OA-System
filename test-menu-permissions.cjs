@@ -69,13 +69,18 @@ async function menuOf(browser, user, pw) {
     // ---------- 1. 登录接口下发权限 ----------
     console.log('\n[1] 权限随登录下发');
     assert('登录返回 permissions', Array.isArray(login?.data?.permissions), typeof login?.data?.permissions);
-    assert('管理员 12 项', login?.data?.permissions?.length === 12, `${login?.data?.permissions?.length} 项`);
+    assert('管理员 13 项', login?.data?.permissions?.length === 13, `${login?.data?.permissions?.length} 项`);
 
     const me = await api('GET', '/api/user', T);
     assert('/api/user 也返回 permissions', Array.isArray(me?.data?.permissions));
 
+    // testuser 同时是财务部主管，部门主管的审批职责与角色无关，
+    // 后端会自动补上 manage_pending_approvals —— 否则主管连待审批页都进不去
     const ul = await api('POST', '/api/login', '', { username: 'testuser', password: 'user123' });
-    assert('普通用户 5 项', ul?.data?.permissions?.length === 5, `${ul?.data?.permissions?.length} 项`);
+    assert('普通用户 5 项 + 主管自动获得审批权 = 6 项',
+           ul?.data?.permissions?.length === 6, `${ul?.data?.permissions?.length} 项`);
+    assert('部门主管自动获得待审批权限',
+           (ul?.data?.permissions || []).includes('manage_pending_approvals'));
 
     const browser = await chromium.launch({ headless: true });
 
@@ -94,7 +99,9 @@ async function menuOf(browser, user, pw) {
     for (const m of ['财务仪表盘', '账户管理', '出入金记录', '资产记录', '我的申请']) {
         assert(`可见「${m}」`, u.text.includes(m));
     }
-    for (const m of ['配置管理', '人员管理', '权限管理', '用户管理', '股东管理', '待审批', '待归帐', '待执行']) {
+    // testuser 是部门主管，「待审批」应当可见；其余仍不可见
+    assert('可见「待审批」（部门主管职责）', u.text.includes('待审批'));
+    for (const m of ['配置管理', '人员管理', '权限管理', '用户管理', '股东管理', '待归帐', '待执行']) {
         assert(`不可见「${m}」`, !u.text.includes(m));
     }
     assert('底部显示测试普通用户', u.text.includes('测试普通用户'));

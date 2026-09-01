@@ -209,10 +209,10 @@ async function run() {
     // ===== [5] 完整入资流程 =====
     console.log('\n[5] 完整入资流程（Admin）');
 
-    // 获取入资科目
-    const subjects = await request('GET', `/api/subjects?projectId=${PROJECT_A}`, null, ADMIN_TOKEN);
-    const incomeSubject = (subjects.body?.data || []).find(s => s.code === 'income-shareholder');
-    assert('股东入资科目存在', !!incomeSubject);
+    // 股东入资/分红现在由一级流水类型标识，二级选的是股东本人而不是科目
+    const ttypes = await request('GET', `/api/transaction-types?projectId=${PROJECT_A}`, null, ADMIN_TOKEN);
+    const incomeSubject = (ttypes.body?.data || []).find(t => t.code === 'shareholder_investment');
+    assert('股东入资流水类型存在', !!incomeSubject);
 
     // 获取/创建账户
     const accounts = await request('GET', `/api/accounts?projectId=${PROJECT_A}&limit=500`, null, ADMIN_TOKEN);
@@ -229,7 +229,7 @@ async function run() {
         // 股东甲入资 50000（按50%比例入资，如果总入资100000则正好匹配）
         const r50000 = await createTransactionViaApproval(ctx, {
             type: 'income', amount: 50000, accountId: acctId,
-            subjectId: incomeSubject.id, shareholderId: shAId,
+            transactionTypeCode: 'shareholder_investment', shareholderId: shAId,
             title: '股东甲入资 50000',
         });
         assert('股东甲入资 50000', r50000.ok, r50000.reason || '');
@@ -237,7 +237,7 @@ async function run() {
         // 股东乙入资 20000（按30%应入30000，少入了10000）
         const r20000 = await createTransactionViaApproval(ctx, {
             type: 'income', amount: 20000, accountId: acctId,
-            subjectId: incomeSubject.id, shareholderId: shBId,
+            transactionTypeCode: 'shareholder_investment', shareholderId: shBId,
             title: '股东乙入资 20000',
         });
         assert('股东乙入资 20000', r20000.ok, r20000.reason || '');
@@ -245,15 +245,15 @@ async function run() {
         // 股东丙入资 30000（按20%应入20000，多入了10000）
         const r30000 = await createTransactionViaApproval(ctx, {
             type: 'income', amount: 30000, accountId: acctId,
-            subjectId: incomeSubject.id, shareholderId: shCId,
+            transactionTypeCode: 'shareholder_investment', shareholderId: shCId,
             title: '股东丙入资 30000',
         });
         assert('股东丙入资 30000', r30000.ok, r30000.reason || '');
 
-        // 入资不带股东：申请可提交，但执行落账时因股东科目缺关联而被拒
+        // 入资不带股东：提交阶段就被拦下（一级类型为股东往来时必须指定股东）
         const noSh = await createTransactionViaApproval(ctx, {
             type: 'income', amount: 1000, accountId: acctId,
-            subjectId: incomeSubject.id, title: '缺少股东ID的入资',
+            transactionTypeCode: 'shareholder_investment', title: '缺少股东ID的入资',
         });
         assert('入资不选股东被拒', !noSh.ok && /股东/.test(noSh.reason || ''), noSh.reason || '');
     }
@@ -313,14 +313,14 @@ async function run() {
     // ===== [8] 分红交易 =====
     console.log('\n[8] 分红交易');
 
-    const dividendSubject = (subjects.body?.data || []).find(s => s.code === 'expense-dividend');
-    assert('股东分红科目存在', !!dividendSubject);
+    const dividendSubject = (ttypes.body?.data || []).find(t => t.code === 'shareholder_dividend');
+    assert('股东分红流水类型存在', !!dividendSubject);
 
     if (dividendSubject && acctId) {
         // 给股东甲分红
         const div5000 = await createTransactionViaApproval(ctx, {
             type: 'expense', amount: 5000, accountId: acctId,
-            subjectId: dividendSubject.id, shareholderId: shAId,
+            transactionTypeCode: 'shareholder_dividend', shareholderId: shAId,
             title: '多角色测试-股东甲分红',
         });
         assert('股东甲分红 5000', div5000.ok, div5000.reason || '');
@@ -328,7 +328,7 @@ async function run() {
         // 给股东乙分红
         const div3000 = await createTransactionViaApproval(ctx, {
             type: 'expense', amount: 3000, accountId: acctId,
-            subjectId: dividendSubject.id, shareholderId: shBId,
+            transactionTypeCode: 'shareholder_dividend', shareholderId: shBId,
             title: '多角色测试-股东乙分红',
         });
         assert('股东乙分红 3000', div3000.ok, div3000.reason || '');
@@ -336,7 +336,7 @@ async function run() {
         // 分红不选股东应失败
         const divNoSh = await createTransactionViaApproval(ctx, {
             type: 'expense', amount: 1000, accountId: acctId,
-            subjectId: dividendSubject.id, title: '缺少股东ID的分红',
+            transactionTypeCode: 'shareholder_dividend', title: '缺少股东ID的分红',
         });
         assert('分红不选股东被拒', !divNoSh.ok && /股东/.test(divNoSh.reason || ''), divNoSh.reason || '');
     }
@@ -451,7 +451,8 @@ async function run() {
 
     // 正向验证：守卫没有误伤管理员
     const adminSubject = await request('POST', `/api/subjects?projectId=${PROJECT_A}`, {
-        name: '守卫正向验证科目', code: 'sec-ok-subject', type: 'income'
+        name: '守卫正向验证科目', code: 'sec-ok-subject', type: 'income',
+        transaction_type_code: 'other_income',
     }, ADMIN_TOKEN);
     assert('管理员创建科目仍然成功', adminSubject.status === 201, `实际 ${adminSubject.status}`);
     if (adminSubject.status === 201) {

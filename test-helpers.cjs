@@ -59,11 +59,17 @@ function resetShareholders(projectId = 1) {
 async function createTransactionViaApproval(ctx, {
     projectId = 1, type, amount, accountId, subjectId,
     departmentId = 1, shareholderId = null, title,
+    // 一级流水类型现在是必填。默认取「不衍生」的那一档，
+    // 免得每个用例都要关心资产/借贷衍生
+    transactionTypeCode,
 }) {
     const { api, tokens } = ctx;
+    const ttCode = transactionTypeCode
+        || (type === 'income' ? 'other_income' : 'other_expense');
     const app = await api('POST', `/api/applications?projectId=${projectId}`, tokens.admin, {
         type, title: title || `自动化-${type}-${amount}`, amount,
         departmentId, shareholderId, accountId, subjectId,
+        transaction_type_code: ttCode,
     });
     if (app.status !== 201) {
         return { ok: false, reason: app?.error?.message || app?.message || '提交申请失败' };

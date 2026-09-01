@@ -114,7 +114,7 @@ async function run() {
 
     // 在项目B创建科目
     const newSubjB = await request('POST', `/api/subjects?projectId=${PROJECT_B}`, {
-        name: '隔离测试科目B', code: 'iso-test-b', type: 'income'
+        name: '隔离测试科目B', code: 'iso-test-b', type: 'income', transaction_type_code: 'other_income'
     }, ADMIN);
     assert('在项目B创建科目', newSubjB.status === 201);
     const subjBId = newSubjB.body?.data?.id;

@@ -62,12 +62,15 @@ async function login(page, user, pw) {
     const accs = await api('GET', '/api/accounts?projectId=1&limit=200', T);
     const acc = (accs.data || []).find(a => a.currency_type === 'CNY' && parseFloat(a.balance) > 5000);
     const subs = await api('GET', '/api/subjects?projectId=1', T);
-    const sub = (subs.data || []).find(s => s.type === 'expense' && !String(s.code).startsWith('expense-div'));
+    const sub = (subs.data || []).find(s => s.transaction_type_code === 'other_expense');
     assert('取到账户与科目', !!acc && !!sub);
 
     const app = await api('POST', '/api/applications?projectId=1', T, {
         type: 'expense', title: `${TAG}界面审批`, amount: 120, departmentId: 1,
         description: '界面操作验证',
+        // 一级流水类型必填；本用例只验界面流转，取不衍生的类型
+        transaction_type_code: 'other_expense',
+        subject_id: sub?.id,
     });
     assert('提交申请单', app.status === 201, app?.error?.message || '');
     const appId = app?.data?.id;
@@ -134,7 +137,11 @@ async function login(page, user, pw) {
 
         await dlg.locator('button', { hasText: '请选择账户' }).click();
         await adminPage.waitForTimeout(600);
-        await adminPage.locator('[role="option"]').first().click();
+        // 必须选到前面挑好的那个有余额的账户：随手选第一个多半余额为 0，
+        // 执行时会以「余额不足」失败，看起来像是执行功能坏了
+        const accOption = adminPage.locator('[role="option"]', { hasText: acc.name }).first();
+        if (await accOption.count()) await accOption.click();
+        else await adminPage.locator('[role="option"]').first().click();
         await adminPage.waitForTimeout(400);
         await dlg.locator('button', { hasText: '请选择科目' }).click();
         await adminPage.waitForTimeout(600);

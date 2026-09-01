@@ -107,6 +107,7 @@ async function login(page, user, pw) {
     console.log('\n[2] 只应看到自己提交的申请');
     const adminApp = await api('POST', '/api/applications?projectId=1', T, {
         type: 'expense', title: `${TAG}管理员的申请`, amount: 50, departmentId: 1,
+        transaction_type_code: 'other_expense',
     });
     assert('管理员另建一条申请', adminApp.status === 201);
 

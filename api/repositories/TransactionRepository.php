@@ -20,16 +20,27 @@ class TransactionRepository extends BaseRepository {
             $where[] = 't.account_id = ?';
             $params[] = $filters['account_id'];
         }
+        // 按一级流水类型筛选，比只分收入/支出细一层
+        if (!empty($filters['transaction_type_code'])) {
+            $where[] = 't.transaction_type_code = ?';
+            $params[] = $filters['transaction_type_code'];
+        }
 
         $whereStr = implode(' AND ', $where);
         $offset = ($page - 1) * $limit;
 
         $stmt = $this->db->prepare("
-            SELECT t.*, a.name as account_name, s.name as subject_name, d.name as department_name
+            SELECT t.*, a.name as account_name, s.name as subject_name, d.name as department_name,
+                   tt.name as transaction_type_name, tt.derives as transaction_type_derives,
+                   -- 流水本身不存币种，币种跟着落账账户走
+                   a.currency_type as currency_type,
+                   u.full_name as submitter_name
             FROM transactions t
             LEFT JOIN accounts a ON t.account_id = a.id
             LEFT JOIN subjects s ON t.subject_id = s.id
             LEFT JOIN departments d ON t.department_id = d.id
+            LEFT JOIN transaction_types tt ON tt.code = t.transaction_type_code
+            LEFT JOIN users u ON u.id = t.created_by
             WHERE $whereStr
             ORDER BY t.transaction_date DESC, t.id DESC
             LIMIT ? OFFSET ?

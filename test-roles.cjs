@@ -55,7 +55,7 @@ function resetFixtures() {
     const roles = list.data || [];
     const adminRole = roles.find(r => r.code === 'admin');
     const userRole  = roles.find(r => r.code === 'user');
-    assert('管理员角色存在且权限齐全', adminRole && adminRole.permissions.length === 12,
+    assert('管理员角色存在且权限齐全', adminRole && adminRole.permissions.length === 13,
            `${adminRole?.permissions?.length} 项`);
     assert('普通用户角色维持 5 项', userRole && userRole.permissions.length === 5,
            `${userRole?.permissions?.length} 项`);
@@ -64,7 +64,7 @@ function resetFixtures() {
            `userCount=${adminRole?.userCount}`);
 
     const perms = await api('GET', '/api/roles/permissions?projectId=1', T);
-    assert('权限项由后端提供', Array.isArray(perms.data) && perms.data.length === 12,
+    assert('权限项由后端提供', Array.isArray(perms.data) && perms.data.length === 13,
            `${perms.data?.length} 项`);
 
     // ---------- 2. 增删改 ----------
@@ -110,7 +110,7 @@ function resetFixtures() {
     const weaken = await api('PUT', `/api/roles/${adminRole.id}?projectId=1`, T, {
         name: '管理员', permissions: ['view_dashboard'],
     });
-    assert('管理员权限不可削减', weaken?.data?.permissions?.length === 12,
+    assert('管理员权限不可削减', weaken?.data?.permissions?.length === 13,
            `实际 ${weaken?.data?.permissions?.length} 项`);
 
     // ---------- 4. 权限真的生效 ----------
@@ -134,7 +134,7 @@ function resetFixtures() {
     const C = cl?.data?.token;
     assert('配置员登录', !!C, `-> ${msg(cl)}`);
 
-    const canCfg = await api('POST', '/api/subjects?projectId=1', C, { name: `${TAG}科目`, type: 'income' });
+    const canCfg = await api('POST', '/api/subjects?projectId=1', C, { name: `${TAG}科目`, type: 'income', transaction_type_code: 'other_income' });
     assert('有 manage_configurations → 可建科目', canCfg.status === 201, `实际 ${canCfg.status} ${msg(canCfg)}`);
 
     for (const [label, path, body] of [
@@ -167,7 +167,7 @@ function resetFixtures() {
     const dlg = page.locator('[role="dialog"]').first();
     await dlg.locator('input[name="name"]').fill(`${TAG}界面角色`);
     const switches = dlg.locator('[role="switch"]');
-    assert('弹窗展示 12 个权限项', await switches.count() === 12, `${await switches.count()} 个`);
+    assert('弹窗展示 13 个权限项', await switches.count() === 13, `${await switches.count()} 个`);
     await switches.nth(0).click(); await page.waitForTimeout(200);
     await switches.nth(3).click(); await page.waitForTimeout(200);
     await dlg.locator('button', { hasText: '创建角色' }).click();

@@ -23,10 +23,12 @@ class ApplicationRepository extends BaseRepository {
 
         $stmt = $this->db->prepare("
             SELECT a.*, d.name AS department_name,
-                   u.full_name AS submitter_name, u.username AS submitter_username
+                   u.full_name AS submitter_name, u.username AS submitter_username,
+                   tt.name AS transaction_type_name
             FROM applications a
             LEFT JOIN departments d ON a.department_id = d.id
             LEFT JOIN users u       ON a.submitter_id  = u.id
+            LEFT JOIN transaction_types tt ON tt.code = a.transaction_type_code
             WHERE $whereStr
             ORDER BY a.created_at DESC, a.id DESC
             LIMIT ? OFFSET ?
@@ -84,10 +86,12 @@ class ApplicationRepository extends BaseRepository {
     public function findDetail(int $id, int $projectId): ?array {
         $stmt = $this->db->prepare("
             SELECT a.*, d.name AS department_name,
-                   u.full_name AS submitter_name, u.username AS submitter_username
+                   u.full_name AS submitter_name, u.username AS submitter_username,
+                   tt.name AS transaction_type_name
             FROM applications a
             LEFT JOIN departments d ON a.department_id = d.id
             LEFT JOIN users u       ON a.submitter_id  = u.id
+            LEFT JOIN transaction_types tt ON tt.code = a.transaction_type_code
             WHERE a.id = ? AND a.project_id = ?
         ");
         $stmt->execute([$id, $projectId]);

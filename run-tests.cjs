@@ -18,6 +18,7 @@ const path = require('path');
 const CORE = [
     'test-transactions', 'test-workflow-ui', 'test-my-applications', 'test-roles', 'test-menu-permissions', 'test-edit-delete', 'test-form-submit', 'test-delete-semantics',
     'test-assets-loans', 'test-approval-workflow', 'test-approval-rules-ui',
+    'test-currency-match', 'test-transfer-currency',
     'test-project-switch', 'test-multi-role', 'test-project-isolation',
     'test-all-pages', 'test-interactions',
 ];

@@ -52,7 +52,7 @@ async function run() {
     console.log('\n[2] 正常删除路径未被破坏');
     const mk = async (ep, payload) => request('POST', `/api/${ep}?projectId=${P}`, payload, T);
 
-    const sub = await mk('subjects', { name: '删除语义测试科目', code: 'del-sem-1', type: 'income' });
+    const sub = await mk('subjects', { name: '删除语义测试科目', code: 'del-sem-1', type: 'income', transaction_type_code: 'other_income' });
     assert('创建科目', sub.status === 201, `-> ${msg(sub)}`);
     const delSub = await request('DELETE', `/api/subjects/${sub.body?.data?.id}?projectId=${P}`, null, T);
     assert('删除已存在科目返回 200', delSub.status === 200, `实际 ${delSub.status} ${msg(delSub)}`);
@@ -71,7 +71,7 @@ async function run() {
 
     // ---- 跨项目删除应视为不存在 ----
     console.log('\n[3] 跨项目删除应视为不存在');
-    const sub2 = await mk('subjects', { name: '跨项目删除测试', code: 'del-sem-2', type: 'income' });
+    const sub2 = await mk('subjects', { name: '跨项目删除测试', code: 'del-sem-2', type: 'income', transaction_type_code: 'other_income' });
     const cross = await request('DELETE', `/api/subjects/${sub2.body?.data?.id}?projectId=8`, null, T);
     assert('用别的项目 id 删不掉', cross.status === 404, `实际 ${cross.status}`);
     const cleanup = await request('DELETE', `/api/subjects/${sub2.body?.data?.id}?projectId=${P}`, null, T);
@@ -86,13 +86,13 @@ async function run() {
         const d = await request('POST', `/api/departments?projectId=${P}`, { name: `空码部门${i}` }, T);
         assert(`第${i}个不填编码的部门`, d.status === 201, `-> ${msg(d)}`);
         if (d.body?.data?.id) made.push(['departments', d.body.data.id]);
-        const s2 = await request('POST', `/api/subjects?projectId=${P}`, { name: `空码科目${i}`, type: 'income' }, T);
+        const s2 = await request('POST', `/api/subjects?projectId=${P}`, { name: `空码科目${i}`, type: 'income', transaction_type_code: 'other_income' }, T);
         assert(`第${i}个不填编码的科目`, s2.status === 201, `-> ${msg(s2)}`);
         if (s2.body?.data?.id) made.push(['subjects', s2.body.data.id]);
     }
     // 填了编码时唯一性必须仍然生效
-    const u1 = await request('POST', `/api/subjects?projectId=${P}`, { name: '唯一码A', type: 'income', code: 'UNIQ-T1' }, T);
-    const u2 = await request('POST', `/api/subjects?projectId=${P}`, { name: '唯一码B', type: 'income', code: 'UNIQ-T1' }, T);
+    const u1 = await request('POST', `/api/subjects?projectId=${P}`, { name: '唯一码A', type: 'income', code: 'UNIQ-T1', transaction_type_code: 'other_income' }, T);
+    const u2 = await request('POST', `/api/subjects?projectId=${P}`, { name: '唯一码B', type: 'income', code: 'UNIQ-T1', transaction_type_code: 'other_income' }, T);
     assert('带编码首次创建成功', u1.status === 201, `-> ${msg(u1)}`);
     assert('相同编码被拒（唯一性未被改坏）', u2.status >= 400, `实际 ${u2.status}`);
     if (u1.body?.data?.id) made.push(['subjects', u1.body.data.id]);
