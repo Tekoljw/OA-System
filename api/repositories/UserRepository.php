@@ -8,7 +8,13 @@ class UserRepository extends BaseRepository {
      * 安全查询（不含密码），用于 API 返回
      */
     public function findByIdSafe(int $id): ?array {
-        $stmt = $this->db->prepare("SELECT id, username, full_name, email, role, is_active, created_at, updated_at FROM users WHERE id = ?");
+        $stmt = $this->db->prepare("
+            SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active,
+                   u.created_at, u.updated_at, u.department_id, d.name AS department_name
+            FROM users u
+            LEFT JOIN departments d ON d.id = u.department_id
+            WHERE u.id = ?
+        ");
         $stmt->execute([$id]);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         return $result ?: null;
@@ -24,9 +30,11 @@ class UserRepository extends BaseRepository {
     public function findByProjectId(int $projectId): array {
         $stmt = $this->db->prepare("
             SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at,
-                   up.role as project_role
+                   up.role as project_role,
+                   u.department_id, d.name AS department_name
             FROM users u
             JOIN user_projects up ON u.id = up.user_id
+            LEFT JOIN departments d ON d.id = u.department_id
             WHERE up.project_id = ?
             ORDER BY u.id
         ");
@@ -64,9 +72,9 @@ class UserRepository extends BaseRepository {
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare(
-                "INSERT INTO users (username, password, full_name, email, role, is_active)
-                 VALUES (?, ?, ?, ?, ?, ?)
-                 RETURNING id, username, full_name, email, role, is_active, created_at, updated_at"
+                "INSERT INTO users (username, password, full_name, email, role, is_active, department_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?)
+                 RETURNING id, username, full_name, email, role, is_active, department_id, created_at, updated_at"
             );
             $stmt->execute([
                 $d['username'],
@@ -77,6 +85,7 @@ class UserRepository extends BaseRepository {
                 ($d['email'] ?? null) !== '' ? ($d['email'] ?? null) : null,
                 $d['role'] ?? 'user',
                 $d['is_active'] ?? true,
+                !empty($d['department_id']) ? (int)$d['department_id'] : null,
             ]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -91,6 +100,19 @@ class UserRepository extends BaseRepository {
             throw $e;
         }
         return $user;
+    }
+
+    /** 某部门的成员；部门页展开时用，此前服务端没有这个查询 */
+    public function findByDepartment(int $departmentId, int $projectId): array {
+        $stmt = $this->db->prepare("
+            SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active
+            FROM users u
+            JOIN user_projects up ON up.user_id = u.id AND up.project_id = ?
+            WHERE u.department_id = ?
+            ORDER BY u.id
+        ");
+        $stmt->execute([$projectId, $departmentId]);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
     /** 用户偏好的展示本位币；未设置时按 USD */

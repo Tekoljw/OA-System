@@ -75,9 +75,12 @@ class ConfigRepository extends BaseRepository {
             "SELECT d.*,
                     u.full_name AS manager_name,
                     u.username  AS manager_username,
+                    -- 按部门统计，不是按项目：原先漏了部门条件，
+                    -- 每个部门都显示同一个数字（全项目的用户数）
                     (SELECT COUNT(*) FROM users mu
                      JOIN user_projects up ON up.user_id = mu.id
-                     WHERE up.project_id = d.project_id) AS member_count
+                     WHERE up.project_id = d.project_id
+                       AND mu.department_id = d.id) AS member_count
              FROM departments d
              LEFT JOIN users u ON u.id = d.manager_id
              WHERE d.project_id = ? ORDER BY d.id"

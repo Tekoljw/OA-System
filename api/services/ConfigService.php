@@ -219,8 +219,27 @@ class ConfigService {
     }
 
     public function deleteDepartment(int $id, int $projectId = 0): bool {
-        // 检查是否有关联交易
-        $this->checkTransactionReference('department_id', $id, '部门');
+        // 部门被多张表引用，外键多为 SET NULL：直接删会让历史申请单、流水、
+        // 资产、借贷悄悄失去部门归属，部门成本分析从此少一块且无从追回。
+        // applications 是 RESTRICT，硬删会抛出外键错误，报给用户也看不懂。
+        // 成员的量词与其他不同，单独给一句通顺的提示
+        $stmt = $this->db->prepare("SELECT COUNT(*) FROM users WHERE department_id = ?");
+        $stmt->execute([$id]);
+        if (($n = (int)$stmt->fetchColumn()) > 0) {
+            throw new \InvalidArgumentException(sprintf(
+                '该部门下还有 %d 名成员，无法删除。请先把他们调整到其他部门。', $n
+            ));
+        }
+
+        foreach ([
+            ['applications', '申请单'],
+            ['transactions', '流水'],
+            ['transfers',    '划款单'],
+            ['assets',       '资产记录'],
+            ['loans',        '借贷记录'],
+        ] as [$table, $label]) {
+            $this->assertNotReferenced($table, 'department_id', $id, '部门', $label);
+        }
         $ok = $this->repo->deleteItem('departments', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'departments', $id,

@@ -403,7 +403,7 @@ export function AccountManagementDialog({ account, onSubmit: externalOnSubmit, i
                         departments.map((department) => (
                           <SelectItem 
                             key={department.id} 
-                            value={department.code || `dept-${department.id}`}
+                            value={String(department.id)}
                           >
                             {department.name || `部门 ${department.id}`}
                           </SelectItem>

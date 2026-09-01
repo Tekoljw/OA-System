@@ -124,7 +124,8 @@ const UserManagement = () => {
           notes: user.notes || '',
           status: user.is_active ? 'active' : 'inactive',
           active: user.is_active,
-          department: user.department || '',
+          department: user.department_name || user.department || '',
+          department_id: user.department_id ?? null,
           created_at: user.created_at,
           updated_at: user.updated_at
         }));
@@ -327,7 +328,8 @@ const UserManagement = () => {
         role: userData.role,
         email: userData.email || '',
         phone: userData.phone || '',
-        department: userData.department || '',
+        // 下拉里选的是部门 id；此前提交的是 code，服务端也没有存部门的列
+        departmentId: userData.department ? Number(userData.department) : null,
         notes: userData.notes || '',
         status: 'active'
       });
@@ -343,7 +345,8 @@ const UserManagement = () => {
           notes: result.data.notes || '',
           status: result.data.status || 'active',
           active: result.data.active ?? true,
-          department: result.data.department || '',
+          department: result.data.department_name || '',
+          department_id: result.data.department_id ?? null,
           created_at: result.data.created_at,
           updated_at: result.data.updated_at
         };
@@ -382,7 +385,8 @@ const UserManagement = () => {
       const result = await updateUser(selectedUser.id, {
         username: userData.username,
         full_name: userData.fullName,
-        role: userData.role
+        role: userData.role,
+        departmentId: userData.department ? Number(userData.department) : null,
       });
       
       if (result.success) {

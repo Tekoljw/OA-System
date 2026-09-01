@@ -155,19 +155,20 @@ const DepartmentList = () => {
     if (!departmentToDelete) return;
     
     try {
-      console.log(`删除部门ID: ${departmentToDelete}`);
-      
-      // 直接在前端删除部门（模拟成功）
-      setDepartments(departments.filter((dept) => dept.id !== departmentToDelete));
-      
+      // 此前这里只从前端数组里移掉一行就报「删除成功」，压根没请求服务端 ——
+      // 刷新页面部门又回来了，而且被引用的部门本该删不掉
+      const res = await apiRequest('DELETE', `/api/departments/${departmentToDelete}`);
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '删除失败');
+
       toast({
         title: "操作成功",
         description: "部门已成功删除",
       });
-      
-      // 关闭确认对话框
+
       setIsDeleteDialogOpen(false);
       setDepartmentToDelete(null);
+      // 以服务端为准重新拉取，避免界面与库不一致
+      await fetchDepartments();
     } catch (error: any) {
       console.error('删除部门错误:', error);
       toast({
@@ -226,12 +227,15 @@ const DepartmentList = () => {
       const result = await response.json();
       console.log('部门成员响应结果:', result);
       
-      if (result.success && Array.isArray(result.users)) {
-        // 转换用户数据为成员格式
-        const members: DepartmentMember[] = result.users.map((user: any) => ({
+      // 服务端统一返回 { success, data }，此前这里读的是 result.users，
+      // 永远取不到，成员列表始终为空
+      const rawMembers = Array.isArray(result.data) ? result.data
+                       : (Array.isArray(result.users) ? result.users : null);
+      if (result.success && rawMembers) {
+        const members: DepartmentMember[] = rawMembers.map((user: any) => ({
           id: user.id,
           username: user.username,
-          fullName: user.fullName,
+          fullName: user.full_name || user.fullName || '',
           role: user.role,
           email: user.email
         }));

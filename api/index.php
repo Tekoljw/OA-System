@@ -714,6 +714,17 @@ try {
             break;
 
         case 'departments':
+            // 部门成员：界面上展开部门就会请求它，此前服务端没有这个路由，
+            // 请求落到部门列表分支，返回的是全部部门，成员永远是空的
+            if ($method === 'GET' && $resourceId && $subEndpoint === 'members') {
+                require_once __DIR__ . '/repositories/UserRepository.php';
+                $memberRepo = new UserRepository($db);
+                $pid = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+                Response::success(
+                    $memberRepo->findByDepartment((int)$resourceId, $pid),
+                    '获取部门成员成功'
+                );
+            }
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
@@ -971,6 +982,8 @@ try {
                     'email'     => ($body['email'] ?? '') !== '' ? $body['email'] : null,
                     'role'      => $body['role'] ?? 'user',
                     'is_active' => ($body['status'] ?? 'active') === 'active',
+                    // 用户管理界面一直有部门下拉，此前提交上来直接被丢弃
+                    'department_id' => $body['departmentId'] ?? $body['department_id'] ?? null,
                 ], $projectId);
                 Response::success($newUser, '用户创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
@@ -981,10 +994,11 @@ try {
                 }
                 $body = JsonMiddleware::getRequestBody();
                 // 字段白名单：仅允许修改安全的字段
+                $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
                 $allowedFields = ['full_name', 'email'];
-                // 具备人员管理权限者额外可修改 role 和 is_active
+                // 具备人员管理权限者额外可修改 role、启用状态、用户名与部门归属
                 if ($canManagePersonnel) {
-                    $allowedFields = array_merge($allowedFields, ['role', 'is_active', 'username']);
+                    $allowedFields = array_merge($allowedFields, ['role', 'is_active', 'username', 'department_id']);
                 }
                 $safeBody = array_intersect_key($body, array_flip($allowedFields));
                 if (empty($safeBody)) {
