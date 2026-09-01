@@ -115,6 +115,13 @@ class TransferService {
             $this->assertAccountInProject((int)$d[$k], $projectId);
         }
 
+        // 币种一致性与汇率：同币种不许出现汇率差，跨币种必须有可用汇率
+        $rateInfo = $this->resolveCurrency($d, $projectId);
+        $d['to_amount']              = $rateInfo['to_amount'];
+        $d['official_exchange_rate'] = $rateInfo['official_rate'];
+        $d['actual_exchange_rate']   = $rateInfo['actual_rate'];
+        $d['exchange_loss']          = $rateInfo['exchange_loss'];
+
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare("
@@ -264,6 +271,78 @@ class TransferService {
         ]);
 
         return $this->getTransfer($id, $projectId);
+    }
+
+    /**
+     * 划款的币种与汇率。
+     *
+     * 手续费的口径：从转出账户额外扣除（转出方共扣 amount + fees），
+     * 不从到账金额里扣。落账逻辑一直如此，这里必须与之一致。
+     *
+     * 同币种：到账金额只能等于转出金额，不存在汇率，也不该有汇兑损益。
+     * 跨币种：必须给出实际到账金额，并按系统汇率算出官方应得，差额记为汇兑损益，
+     *         便于事后看清这笔换汇是赚是亏。
+     *
+     * 任一币种汇率失效就直接拒绝：用失效汇率算出来的损益是假的，
+     * 记进账本比不记更糟 —— 它看起来像是真的。
+     */
+    private function resolveCurrency(array $d, int $projectId): array {
+        $from = $this->currencyOf((int)$d['from_account_id']);
+        $to   = $this->currencyOf((int)$d['to_account_id']);
+        $amount = (float)$d['amount'];
+        $fees   = (float)($d['fees'] ?? 0);
+
+        if ($from === $to) {
+            if (isset($d['to_amount']) && (int)round((float)$d['to_amount'] * 100) !== (int)round($amount * 100)) {
+                throw new \InvalidArgumentException(sprintf(
+                    '同币种划款的到账金额必须等于转出金额 %.2f（手续费 %.2f 从转出账户另行扣除），不能自行填写',
+                    $amount, $fees
+                ));
+            }
+            return ['to_amount' => $amount, 'official_rate' => null, 'actual_rate' => null, 'exchange_loss' => 0.0];
+        }
+
+        if (!isset($d['to_amount']) || (float)$d['to_amount'] <= 0) {
+            throw new \InvalidArgumentException(sprintf('%s → %s 为跨币种划款，必须填写实际到账金额', $from, $to));
+        }
+        $toAmount = (float)$d['to_amount'];
+
+        require_once __DIR__ . '/ExchangeRateService.php';
+        $rates = [];
+        foreach ((new ExchangeRateService($this->db))->listRates($projectId) as $c) {
+            $rates[$c['code']] = $c;
+        }
+        foreach ([$from, $to] as $code) {
+            $r = $rates[$code] ?? null;
+            if (!$r || $r['isExpired'] || !$r['rateToUsd']) {
+                throw new \RuntimeException(sprintf(
+                    '%s 的汇率已失效，无法核算这笔跨币种划款。请先在「配置管理 → 账户配置 → 币种管理」中更新汇率。',
+                    $code
+                ));
+            }
+        }
+
+        // 官方汇率＝1 单位转出币折合多少转入币，两边都以 USD 为锚换算得到
+        $officialRate = $rates[$from]['rateToUsd'] / $rates[$to]['rateToUsd'];
+        // 手续费不参与换算：它从转出账户另扣，不影响这笔钱按汇率应换到多少
+        $expected     = round($amount * $officialRate, 2);
+        // 实际汇率按真实到账倒推，与官方汇率的差额就是汇兑损益
+        $actualRate   = $amount > 0 ? $toAmount / $amount : 0;
+
+        return [
+            'to_amount'     => $toAmount,
+            'official_rate' => round($officialRate, 8),
+            'actual_rate'   => round($actualRate, 8),
+            'exchange_loss' => round($expected - $toAmount, 2),
+        ];
+    }
+
+    private function currencyOf(int $accountId): string {
+        $stmt = $this->db->prepare("SELECT currency_type FROM accounts WHERE id = ?");
+        $stmt->execute([$accountId]);
+        $c = $stmt->fetchColumn();
+        if (!$c) throw new \InvalidArgumentException('账户不存在');
+        return (string)$c;
     }
 
     private function assertAccountInProject(int $accountId, int $projectId): void {

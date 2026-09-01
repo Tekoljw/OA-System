@@ -77,6 +77,9 @@ class ApplicationService {
         return [
             'id'          => (int)$r['id'],
             'type'        => $r['type'],
+            // 一级流水类型：列表上展示它比 income/expense 有信息量得多
+            'transactionTypeCode' => $r['transaction_type_code'] ?? null,
+            'transactionTypeName' => $r['transaction_type_name'] ?? null,
             'title'       => $r['title'],
             'amount'      => (float)$r['amount'],
             'currency'    => $r['currency_type'],
@@ -270,6 +273,7 @@ class ApplicationService {
         if (!in_array($app['status'], ['to_be_allocated', 'ready_for_execution', 'approved'], true)) {
             throw new \RuntimeException('该申请单当前状态不可归帐：' . $app['status']);
         }
+        $this->assertCurrencyMatches((int)$d['account_id'], $app);
 
         // 归账不传科目时保留申请人已选的科目，否则会把它清成空，
         // 落账后这笔流水就没有归类了
@@ -306,6 +310,8 @@ class ApplicationService {
             $subjectId = $d['subject_id'] ?? $app['allocated_subject_id'] ?? null;
             if ($accountId <= 0) throw new \InvalidArgumentException('缺少归帐账户，无法执行');
             $this->assertBelongsToProject('accounts', $accountId, $projectId, '账户');
+            // 执行阶段再兜底校验一次：allocate 可被跳过（直接传 account_id 执行）
+            $this->assertCurrencyMatches($accountId, $app);
 
             // 收款类申请生成 income，付款类生成 expense
             $txType = in_array($app['type'], ['income', 'sales', 'lending'], true) ? 'income' : 'expense';
@@ -365,6 +371,26 @@ class ApplicationService {
     }
 
     // ==================== 内部工具 ====================
+
+    /**
+     * 归帐账户的币种必须与申请单一致。
+     * 不校验的话，一笔 100 USD 的申请归到人民币账户，会直接给该账户加 100 元 ——
+     * 金额原样落账、不做换算，账目从此对不上，而且没有任何报错。
+     */
+    private function assertCurrencyMatches(int $accountId, array $app): void {
+        $stmt = $this->db->prepare("SELECT name, currency_type FROM accounts WHERE id = ?");
+        $stmt->execute([$accountId]);
+        $acc = $stmt->fetch(\PDO::FETCH_ASSOC);
+        if (!$acc) throw new \InvalidArgumentException('账户不存在');
+
+        $appCurrency = $app['currency_type'] ?? 'CNY';
+        if ((string)$acc['currency_type'] !== (string)$appCurrency) {
+            throw new \InvalidArgumentException(sprintf(
+                '账户「%s」是 %s 账户，与申请单的 %s 不一致。请选择 %s 账户，或改用内部划款做币种转换。',
+                $acc['name'], $acc['currency_type'], $appCurrency, $appCurrency
+            ));
+        }
+    }
 
     private function assertBelongsToProject(string $table, int $id, int $projectId, string $label): void {
         $stmt = $this->db->prepare("SELECT 1 FROM $table WHERE id = ? AND project_id = ?");

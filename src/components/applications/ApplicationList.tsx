@@ -175,10 +175,18 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
         apiRequest('GET', '/api/accounts?limit=200'),
         apiRequest('GET', '/api/subjects'),
       ]);
-      setAccounts(Array.isArray(accRes?.data) ? accRes.data : []);
-      // 科目类型需与申请类型一致：收入申请只能记到收入科目
-      const wanted = app.type === 'income' ? 'income' : 'expense';
-      setSubjects((Array.isArray(subRes?.data) ? subRes.data : []).filter((x: any) => x.type === wanted));
+      // 账户币种必须与申请单一致：否则 100 USD 会原样记成 100 CNY，
+      // 后端也会拒绝，这里先过滤掉，免得选了才报错
+      const appCurrency = (app as any).currency || (app as any).currencyType || 'CNY';
+      const allAccounts = Array.isArray(accRes?.data) ? accRes.data : [];
+      setAccounts(allAccounts.filter((a: any) => (a.currency_type || a.currencyType) === appCurrency));
+
+      // 科目池按一级流水类型分，只列本申请所属类型下的科目
+      const ttCode = (app as any).transactionTypeCode;
+      const allSubjects = Array.isArray(subRes?.data) ? subRes.data : [];
+      setSubjects(ttCode
+        ? allSubjects.filter((x: any) => x.transaction_type_code === ttCode)
+        : allSubjects.filter((x: any) => x.type === (app.type === 'income' ? 'income' : 'expense')));
     } catch {
       setAccounts([]); setSubjects([]);
     }
@@ -306,7 +314,7 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
                     <Tag className="h-4 w-4 text-muted-foreground" />
                     <span className="text-sm">
                       <Badge variant="outline" className={getTypeColor(app.type)}>
-                        {getTypeText(app.type)}
+                        {(app as any).transactionTypeName || getTypeText(app.type)}
                       </Badge>
                     </span>
                   </div>
@@ -395,7 +403,8 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
                       <TableCell className="font-medium">APP-{app.id.toString().padStart(4, '0')}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={getTypeColor(app.type)}>
-                          {getTypeText(app.type)}
+                          {/* 优先显示一级流水类型，比 income/expense 具体 */}
+                          {(app as any).transactionTypeName || getTypeText(app.type)}
                         </Badge>
                       </TableCell>
                       <TableCell>{app.title}</TableCell>
