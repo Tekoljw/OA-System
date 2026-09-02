@@ -53,7 +53,7 @@ class ApplicationService {
         }
 
         $page  = max(1, (int)($q['page'] ?? 1));
-        $limit = min(200, max(1, (int)($q['limit'] ?? 50)));
+        $limit = (($__l = (int)($q['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
 
         $rows = $this->repo->findByProject($projectId, $filters, $page, $limit);
         return [
@@ -70,6 +70,21 @@ class ApplicationService {
         $shape = $this->toApiShape($row);
         $shape['approvals'] = $this->approval->getApprovals('application_id', $id);
         return $shape;
+    }
+
+    /**
+     * 日期归一化：空值转 null，非法格式当场拒绝。
+     * 只认 Y-m-d，且要求解析回来与输入一致 —— 否则 2026-13-45 这种
+     * 会被 PHP 悄悄进位成 2027-01-14，存下来的是个谁也没填过的日期。
+     */
+    public static function normalizeDate($value, string $label): ?string {
+        if ($value === null || $value === '') return null;
+        $value = trim((string)$value);
+        $dt = \DateTime::createFromFormat('Y-m-d', $value);
+        if (!$dt || $dt->format('Y-m-d') !== $value) {
+            throw new \InvalidArgumentException($label . '格式不正确，应为 2026-01-31 这样的日期');
+        }
+        return $value;
     }
 
     /** 数据库行 → 前端期望的字段名 */
@@ -118,6 +133,9 @@ class ApplicationService {
         if (empty($d['type']))                                    throw new \InvalidArgumentException('申请类型不能为空');
         if (empty($d['project_id']))                              throw new \InvalidArgumentException('项目ID不能为空');
         if (empty($d['department_id']))                           throw new \InvalidArgumentException('部门不能为空');
+        // 非法日期不校验的话会一路撞到 date 列上，
+        // 报给用户的是「数据库操作失败」，看不出是日期填错了
+        $d['due_date'] = self::normalizeDate($d['due_date'] ?? null, '期限日期');
 
         $this->assertBelongsToProject('departments', (int)$d['department_id'], (int)$d['project_id'], '部门');
 

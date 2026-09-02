@@ -18,7 +18,7 @@ class AssetService {
 
     public function getAssets(int $projectId, array $q): array {
         $page  = max(1, (int)($q['page'] ?? 1));
-        $limit = min(200, max(1, (int)($q['limit'] ?? 50)));
+        $limit = (($__l = (int)($q['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
         $filters = array_filter([
             'status'        => $q['status'] ?? null,
             'asset_type_id' => $q['assetTypeId'] ?? $q['asset_type_id'] ?? null,

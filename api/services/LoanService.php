@@ -38,7 +38,7 @@ class LoanService {
         }
 
         $page  = max(1, (int)($q['page'] ?? 1));
-        $limit = min(200, max(1, (int)($q['limit'] ?? 50)));
+        $limit = (($__l = (int)($q['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
         $whereStr = implode(' AND ', $where);
 
         $stmt = $this->db->prepare("
@@ -128,6 +128,9 @@ class LoanService {
     }
 
     public function create(array $d): array {
+        require_once __DIR__ . '/ApplicationService.php';
+        // 还款日同样要校验：非法格式撞到 date 列上只会报「数据库操作失败」
+        $d['repayment_date'] = ApplicationService::normalizeDate($d['repayment_date'] ?? null, '还款日期');
         if (empty($d['type']) || !in_array($d['type'], self::TYPES, true)) {
             throw new \InvalidArgumentException('借贷类型无效');
         }

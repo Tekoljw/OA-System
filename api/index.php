@@ -310,7 +310,7 @@ try {
 
             if ($method === 'GET' && !$resourceId) {
                 $page = max(1, (int)($_GET['page'] ?? 1));
-                $limit = min(200, max(1, (int)($_GET['limit'] ?? 50)));
+                $limit = (($__l = (int)($_GET['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
                 $currency = $_GET['currency'] ?? null;
                 $type = $_GET['type'] ?? null;
                 $result = $accountService->getAccounts($projectId, $page, $limit, $currency, $type);
@@ -377,7 +377,7 @@ try {
 
             if ($method === 'GET' && !$resourceId) {
                 $page = max(1, (int)($_GET['page'] ?? 1));
-                $limit = min(200, max(1, (int)($_GET['limit'] ?? 50)));
+                $limit = (($__l = (int)($_GET['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
                 $filters = array_filter([
                     'type' => $_GET['type'] ?? null,
                     'status' => $_GET['status'] ?? null,
@@ -1080,7 +1080,7 @@ try {
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
             if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
             $page  = max(1, (int)($_GET['page'] ?? 1));
-            $limit = min(200, max(1, (int)($_GET['limit'] ?? 20)));
+            $limit = (($__l = (int)($_GET['limit'] ?? 20)) > 0 ? min(200, $__l) : 20);
 
             if ($method === 'GET') {
                 Response::paginated(

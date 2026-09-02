@@ -38,7 +38,7 @@ class TransferService {
         }
 
         $page  = max(1, (int)($q['page'] ?? 1));
-        $limit = min(200, max(1, (int)($q['limit'] ?? 50)));
+        $limit = (($__l = (int)($q['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
         $whereStr = implode(' AND ', $where);
 
         $stmt = $this->db->prepare("
