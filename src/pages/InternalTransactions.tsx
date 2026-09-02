@@ -544,10 +544,10 @@ const TransferApprovalDialog: React.FC<TransferApprovalDialogProps> = ({
       });
       setComment("");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "审批失败",
-        description: "操作出错，请稍后重试",
+        description: error?.message || "操作出错，请稍后重试",
         variant: "destructive",
       });
     } finally {
@@ -566,10 +566,10 @@ const TransferApprovalDialog: React.FC<TransferApprovalDialogProps> = ({
       setIsRejectDialogOpen(false);
       setComment("");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "操作失败",
-        description: "拒绝申请失败，请稍后重试",
+        description: error?.message || "拒绝申请失败，请稍后重试",
         variant: "destructive",
       });
     } finally {

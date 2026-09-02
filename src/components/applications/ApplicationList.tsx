@@ -236,17 +236,15 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
       await approveApplication(id, 'approved', comment);
       toast({
         title: "审批成功",
-        description: "申请已批准并转为待归账状态",
+        // 多级审批下本级通过后整单可能仍在等会签，不能一律说已转待归账
+        description: "本级审批已通过",
       });
       if (onRefresh) onRefresh(); // 刷新数据
-    } catch (error) {
+    } catch (error: any) {
       console.error("审批失败:", error);
-      toast({
-        title: "审批失败",
-        description: "操作失败，请稍后重试",
-        variant: "destructive",
-      });
-      throw error; // 向上传递错误以便ApprovalDialog组件处理
+      // 提示交给发起操作的弹窗统一弹，这里只把错误向上抛，
+      // 两处都弹的话同一次失败会连出两个 toast
+      throw error;
     }
   };
   

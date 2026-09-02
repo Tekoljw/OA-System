@@ -50,14 +50,18 @@ const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
       await onApprove(applicationId, comment);
       toast({
         title: "审批成功",
-        description: "申请已通过审批，状态已更新为待归账",
+        // 多级审批下，本级通过后整单可能仍在等下一级会签，
+        // 写死「已转待归账」会让人以为流程走完了
+        description: "本级审批已通过",
       });
       setComment("");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "审批失败",
-        description: "操作出错，请稍后重试",
+        // 服务端会说明具体原因（轮不到你审、状态不对、部门无主管……），
+        // 一律吞成「请稍后重试」的话，用户只能反复重试而不知道错在哪
+        description: error?.message || "操作出错，请稍后重试",
         variant: "destructive",
       });
     } finally {
@@ -76,10 +80,10 @@ const ApprovalDialog: React.FC<ApprovalDialogProps> = ({
       setIsRejectDialogOpen(false);
       setComment("");
       onClose();
-    } catch (error) {
+    } catch (error: any) {
       toast({
         title: "操作失败",
-        description: "拒绝申请失败，请稍后重试",
+        description: error?.message || "拒绝申请失败，请稍后重试",
         variant: "destructive",
       });
     } finally {
