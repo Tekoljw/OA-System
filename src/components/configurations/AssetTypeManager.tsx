@@ -66,13 +66,13 @@ const AssetTypeManager = () => {
             variant: "destructive",
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("获取资产分类列表失败:", error);
         setAssetTypes([]);
         
         toast({
           title: "连接失败",
-          description: "无法连接到服务器获取资产分类数据，请稍后重试",
+          description: error?.message || "无法连接到服务器获取资产分类数据，请稍后重试",
           variant: "destructive"
         });
       } finally {

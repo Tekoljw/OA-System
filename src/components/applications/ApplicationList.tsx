@@ -257,11 +257,11 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
         description: "申请已被拒绝",
       });
       if (onRefresh) onRefresh(); // 刷新数据
-    } catch (error) {
+    } catch (error: any) {
       console.error("拒绝失败:", error);
       toast({
         title: "操作失败",
-        description: "拒绝申请操作失败，请稍后重试",
+        description: error?.message || "拒绝申请操作失败，请稍后重试",
         variant: "destructive",
       });
       throw error; // 向上传递错误以便ApprovalDialog组件处理

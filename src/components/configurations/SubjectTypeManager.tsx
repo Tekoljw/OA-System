@@ -84,7 +84,7 @@ const SubjectTypeManager: React.FC<SubjectTypeManagerProps> = ({
             variant: "destructive",
           });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("获取科目分类列表失败:", error);
         
         // 设置空数组，不使用离线数据
@@ -92,7 +92,7 @@ const SubjectTypeManager: React.FC<SubjectTypeManagerProps> = ({
         
         toast({
           title: "连接失败",
-          description: "无法连接到服务器获取科目分类数据，请稍后重试",
+          description: error?.message || "无法连接到服务器获取科目分类数据，请稍后重试",
           variant: "destructive"
         });
       } finally {

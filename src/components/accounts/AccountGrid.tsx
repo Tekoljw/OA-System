@@ -140,7 +140,7 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
         
         setAccounts(processedAccounts);
         setLoading(false);
-      } catch (err) {
+      } catch (err: any) {
         console.error('获取账户列表失败:', err);
         
         // 显示错误信息，让用户知道连接问题
@@ -150,7 +150,7 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
         
         toast({
           title: "连接失败",
-          description: "无法连接到服务器，请稍后重试",
+          description: err?.message || "无法连接到服务器，请稍后重试",
           variant: "destructive"
         });
       }

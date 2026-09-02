@@ -713,11 +713,11 @@ const PendingExecution: React.FC = () => {
           loadTransfers()
         ]);
         
-      } catch (error) {
+      } catch (error: any) {
         console.error("加载数据失败:", error);
         toast({
           title: "加载失败",
-          description: "获取待执行数据失败，请稍后重试",
+          description: error?.message || "获取待执行数据失败，请稍后重试",
           variant: "destructive"
         });
       } finally {

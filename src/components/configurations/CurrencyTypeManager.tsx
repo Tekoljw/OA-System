@@ -98,13 +98,13 @@ const CurrencyTypeManager = () => {
       try {
         setIsLoading(true);
         syncFromServer(await getExchangeRates());
-      } catch (error) {
+      } catch (error: any) {
         console.error("获取币种列表失败:", error);
         setCurrencies([]);
         toast({
           variant: "destructive",
           title: "获取币种列表失败",
-          description: "无法连接到服务器获取币种数据，请稍后重试",
+          description: error?.message || "无法连接到服务器获取币种数据，请稍后重试",
         });
       } finally {
         setIsLoading(false);

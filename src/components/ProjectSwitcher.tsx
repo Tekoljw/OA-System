@@ -369,13 +369,9 @@ const ProjectSwitcher: React.FC = () => {
           description: `项目"${projectToDelete.name}"已成功删除`
         });
         setIsManageDialogOpen(false); // 关闭管理窗口
-      } else {
-        toast({
-          title: "删除失败",
-          description: "无法删除项目，请稍后重试",
-          variant: "destructive"
-        });
       }
+      // 失败提示由 deleteProject 内部统一弹出（那里拿得到服务端给的原因），
+      // 这里再弹一次只会多出一条没有原因的重复提示
     } catch (error: any) {
       toast({
         title: "删除失败",

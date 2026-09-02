@@ -43,12 +43,12 @@ const AccountTypeManager = () => {
         setIsLoading(true);
         const data = await getAccountTypes();
         setAccountTypes(data);
-      } catch (error) {
+      } catch (error: any) {
         console.error("获取账户类型列表失败:", error);
         toast({
           variant: "destructive",
           title: "获取账户类型列表失败",
-          description: "请稍后再试或联系管理员",
+          description: error?.message || "请稍后再试或联系管理员",
         });
       } finally {
         setIsLoading(false);
