@@ -270,7 +270,13 @@ class ApplicationService {
 
         $app = $this->repo->findDetail($id, $projectId);
         if (!$app) throw new \RuntimeException('申请单不存在');
-        if (!in_array($app['status'], ['to_be_allocated', 'ready_for_execution', 'approved'], true)) {
+        // 已落账就不能再改归账账户 —— 钱已经动了，只能靠冲销处理
+        if (!empty($app['transaction_id'])) {
+            throw new \RuntimeException('该申请单已执行落账，不能再修改归帐账户');
+        }
+        // to_be_executed 也允许改：归账选错账户是常见的，执行前理应能改正，
+        // 此前一旦归账就锁死，只能一路执行下去记成错账
+        if (!in_array($app['status'], ['to_be_allocated', 'ready_for_execution', 'approved', 'to_be_executed'], true)) {
             throw new \RuntimeException('该申请单当前状态不可归帐：' . $app['status']);
         }
         $this->assertCurrencyMatches((int)$d['account_id'], $app);

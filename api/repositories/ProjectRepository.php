@@ -72,6 +72,43 @@ class ProjectRepository extends BaseRepository {
         ] as [$name, $code, $type, $desc, $tt]) {
             $sub->execute([$name, $code, $type, $desc, $projectId, $tt]);
         }
+
+        $this->seedApprovalRules($projectId);
+    }
+
+    /**
+     * 默认审批规则：按金额分三档，额度按部门主管当天已审总额累计。
+     * 不铺这三条的话，新项目提交任何申请都会停在
+     * 「未找到匹配的审批规则」上 —— 整个审批流不可用。
+     * 金额门槛是通用起点，用户可在「配置管理 → 审批规则」里改。
+     */
+    private function seedApprovalRules(int $projectId): void {
+        $rule = $this->db->prepare(
+            "INSERT INTO approval_rules
+                (project_id, name, min_amount, max_amount, amount_scope, priority, active)
+             VALUES (?,?,?,?, 'daily', ?, TRUE) RETURNING id"
+        );
+        $node = $this->db->prepare(
+            "INSERT INTO approval_rule_nodes (rule_id, step_order, approver_type, approver_role, required_count)
+             VALUES (?,?,?,?,?)"
+        );
+
+        // 小额：仅部门主管
+        $rule->execute([$projectId, '小额（部门主管）', 0, 100, 10]);
+        $id = (int)$rule->fetchColumn();
+        $node->execute([$id, 1, 'applicant_dept_manager', null, 1]);
+
+        // 中额：部门主管 + 一名管理员
+        $rule->execute([$projectId, '中额（部门主管 + 管理员）', 100, 10000, 20]);
+        $id = (int)$rule->fetchColumn();
+        $node->execute([$id, 1, 'applicant_dept_manager', null, 1]);
+        $node->execute([$id, 2, 'role', 'admin', 1]);
+
+        // 大额：部门主管 + 两名管理员会签，无金额上限
+        $rule->execute([$projectId, '大额（部门主管 + 多名管理员会签）', 10000, null, 30]);
+        $id = (int)$rule->fetchColumn();
+        $node->execute([$id, 1, 'applicant_dept_manager', null, 1]);
+        $node->execute([$id, 2, 'role', 'admin', 2]);
     }
 
     public function update(int $id, array $data): ?array {

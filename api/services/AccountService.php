@@ -22,6 +22,14 @@ class AccountService {
         if (empty($data['currency_type'])) throw new \InvalidArgumentException('币种不能为空');
         if (empty($data['project_id'])) throw new \InvalidArgumentException('项目ID不能为空');
 
+        // 开户余额要同时落到 balance：此前只写 initial_balance，
+        // 账户建出来余额是 0，任何支出都被判「余额不足」，
+        // 而界面上明明填了开户金额
+        $initial = (float)($data['initial_balance'] ?? 0);
+        if ($initial < 0) throw new \InvalidArgumentException('初始余额不能为负数');
+        $data['initial_balance'] = $initial;
+        $data['balance'] = $initial;
+
         $account = $this->repo->create($data);
 
         $this->logActivity('create', 'accounts', (int)$account['id'],
