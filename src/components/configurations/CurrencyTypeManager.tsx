@@ -58,7 +58,10 @@ const CurrencyTypeManager = () => {
   const { reloadRates, baseCurrency } = useBaseCurrency();
   // 汇率只能由会计维护：它直接决定所有换算结果，等同于账目口径
   const { can } = usePermissions();
+  // 两种权限在这一页并存：汇率归会计维护，币种本身的增删改归配置管理。
+  // 会计能进这页是为了改汇率，不该看到能点却必然 403 的「添加币种」
   const canMaintainRate = can('manage_accounting');
+  const canManageCurrency = can('manage_configurations');
 
   /** 列表变化时重置草稿与倒计时基准（不覆盖用户正在输入的行） */
   const syncFromServer = (list: ExchangeRate[], keepDraftId?: string) => {
@@ -480,7 +483,10 @@ const CurrencyTypeManager = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
         <div className="flex gap-2">
-          <Button onClick={handleAdd}><Plus className="mr-2" />添加币种</Button>
+          <Button onClick={handleAdd} disabled={!canManageCurrency}
+                  title={canManageCurrency ? undefined : '只有具备配置管理权限的角色可以增删币种'}>
+            <Plus className="mr-2" />添加币种
+          </Button>
           <Button variant="outline" onClick={handleRefreshAll}
                   disabled={isRefreshing || !canMaintainRate}
                   title={canMaintainRate ? undefined : '只有会计可以维护汇率'}>
@@ -529,11 +535,15 @@ const CurrencyTypeManager = () => {
                           <div className="pr-4">{renderCountdown(currency)}</div>
                         </div>
                         <div className="flex gap-2">
-                          <Button variant="ghost" size="icon" title="编辑币种" aria-label="编辑币种"
+                          <Button variant="ghost" size="icon" aria-label="编辑币种"
+                                  disabled={!canManageCurrency}
+                                  title={canManageCurrency ? '编辑币种' : '只有具备配置管理权限的角色可以编辑币种'}
                                   onClick={() => handleEdit(currency)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="删除币种" aria-label="删除币种"
+                          <Button variant="ghost" size="icon" aria-label="删除币种"
+                                  disabled={!canManageCurrency}
+                                  title={canManageCurrency ? '删除币种' : '只有具备配置管理权限的角色可以删除币种'}
                                   onClick={() => handleDeleteClick(currency.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
@@ -586,11 +596,15 @@ const CurrencyTypeManager = () => {
                       </TableCell>
                       <TableCell className="text-right">
                         <div className="flex gap-2 justify-end">
-                          <Button variant="ghost" size="icon" title="编辑币种" aria-label="编辑币种"
+                          <Button variant="ghost" size="icon" aria-label="编辑币种"
+                                  disabled={!canManageCurrency}
+                                  title={canManageCurrency ? '编辑币种' : '只有具备配置管理权限的角色可以编辑币种'}
                                   onClick={() => handleEdit(currency)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="ghost" size="icon" title="删除币种" aria-label="删除币种"
+                          <Button variant="ghost" size="icon" aria-label="删除币种"
+                                  disabled={!canManageCurrency}
+                                  title={canManageCurrency ? '删除币种' : '只有具备配置管理权限的角色可以删除币种'}
                                   onClick={() => handleDeleteClick(currency.id)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>

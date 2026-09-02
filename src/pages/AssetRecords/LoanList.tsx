@@ -25,10 +25,12 @@ interface LoanListProps {
   onSettle: (loan: Loan) => void;
   /** 手工销账只有会计能做，其他角色仍可查看记录 */
   canSettle?: boolean;
+  /** 删除借贷记录走资产管理权限 */
+  canDelete?: boolean;
   onDelete: (loan: Loan) => void;
 }
 
-export function LoanList({ loans, onSettle, onDelete, canSettle = true }: LoanListProps) {
+export function LoanList({ loans, onSettle, onDelete, canSettle = true, canDelete = true }: LoanListProps) {
   const isMobile = useIsMobile();
 
   const getStatusColor = (status: string): string => {
@@ -181,6 +183,8 @@ export function LoanList({ loans, onSettle, onDelete, canSettle = true }: LoanLi
                   <Button
                     variant="destructive"
                     size="sm"
+                    disabled={!canDelete}
+                    title={canDelete ? undefined : '没有资产管理权限，无法删除'}
                   >
                     删除
                   </Button>
@@ -351,6 +355,8 @@ export function LoanList({ loans, onSettle, onDelete, canSettle = true }: LoanLi
                           <Button
                             variant="outline"
                             size="sm"
+                            disabled={!canDelete}
+                            title={canDelete ? undefined : '没有资产管理权限，无法删除'}
                           >
                             <ShieldAlert className="h-4 w-4 mr-1" />
                             删除

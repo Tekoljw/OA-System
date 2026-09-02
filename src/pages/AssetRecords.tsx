@@ -125,6 +125,8 @@ const AssetRecordsContent: React.FC = () => {
   // 非会计仍可查看资产和处置记录，只是按钮不可点
   const { can } = usePermissions();
   const canAccount = can('manage_accounting');
+  // 删除资产走的是资产管理权限，与报损/减值的会计权限不是一回事
+  const canManageAssets = can('manage_assets');
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
@@ -447,6 +449,8 @@ const AssetRecordsContent: React.FC = () => {
           <Button
             variant="outline"
             size="sm"
+            disabled={!canManageAssets}
+            title={canManageAssets ? undefined : '没有资产管理权限，无法删除'}
             onClick={() => setDeletingAsset(asset)}
           >
             <Trash2 className="h-4 w-4 mr-1" />
@@ -628,6 +632,8 @@ const AssetRecordsContent: React.FC = () => {
                             <Button
                               variant="outline"
                               size="sm"
+                              disabled={!canManageAssets}
+                              title={canManageAssets ? undefined : '没有资产管理权限，无法删除'}
                               onClick={() => setDeletingAsset(asset)}
                             >
                               删除

@@ -51,6 +51,8 @@ export default function LoanRecords() {
   const { currentProject } = useAuth();
   const { can } = usePermissions();
   const canSettle = can('manage_accounting');
+  // 删除借贷记录走资产管理权限，与手工销账的会计权限不是一回事
+  const canDelete = can('manage_assets');
   const [selectedType, setSelectedType] = useState<LoanType | "全部">("全部");
   const [selectedLoan, setSelectedLoan] = useState<Loan | null>(null);
   const [isSettlementDialogOpen, setIsSettlementDialogOpen] = useState(false);
@@ -269,6 +271,7 @@ export default function LoanRecords() {
               loans={visibleLoans}
               onSettle={handleSettle}
               canSettle={canSettle}
+              canDelete={canDelete}
               onDelete={handleDelete}
             />
           </TabsContent>
@@ -279,6 +282,7 @@ export default function LoanRecords() {
                 loans={visibleLoans}
                 onSettle={handleSettle}
                 canSettle={canSettle}
+                canDelete={canDelete}
                 onDelete={handleDelete}
               />
             </TabsContent>
