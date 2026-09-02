@@ -10,7 +10,7 @@ class UserRepository extends BaseRepository {
     public function findByIdSafe(int $id): ?array {
         $stmt = $this->db->prepare("
             SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active,
-                   u.created_at, u.updated_at, u.department_id, d.name AS department_name
+                   u.created_at, u.updated_at, u.department_id, u.notes, d.name AS department_name
             FROM users u
             LEFT JOIN departments d ON d.id = u.department_id
             WHERE u.id = ?
@@ -31,7 +31,7 @@ class UserRepository extends BaseRepository {
         $stmt = $this->db->prepare("
             SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active, u.created_at,
                    up.role as project_role,
-                   u.department_id, d.name AS department_name
+                   u.department_id, u.notes, d.name AS department_name
             FROM users u
             JOIN user_projects up ON u.id = up.user_id
             LEFT JOIN departments d ON d.id = u.department_id
@@ -72,9 +72,9 @@ class UserRepository extends BaseRepository {
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare(
-                "INSERT INTO users (username, password, full_name, email, role, is_active, department_id)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)
-                 RETURNING id, username, full_name, email, role, is_active, department_id, created_at, updated_at"
+                "INSERT INTO users (username, password, full_name, email, role, is_active, department_id, notes)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                 RETURNING id, username, full_name, email, role, is_active, department_id, notes, created_at, updated_at"
             );
             $stmt->execute([
                 $d['username'],
@@ -86,6 +86,7 @@ class UserRepository extends BaseRepository {
                 $d['role'] ?? 'user',
                 $d['is_active'] ?? true,
                 !empty($d['department_id']) ? (int)$d['department_id'] : null,
+                ($d['notes'] ?? '') !== '' ? $d['notes'] : null,
             ]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 
@@ -100,6 +101,15 @@ class UserRepository extends BaseRepository {
             throw $e;
         }
         return $user;
+    }
+
+    /**
+     * 重置密码（管理员操作，不校验旧密码）。
+     * 与 changePassword 的区别：后者是本人修改、必须验证旧密码。
+     */
+    public function resetPassword(int $userId, string $newPassword): void {
+        $stmt = $this->db->prepare("UPDATE users SET password = ?, updated_at = NOW() WHERE id = ?");
+        $stmt->execute([password_hash($newPassword, PASSWORD_BCRYPT), $userId]);
     }
 
     /** 某部门的成员；部门页展开时用，此前服务端没有这个查询 */

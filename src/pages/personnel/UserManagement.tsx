@@ -327,7 +327,6 @@ const UserManagement = () => {
         fullName: userData.fullName,
         role: userData.role,
         email: userData.email || '',
-        phone: userData.phone || '',
         // 下拉里选的是部门 id；此前提交的是 code，服务端也没有存部门的列
         departmentId: userData.department ? Number(userData.department) : null,
         notes: userData.notes || '',
@@ -387,6 +386,9 @@ const UserManagement = () => {
         full_name: userData.fullName,
         role: userData.role,
         departmentId: userData.department ? Number(userData.department) : null,
+        notes: userData.notes ?? '',
+        // 留空表示不改密码；填了就是管理员重置
+        ...(userData.password ? { password: userData.password } : {}),
       });
       
       if (result.success) {

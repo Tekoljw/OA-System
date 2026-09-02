@@ -995,13 +995,33 @@ try {
                 $body = JsonMiddleware::getRequestBody();
                 // 字段白名单：仅允许修改安全的字段
                 $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
-                $allowedFields = ['full_name', 'email'];
+                $allowedFields = ['full_name', 'email', 'notes'];
                 // 具备人员管理权限者额外可修改 role、启用状态、用户名与部门归属
                 if ($canManagePersonnel) {
                     $allowedFields = array_merge($allowedFields, ['role', 'is_active', 'username', 'department_id']);
                 }
                 $safeBody = array_intersect_key($body, array_flip($allowedFields));
+
+                // 重置密码：界面上的用户编辑弹窗一直有密码输入框，但 password 不在白名单里，
+                // 提示「更新成功」而密码分文未动 —— 用户拿新密码登不进去，旧密码照样能用。
+                // 本人可改自己的；改他人的需要人员管理权限。
+                if (($body['password'] ?? '') !== '') {
+                    if (!$canManagePersonnel && (int)$resourceId !== (int)$currentUser['id']) {
+                        Response::error('权限不足，无权重置他人密码', 'FORBIDDEN', 403);
+                    }
+                    if (strlen($body['password']) < 6) {
+                        Response::error('密码长度不能少于6位', 'VALIDATION_ERROR');
+                    }
+                    $userRepo->resetPassword((int)$resourceId, $body['password']);
+                }
+
                 if (empty($safeBody)) {
+                    // 只改了密码也算有效操作
+                    if (($body['password'] ?? '') !== '') {
+                        $user = $userRepo->findByIdSafe((int)$resourceId);
+                        $user ? Response::success($user, '用户更新成功')
+                              : Response::error('用户不存在', 'NOT_FOUND', 404);
+                    }
                     Response::error('无有效的可修改字段', 'VALIDATION_ERROR');
                 }
                 $user = $userRepo->update((int)$resourceId, $safeBody);
