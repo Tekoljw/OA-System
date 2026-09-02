@@ -383,6 +383,8 @@ try {
                     'status' => $_GET['status'] ?? null,
                     'account_id' => $_GET['account_id'] ?? null,
                     'transaction_type_code' => $_GET['transactionTypeCode'] ?? null,
+                    'search' => $_GET['search'] ?? $_GET['searchTerm'] ?? null,
+                    'date'   => $_GET['date'] ?? null,
                 ]);
                 $result = $txService->getTransactions($projectId, $filters, $page, $limit);
                 Response::paginated($result['items'], $result['total'], $page, $limit);

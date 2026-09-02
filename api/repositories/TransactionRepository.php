@@ -5,28 +5,7 @@ class TransactionRepository extends BaseRepository {
     protected string $table = 'transactions';
 
     public function findByProject(int $projectId, array $filters = [], int $page = 1, int $limit = 50): array {
-        $where = ['t.project_id = ?'];
-        $params = [$projectId];
-
-        if (!empty($filters['type'])) {
-            $where[] = 't.type = ?';
-            $params[] = $filters['type'];
-        }
-        if (!empty($filters['status'])) {
-            $where[] = 't.status = ?';
-            $params[] = $filters['status'];
-        }
-        if (!empty($filters['account_id'])) {
-            $where[] = 't.account_id = ?';
-            $params[] = $filters['account_id'];
-        }
-        // 按一级流水类型筛选，比只分收入/支出细一层
-        if (!empty($filters['transaction_type_code'])) {
-            $where[] = 't.transaction_type_code = ?';
-            $params[] = $filters['transaction_type_code'];
-        }
-
-        $whereStr = implode(' AND ', $where);
+        [$whereStr, $params] = $this->buildWhere($projectId, $filters);
         $offset = ($page - 1) * $limit;
 
         $stmt = $this->db->prepare("
@@ -52,22 +31,56 @@ class TransactionRepository extends BaseRepository {
     }
 
     public function countByProject(int $projectId, array $filters = []): int {
-        $where = ['project_id = ?'];
+        // 必须与列表用同一套过滤条件：此前 count 只认 type/status，
+        // 按账户或关键字筛选后总数仍是全量，前端据此判断「还有没有下一页」必然出错
+        [$whereStr, $params] = $this->buildWhere($projectId, $filters);
+        $stmt = $this->db->prepare("
+            SELECT COUNT(*)
+            FROM transactions t
+            LEFT JOIN accounts a    ON t.account_id    = a.id
+            LEFT JOIN subjects s    ON t.subject_id    = s.id
+            LEFT JOIN departments d ON t.department_id = d.id
+            WHERE $whereStr
+        ");
+        $stmt->execute($params);
+        return (int) $stmt->fetchColumn();
+    }
+
+    /** 列表与计数共用的过滤条件 */
+    private function buildWhere(int $projectId, array $filters): array {
+        $where  = ['t.project_id = ?'];
         $params = [$projectId];
 
         if (!empty($filters['type'])) {
-            $where[] = 'type = ?';
+            $where[]  = 't.type = ?';
             $params[] = $filters['type'];
         }
         if (!empty($filters['status'])) {
-            $where[] = 'status = ?';
+            $where[]  = 't.status = ?';
             $params[] = $filters['status'];
         }
+        if (!empty($filters['account_id'])) {
+            $where[]  = 't.account_id = ?';
+            $params[] = $filters['account_id'];
+        }
+        // 按一级流水类型筛选，比只分收入/支出细一层
+        if (!empty($filters['transaction_type_code'])) {
+            $where[]  = 't.transaction_type_code = ?';
+            $params[] = $filters['transaction_type_code'];
+        }
+        // 关键字搜索：服务端此前根本没实现，前端传了参数也被忽略，
+        // 搜什么都返回全部数据的第一页，用户以为搜到了
+        if (!empty($filters['search'])) {
+            $where[] = '(t.description ILIKE ? OR a.name ILIKE ? OR s.name ILIKE ? OR d.name ILIKE ?)';
+            $kw = '%' . $filters['search'] . '%';
+            array_push($params, $kw, $kw, $kw, $kw);
+        }
+        if (!empty($filters['date'])) {
+            $where[]  = 't.transaction_date = ?';
+            $params[] = $filters['date'];
+        }
 
-        $whereStr = implode(' AND ', $where);
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM transactions WHERE $whereStr");
-        $stmt->execute($params);
-        return (int) $stmt->fetchColumn();
+        return [implode(' AND ', $where), $params];
     }
 
     public function getTransactionSummary(int $projectId, string $period = 'month'): array {

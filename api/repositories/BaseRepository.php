@@ -69,9 +69,18 @@ abstract class BaseRepository {
             if (!preg_match('/^[a-zA-Z_][a-zA-Z0-9_]*$/', $key)) {
                 continue; // 跳过非法列名
             }
-            $safe[$key] = $value;
+            $safe[$key] = self::normalizeValue($value);
         }
         return $safe;
+    }
+
+    /**
+     * PDO 把 PHP 的 false 绑成空字符串，Postgres 的 boolean 列直接拒收，
+     * 报出来是「数据库操作失败」—— 停用用户、关闭开关这类操作看着成功、实则没落库。
+     * 统一转成 'true'/'false' 字面量。
+     */
+    protected static function normalizeValue($value) {
+        return is_bool($value) ? ($value ? 'true' : 'false') : $value;
     }
 
     public function create(array $data): array {
