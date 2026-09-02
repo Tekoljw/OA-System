@@ -1108,11 +1108,35 @@ try {
     }
 } catch (\InvalidArgumentException $e) {
     Response::error($e->getMessage(), 'VALIDATION_ERROR', 400);
+} catch (\PDOException $e) {
+    // 必须排在 RuntimeException 之前：PDOException 是它的子类，
+    // 顺序反了会把整段 SQLSTATE 原文（含表名、约束名、SQL 片段）
+    // 当成业务提示直接返回给用户
+    error_log("Database error: " . $e->getMessage());
+
+    // 几类常见约束翻译成人话再返回。只说「数据库操作失败」，
+    // 用户不知道是名称太长还是编码重复，改都不知道从哪改起；
+    // 但也不能把原文抛出去，那会暴露表结构
+    $sqlState = $e->getCode();
+    $raw      = $e->getMessage();
+    if ($sqlState === '23505') {
+        Response::error('该编码或名称已存在，请换一个', 'DUPLICATE', 400);
+    }
+    if ($sqlState === '22001') {
+        Response::error('输入内容过长，请缩短后重试', 'VALUE_TOO_LONG', 400);
+    }
+    if ($sqlState === '23503') {
+        Response::error('关联的数据不存在，或该记录仍被其他数据引用', 'FK_VIOLATION', 400);
+    }
+    if ($sqlState === '23514') {
+        Response::error('输入的数值不在允许范围内', 'CHECK_VIOLATION', 400);
+    }
+    if ($sqlState === '23502') {
+        Response::error('必填项缺失，请检查表单', 'NOT_NULL_VIOLATION', 400);
+    }
+    Response::error('数据库操作失败', 'DB_ERROR', 500);
 } catch (\RuntimeException $e) {
     Response::error($e->getMessage(), 'BUSINESS_ERROR', 400);
-} catch (\PDOException $e) {
-    error_log("Database error: " . $e->getMessage());
-    Response::error('数据库操作失败', 'DB_ERROR', 500);
 } catch (\Exception $e) {
     error_log("Unexpected error: " . $e->getMessage());
     Response::error('服务器内部错误', 'INTERNAL_ERROR', 500);

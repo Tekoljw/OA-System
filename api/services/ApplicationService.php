@@ -109,6 +109,11 @@ class ApplicationService {
         if (!isset($d['amount']) || !is_numeric($d['amount']) || (float)$d['amount'] <= 0) {
             throw new \InvalidArgumentException('金额必须大于0');
         }
+        // 金额列是 numeric(15,2)：0.001 这类会被舍成 0.00 撞上 CHECK 约束，
+        // 报给用户的是一整段 SQLSTATE 原文，得在这里挡住
+        if (round((float)$d['amount'], 2) < 0.01) {
+            throw new \InvalidArgumentException('金额最小为 0.01');
+        }
         if ((float)$d['amount'] > 999999999.99)                   throw new \InvalidArgumentException('金额超出有效范围');
         if (empty($d['type']))                                    throw new \InvalidArgumentException('申请类型不能为空');
         if (empty($d['project_id']))                              throw new \InvalidArgumentException('项目ID不能为空');

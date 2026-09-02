@@ -110,6 +110,21 @@ class TransferService {
         if (!isset($d['amount']) || !is_numeric($d['amount']) || (float)$d['amount'] <= 0) {
             throw new \InvalidArgumentException('划款金额必须大于0');
         }
+        // 金额列是 numeric(15,2)，超限或小于一分都会撞库约束，
+        // 报给用户的是一整段 SQLSTATE 原文；上限此前根本没校验，10 亿也能提交
+        if (round((float)$d['amount'], 2) < 0.01) {
+            throw new \InvalidArgumentException('划款金额最小为 0.01');
+        }
+        if (!is_finite((float)$d['amount']) || (float)$d['amount'] > 999999999.99) {
+            throw new \InvalidArgumentException('划款金额超出有效范围（最大 9.99 亿）');
+        }
+        $feeInput = $d['fees'] ?? 0;
+        if (!is_numeric($feeInput) || (float)$feeInput < 0) {
+            throw new \InvalidArgumentException('手续费不能为负数');
+        }
+        if ((float)$feeInput > 999999999.99) {
+            throw new \InvalidArgumentException('手续费超出有效范围');
+        }
         $projectId = (int)$d['project_id'];
         foreach (['from_account_id', 'to_account_id'] as $k) {
             $this->assertAccountInProject((int)$d[$k], $projectId);
