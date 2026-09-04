@@ -28,6 +28,21 @@ async function api(method, path, token, body) {
 }
 const msg = r => r?.error?.message || r?.message || '';
 
+/** 衍生记录的账面是否对得平：借贷剩余额、资产账面价值 */
+function derivedMismatch() {
+    const sql = `
+      SELECT
+        (SELECT COUNT(*) FROM loans l
+           LEFT JOIN (SELECT loan_id, SUM(amount) settled FROM loan_settlements GROUP BY 1) s ON s.loan_id=l.id
+         WHERE l.remaining_amount <> l.amount - COALESCE(s.settled,0))
+      + (SELECT COUNT(*) FROM assets a
+           LEFT JOIN (SELECT asset_id, SUM(amount) disposed FROM asset_depreciations GROUP BY 1) d ON d.asset_id=a.id
+         WHERE a.remaining_value <> a.total_price - COALESCE(d.disposed,0));`;
+    return parseInt(execFileSync('docker',
+        ['compose','exec','-T','postgres','psql','-U','postgres','-d','oa_system','-tAc',sql],
+        { stdio: 'pipe' }).toString().trim(), 10);
+}
+
 /** 找不到对应划款单的流水数量。这类流水方向无从判断，会让核对失真 */
 function orphanTransferCount() {
     const sql = `SELECT COUNT(*) FROM transactions t WHERE t.type='transfer'
@@ -98,6 +113,9 @@ function unbalancedCount() {
         console.log(`  ℹ️  有 ${orphans} 条找不到划款单的流水（多为其他套件的清理残留），相关账户不参与核对`);
     }
     assert('全部账户余额与流水一致', unbalancedCount() === 0, `${unbalancedCount()} 个账户对不上`);
+    // 借贷剩余额 = 原额 − Σ销账；资产账面 = 总额 − Σ处置。
+    // 衍生记录被冲减时若没同步扣减，这里会立刻发现
+    assert('借贷剩余额与资产账面对得平', derivedMismatch() === 0, `${derivedMismatch()} 条对不上`);
 
     const accs = (await api('GET', '/api/accounts?projectId=1&limit=200', T)).data || [];
     const cny = accs.filter(a => a.currency_type === 'CNY').sort((x, y) => Number(y.balance) - Number(x.balance));
@@ -152,6 +170,7 @@ function unbalancedCount() {
 
     console.log('\n[3] 落账后重新对账');
     assert('全部账户仍然对平', unbalancedCount() === 0, `${unbalancedCount()} 个账户对不上`);
+    assert('衍生记录仍然对平', derivedMismatch() === 0, `${derivedMismatch()} 条对不上`);
 
     // 本套件自己造的划款单要清掉，否则留给后面的套件就是孤儿流水
     execFileSync('docker', ['compose','exec','-T','postgres','psql','-U','postgres','-d','oa_system','-c',

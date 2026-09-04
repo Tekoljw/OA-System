@@ -483,9 +483,13 @@ try {
                 $body['project_id']   = $projectId;
                 $body['submitter_id'] = $body['submitterId'] ?? $currentUser['id'];
                 $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
-                // 空串不能直接写进 date 列（invalid input syntax for type date）
-                $body['due_date']      = ($body['dueDate'] ?? '') !== '' ? $body['dueDate'] : null;
-                $body['related_party'] = ($body['relatedParty'] ?? '') !== '' ? $body['relatedParty'] : null;
+                // 驼峰与下划线两种写法都接受。旁边几行都做了兜底，
+                // 唯独这两行只认驼峰，传下划线写法会被直接覆盖成 null ——
+                // 借贷记录的「对方」和「约定还款日」就这么丢了
+                $dueRaw = $body['dueDate'] ?? $body['due_date'] ?? '';
+                $body['due_date']      = $dueRaw !== '' ? $dueRaw : null;
+                $partyRaw = $body['relatedParty'] ?? $body['related_party'] ?? '';
+                $body['related_party'] = $partyRaw !== '' ? $partyRaw : null;
                 $body['type']          = $body['applicationType'] ?? $body['type'] ?? null;
                 $body['shareholder_id'] = $body['shareholderId'] ?? $body['shareholder_id'] ?? null;
                 $body['allocated_account_id'] = $body['accountId'] ?? $body['allocated_account_id'] ?? null;
