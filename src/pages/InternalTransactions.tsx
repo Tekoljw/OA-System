@@ -1257,20 +1257,8 @@ const InternalTransactions: React.FC = () => {
       return false;
     }
     
-    // 搜索筛选
-    const searchLower = searchTerm.toLowerCase();
-    if (searchTerm && !transfer.id.toLowerCase().includes(searchLower) && 
-        !transfer.fromAccount.toLowerCase().includes(searchLower) && 
-        !transfer.toAccount.toLowerCase().includes(searchLower) && 
-        !transfer.submitter.toLowerCase().includes(searchLower) &&
-        !transfer.status.toLowerCase().includes(searchLower)) {
-      return false;
-    }
-    
-    // 日期筛选
-    if (dateFilter && !transfer.submitTime.includes(format(dateFilter, 'yyyy-MM-dd'))) {
-      return false;
-    }
+    // 搜索与日期都已交给服务端处理，这里不再二次过滤 ——
+    // 本地只能筛已加载的那一页，跨页的匹配结果反而会被误伤掉
     
     return true;
   });

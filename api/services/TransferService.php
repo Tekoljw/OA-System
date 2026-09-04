@@ -37,25 +37,43 @@ class TransferService {
             $params  = array_merge($params, $map[$status]);
         }
 
+        // 关键字搜索：服务端此前没有实现，前端传了 search 也被忽略，
+        // 搜什么都返回全部，本地过滤又只能覆盖当前这一页
+        if (!empty($q['search'])) {
+            $where[] = '(fa.name ILIKE ? OR ta.name ILIKE ? OR su.full_name ILIKE ?
+                         OR t.reason ILIKE ? OR CAST(t.id AS TEXT) = ?)';
+            $kw = '%' . $q['search'] . '%';
+            array_push($params, $kw, $kw, $kw, $kw, (string)$q['search']);
+        }
+        if (!empty($q['date'])) {
+            $where[]  = "t.created_at::date = ?";
+            $params[] = $q['date'];
+        }
+
         $page  = max(1, (int)($q['page'] ?? 1));
         $limit = (($__l = (int)($q['limit'] ?? 50)) > 0 ? min(200, $__l) : 50);
         $whereStr = implode(' AND ', $where);
+
+        // 计数与列表共用同一套 JOIN：搜索条件涉及 accounts / users 上的字段，
+        // 计数若不带 JOIN 就会算出与列表不一致的总数，分页随之出错
+        $fromClause = "
+            FROM transfers t
+            LEFT JOIN accounts fa ON t.from_account_id = fa.id
+            LEFT JOIN accounts ta ON t.to_account_id   = ta.id
+            LEFT JOIN users su    ON t.submitter_id    = su.id
+            LEFT JOIN users au    ON t.executed_by     = au.id";
 
         $stmt = $this->db->prepare("
             SELECT t.*, fa.name AS from_account_name, fa.currency_type AS from_currency,
                    ta.name AS to_account_name,  ta.currency_type AS to_currency,
                    su.full_name AS submitter_name, au.full_name AS approver_name
-            FROM transfers t
-            LEFT JOIN accounts fa ON t.from_account_id = fa.id
-            LEFT JOIN accounts ta ON t.to_account_id   = ta.id
-            LEFT JOIN users su    ON t.submitter_id    = su.id
-            LEFT JOIN users au    ON t.executed_by     = au.id
+            $fromClause
             WHERE $whereStr ORDER BY t.created_at DESC, t.id DESC LIMIT ? OFFSET ?
         ");
         $stmt->execute(array_merge($params, [$limit, ($page - 1) * $limit]));
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $cnt = $this->db->prepare("SELECT COUNT(*) FROM transfers t WHERE $whereStr");
+        $cnt = $this->db->prepare("SELECT COUNT(*) $fromClause WHERE $whereStr");
         $cnt->execute($params);
 
         return [
