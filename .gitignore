@@ -61,3 +61,4 @@ dist/
 
 # 测试产物：浏览器截图，每次跑测试都会重新生成
 test-screenshots/
+.claude/settings.local.json
