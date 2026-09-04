@@ -36,6 +36,10 @@ class ConfigService {
     }
 
     public function deleteCurrencyType(int $id, int $projectId = 0): bool {
+        // accounts.currency_type 存的是币种代码字符串，不是外键 ——
+        // 数据库拦不住，删掉之后账户挂着一个已不存在的币种，
+        // 汇率查不到、换算全部失效，而且无从知道原本是什么币种
+        $this->assertCodeNotUsed('currency_types', 'accounts', 'currency_type', $id, $projectId, '币种', '账户');
         $ok = $this->repo->deleteItem('currency_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'currency_types', $id,
@@ -69,6 +73,8 @@ class ConfigService {
     }
 
     public function deleteAccountType(int $id, int $projectId = 0): bool {
+        // accounts.account_type 同样是代码字符串而非外键
+        $this->assertCodeNotUsed('account_types', 'accounts', 'account_type', $id, $projectId, '账户类型', '账户');
         $ok = $this->repo->deleteItem('account_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'account_types', $id,
@@ -251,6 +257,32 @@ class ConfigService {
     /**
      * 检查配置项是否被交易引用，有引用则禁止删除
      */
+    /**
+     * 按「代码」判断配置项是否仍被使用。
+     * 币种与账户类型在业务表里是以代码字符串存的，没有外键约束，
+     * 删除时数据库不会报错，只能在这里挡。
+     */
+    private function assertCodeNotUsed(
+        string $configTable, string $usedTable, string $usedColumn,
+        int $id, int $projectId, string $label, string $refLabel
+    ): void {
+        $stmt = $this->db->prepare("SELECT code FROM {$configTable} WHERE id = ?");
+        $stmt->execute([$id]);
+        $code = $stmt->fetchColumn();
+        if ($code === false || $code === null || $code === '') return;
+
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM {$usedTable} WHERE {$usedColumn} = ? AND project_id = ?"
+        );
+        $stmt->execute([$code, $projectId]);
+        $n = (int)$stmt->fetchColumn();
+        if ($n > 0) {
+            throw new \InvalidArgumentException(sprintf(
+                '该%s已被 %d 个%s使用，无法删除。请先调整这些%s。', $label, $n, $refLabel, $refLabel
+            ));
+        }
+    }
+
     /** 被业务记录引用的配置项不能删 —— 删掉会让历史记录失去归类 */
     private function assertNotReferenced(
         string $table, string $column, int $id, string $label, string $refLabel

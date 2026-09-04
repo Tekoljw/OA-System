@@ -44,6 +44,11 @@ class RoleService {
         return $this->repo->findAllRoles();
     }
 
+    /** 按角色码取角色，用于把 users.role 同步到 users.role_id */
+    public function findRoleByCode(string $code): ?array {
+        return $this->repo->findByCode($code);
+    }
+
     /** 角色码是否存在（用于建/改用户时校验，避免写死白名单） */
     public function roleExists(string $code): bool {
         return $this->repo->findByCode($code) !== null;

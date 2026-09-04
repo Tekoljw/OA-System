@@ -72,9 +72,13 @@ class UserRepository extends BaseRepository {
         $this->db->beginTransaction();
         try {
             $stmt = $this->db->prepare(
-                "INSERT INTO users (username, password, full_name, email, role, is_active, department_id, notes)
-                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                 RETURNING id, username, full_name, email, role, is_active, department_id, notes, created_at, updated_at"
+                // role 与 role_id 必须同时写：只写 role 的话，
+                // 按 role_id 统计的「该角色下还有几个用户」永远是 0，
+                // 角色可以被直接删掉，这些用户随之失去权限
+                "INSERT INTO users
+                    (username, password, full_name, email, role, is_active, department_id, notes, role_id)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT id FROM roles WHERE code = ?))
+                 RETURNING id, username, full_name, email, role, is_active, department_id, notes, role_id, created_at, updated_at"
             );
             $stmt->execute([
                 $d['username'],
@@ -89,6 +93,7 @@ class UserRepository extends BaseRepository {
                 self::normalizeValue($d['is_active'] ?? true),
                 !empty($d['department_id']) ? (int)$d['department_id'] : null,
                 ($d['notes'] ?? '') !== '' ? $d['notes'] : null,
+                $d['role'] ?? 'user',
             ]);
             $user = $stmt->fetch(PDO::FETCH_ASSOC);
 

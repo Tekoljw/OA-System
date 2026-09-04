@@ -1004,6 +1004,14 @@ try {
                 }
                 $safeBody = array_intersect_key($body, array_flip($allowedFields));
 
+                // users 里角色存了两份：role（代码字符串）与 role_id（外键）。
+                // 只改 role 不同步 role_id 的话，按 role_id 统计的「该角色下还有几个用户」
+                // 永远数不到人，角色的删除保护就形同虚设 —— 删掉后这些用户会失去权限。
+                if (array_key_exists('role', $safeBody)) {
+                    $roleRow = $roleService->findRoleByCode((string)$safeBody['role']);
+                    $safeBody['role_id'] = $roleRow ? (int)$roleRow['id'] : null;
+                }
+
                 // 重置密码：界面上的用户编辑弹窗一直有密码输入框，但 password 不在白名单里，
                 // 提示「更新成功」而密码分文未动 —— 用户拿新密码登不进去，旧密码照样能用。
                 // 本人可改自己的；改他人的需要人员管理权限。
