@@ -103,6 +103,16 @@ class AccountService {
             throw new \RuntimeException(sprintf('该账户下有 %d 条交易记录，无法删除。请先处理相关交易。', $txCount));
         }
 
+        // 账上还有钱就不能销户。销户后该账户不再计入总资产，
+        // 余额却仍挂在库里 —— 这笔钱在报表上凭空消失，对不上也查不着。
+        $balance = (float)($existing['balance'] ?? 0);
+        if (abs($balance) >= 0.01) {
+            throw new \InvalidArgumentException(sprintf(
+                '账户「%s」还有余额 %.2f，不能销户。请先划出或处理完余额。',
+                $existing['name'], $balance
+            ));
+        }
+
         // 软删除：将状态改为 closed，保留历史数据
         $stmt = $this->db->prepare("UPDATE accounts SET status = 'closed', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$id]);

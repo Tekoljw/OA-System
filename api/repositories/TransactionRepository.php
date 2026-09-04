@@ -111,12 +111,20 @@ class TransactionRepository extends BaseRepository {
             ? "AND t.transaction_date >= date_trunc('month', CURRENT_DATE)"
             : "AND t.transaction_date >= date_trunc('year', CURRENT_DATE)";
 
+        // 两处口径问题：
+        // 1) 原先用 JOIN subjects，没有科目的流水（股东入资/分红、还款、
+        //    出售资产等，它们的二级选的是股东或具体记录，本就不挂科目）
+        //    会被整个排除，图表合计比实际收入少一大截，用户却看不出少了什么
+        // 2) 没有过滤 status，未完成的流水也被算了进去
+        // 现在按科目归类，无科目的回落到一级流水类型名，保证合计等于总额
         $stmt = $this->db->prepare("
-            SELECT s.name as subject_name, COALESCE(SUM(t.amount), 0) as total
+            SELECT COALESCE(s.name, tt.name, '未分类') as subject_name,
+                   COALESCE(SUM(t.amount), 0) as total
             FROM transactions t
-            JOIN subjects s ON t.subject_id = s.id
-            WHERE t.project_id = ? AND t.type = ? $dateCondition
-            GROUP BY s.name
+            LEFT JOIN subjects s          ON t.subject_id = s.id
+            LEFT JOIN transaction_types tt ON tt.code = t.transaction_type_code
+            WHERE t.project_id = ? AND t.type = ? AND t.status = 'completed' $dateCondition
+            GROUP BY COALESCE(s.name, tt.name, '未分类')
             ORDER BY total DESC
         ");
         $stmt->execute([$projectId, $type]);
@@ -170,12 +178,15 @@ class TransactionRepository extends BaseRepository {
             ? "AND t.transaction_date >= date_trunc('month', CURRENT_DATE)"
             : "AND t.transaction_date >= date_trunc('year', CURRENT_DATE)";
 
+        // 与按科目统计同样的两处问题：JOIN 会漏掉没有部门的支出，
+        // 且未过滤 status，未完成的流水也被计入
         $stmt = $this->db->prepare("
-            SELECT d.name as department_name, COALESCE(SUM(t.amount), 0) as total
+            SELECT COALESCE(d.name, '未指定部门') as department_name,
+                   COALESCE(SUM(t.amount), 0) as total
             FROM transactions t
-            JOIN departments d ON t.department_id = d.id
-            WHERE t.project_id = ? AND t.type = 'expense' $dateCondition
-            GROUP BY d.name
+            LEFT JOIN departments d ON t.department_id = d.id
+            WHERE t.project_id = ? AND t.type = 'expense' AND t.status = 'completed' $dateCondition
+            GROUP BY COALESCE(d.name, '未指定部门')
             ORDER BY total DESC
         ");
         $stmt->execute([$projectId]);
