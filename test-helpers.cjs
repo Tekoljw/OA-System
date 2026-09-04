@@ -91,7 +91,32 @@ async function createTransactionViaApproval(ctx, {
     return { ok: true, applicationId: id };
 }
 
+/**
+ * 按流水重算全部账户余额。
+ *
+ * 清理脚本会直接删流水（产品里没有这个操作 —— 账本只能由审批流写入），
+ * 删完不重算的话，账户余额里就留着已经不存在的流水的影响，
+ * 之后任何账目核对都会把这些账户算成不平。
+ */
+function recalcBalances() {
+    psql(`
+        WITH tx AS (
+          SELECT account_id, SUM(CASE WHEN type='income' THEN amount ELSE 0 END) inc,
+                 SUM(CASE WHEN type='expense' THEN amount ELSE 0 END) exp
+          FROM transactions WHERE status='completed' AND type<>'transfer' GROUP BY account_id
+        ), tr_out AS (
+          SELECT from_account_id acc, SUM(amount+fees) amt FROM transfers WHERE out_transaction_id IS NOT NULL GROUP BY 1
+        ), tr_in AS (
+          SELECT to_account_id acc, SUM(to_amount) amt FROM transfers WHERE in_transaction_id IS NOT NULL GROUP BY 1
+        )
+        UPDATE accounts a SET balance = COALESCE(a.initial_balance,0)
+          + COALESCE((SELECT inc FROM tx WHERE tx.account_id=a.id),0)
+          - COALESCE((SELECT exp FROM tx WHERE tx.account_id=a.id),0)
+          + COALESCE((SELECT amt FROM tr_in WHERE tr_in.acc=a.id),0)
+          - COALESCE((SELECT amt FROM tr_out WHERE tr_out.acc=a.id),0);`, '余额重算');
+}
+
 module.exports = {
-    TEST_PREFIXES, likeClause, psql, resetShareholders,
+    TEST_PREFIXES, likeClause, psql, resetShareholders, recalcBalances,
     createTransactionViaApproval,
 };

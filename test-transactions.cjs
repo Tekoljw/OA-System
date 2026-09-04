@@ -6,7 +6,7 @@
  * 以及内部划款页与「划款单」数据源的字段对应关系。
  */
 const http = require('http');
-const { psql, createTransactionViaApproval } = require('./test-helpers.cjs');
+const { psql, createTransactionViaApproval, recalcBalances } = require('./test-helpers.cjs');
 
 const BASE = 'http://localhost:8000';
 const TAG = 'TX' + Date.now().toString().slice(-6);
@@ -44,9 +44,18 @@ function resetFixtures() {
     psql(`
         DELETE FROM loan_settlements WHERE project_id=1;
         DELETE FROM application_approvals WHERE transfer_id IN (SELECT id FROM transfers WHERE project_id=1);
+        -- 先删划款单产生的流水，再删划款单本身。
+        -- 顺序反了或漏了这一步，流水会变成找不到划款单的孤儿：
+        -- 它的 type 是 'transfer'，方向只能经 transfers 表判断，
+        -- 于是任何账目核对都会把这些账户算成不平。
+        DELETE FROM transactions
+         WHERE id IN (SELECT out_transaction_id FROM transfers WHERE project_id=1 AND out_transaction_id IS NOT NULL)
+            OR id IN (SELECT in_transaction_id  FROM transfers WHERE project_id=1 AND in_transaction_id  IS NOT NULL);
         DELETE FROM transfers WHERE project_id=1;
-        DELETE FROM transactions WHERE project_id=1 AND description LIKE 'TX%';
+        DELETE FROM transactions WHERE project_id=1 AND (description LIKE 'TX%' OR description LIKE '%] TX%');
         DELETE FROM accounts WHERE project_id=1 AND name LIKE 'TX%';`, '交易测试清理');
+    // 删流水后必须重算余额，否则账户里留着已不存在的流水的影响
+    recalcBalances();
     console.log('  🧹 已清理测试数据');
 }
 
@@ -216,6 +225,10 @@ async function run() {
     assert('并发后余额不为负', cAfter >= 0, `余额 ${cAfter}`);
     assert('账面与成功笔数一致', Math.abs((cBefore - okCount * each) - cAfter) < 0.01,
            `前 ${cBefore}，成功 ${okCount} 笔 × ${each}，后 ${cAfter}`);
+
+    // 结尾也清一次：本套件会造出划款单与对应流水，
+    // 只在开头清理的话，跑完留下的数据会被后面的账目核对当成不平
+    resetFixtures();
 
     console.log(`\n${'='.repeat(52)}`);
     console.log(`交易与划款：总计 ${passed + failed} | ✅ ${passed} | ❌ ${failed}`);
