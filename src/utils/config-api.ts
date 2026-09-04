@@ -368,7 +368,22 @@ export async function getAccounts(currency?: string, type?: string): Promise<Acc
     
     console.log('获取账户列表，基础URL:', url);
     const result = await apiRequest('GET', url);
-    return result.data || [];
+    // 服务端返回 snake_case，组件按驼峰取值 —— 不转换的话
+    // accountNumber / bank / limit / currencyType / accountType 全是 undefined，
+    // 点「编辑」时 limit.toString() 直接把页面打崩
+    return (result.data || []).map((a: any) => ({
+      id: String(a.id),
+      name: a.name,
+      accountNumber: a.account_number ?? a.accountNumber ?? '',
+      bank: a.bank_name ?? a.bank ?? '',
+      balance: Number(a.balance ?? 0),
+      limit: Number(a.credit_limit ?? a.limit ?? 0),
+      currencyType: a.currency_type ?? a.currencyType ?? '',
+      accountType: a.account_type ?? a.accountType ?? '',
+      description: a.description ?? '',
+      status: a.status ?? 'active',
+      isVerified: a.isVerified ?? true,
+    }));
   } catch (error) {
     console.error("获取账户列表失败:", error);
     throw error;

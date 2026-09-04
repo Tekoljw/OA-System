@@ -46,12 +46,43 @@ class AccountService {
         if ($currentProjectId > 0 && (int)$existing['project_id'] !== $currentProjectId) {
             throw new \RuntimeException('无权操作其他项目的账户');
         }
-        $result = $this->repo->update($id, $data);
+        // 字段白名单。此前把整个请求体交给仓储，于是一个 PUT 就能把 balance
+        // 改成任意数字 —— 绕开全部审批与流水直接篡改余额，账实从此分离，
+        // 审计日志里还只留下一句「更新账户」。
+        // 余额只能由落账逻辑改动；initial_balance 是开户金额，一旦有流水就不该再动；
+        // project_id 更不能改，否则账户会凭空跨到别的项目去。
+        $allowed = [
+            'name', 'account_number', 'description', 'account_type',
+            'currency_type', 'bank_name', 'credit_limit', 'status', 'open_date',
+        ];
+        $rejected = array_diff(array_keys($data), $allowed);
+        $safe = array_intersect_key($data, array_flip($allowed));
+        if (!$safe) {
+            throw new \InvalidArgumentException(
+                $rejected
+                    ? '这些字段不允许直接修改：' . implode('、', $rejected)
+                    : '无有效的可修改字段'
+            );
+        }
+
+        // 已有流水的账户不允许改币种：历史流水是按原币种记的，改了金额含义就变了
+        if (isset($safe['currency_type']) && $safe['currency_type'] !== $existing['currency_type']) {
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM transactions WHERE account_id = ?");
+            $stmt->execute([$id]);
+            if ((int)$stmt->fetchColumn() > 0) {
+                throw new \InvalidArgumentException(
+                    '该账户已有流水，不能修改币种。历史流水按原币种记账，改了金额含义就变了。'
+                );
+            }
+        }
+
+        $result = $this->repo->update($id, $safe);
         if (!$result) throw new \RuntimeException('更新失败');
 
+        $changed = array_keys($safe);
         $this->logActivity('update', 'accounts', $id,
-            sprintf('更新账户 #%d', $id),
-            null, (int)$existing['project_id']);
+            sprintf('更新账户「%s」：%s', $existing['name'], implode('、', $changed)),
+            $data['updated_by'] ?? null, (int)$existing['project_id']);
 
         return $result;
     }

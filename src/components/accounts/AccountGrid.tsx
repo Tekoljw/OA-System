@@ -637,7 +637,7 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
           name: editingAccount.name,
           accountNumber: editingAccount.accountNumber,
           bank: editingAccount.bank || "",
-          limit: editingAccount.limit.toString(),
+          limit: String(editingAccount.limit ?? 0),
         } : undefined}
       />
     </>
