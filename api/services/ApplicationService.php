@@ -388,11 +388,49 @@ class ApplicationService {
         return $this->getApplication($id, $projectId);
     }
 
+    /**
+     * 删除申请单。
+     *
+     * 此前只挡了「已执行完成」，于是任何登录用户都能删掉别人的申请，
+     * 包括已经走完审批、正等着会计执行的单据 —— 审批过程与凭据一并消失，
+     * 且没有任何痕迹可查。
+     *
+     * 现在的口径：只有提交人本人（或具备人员管理权限者）能删，
+     * 且仅限尚未进入审批流转的阶段 —— 一旦有人签过字，
+     * 这张单据就是审批留痕的一部分，只能驳回，不能抹掉。
+     */
     public function delete(int $id, int $projectId, array $user): void {
         $app = $this->repo->findDetail($id, $projectId);
         if (!$app) throw new \RuntimeException('申请单不存在');
         if ($app['status'] === 'completed') {
             throw new \RuntimeException('已执行完成的申请单不可删除');
+        }
+
+        require_once __DIR__ . '/RoleService.php';
+        $canManage = (new RoleService($this->db))->can($user, 'manage_personnel');
+        $isOwner   = (int)($app['submitter_id'] ?? 0) === (int)($user['id'] ?? -1);
+        if (!$isOwner && !$canManage) {
+            throw new \InvalidArgumentException('只能删除本人提交的申请单');
+        }
+
+        // 审批一旦开始流转，这张单据就是留痕的一部分，不能抹掉。
+        // 已驳回是例外：流程已经终结，留着也走不下去，允许提交人清理。
+        if ($app['status'] !== 'rejected') {
+            $acted = $this->db->prepare(
+                "SELECT COUNT(*) FROM application_approvals
+                 WHERE application_id = ? AND status <> 'pending'"
+            );
+            $acted->execute([$id]);
+            if ((int)$acted->fetchColumn() > 0) {
+                throw new \InvalidArgumentException(
+                    '该申请单已有审批记录，不能删除。如需作废请走驳回。'
+                );
+            }
+        }
+        if (!in_array($app['status'], ['pending', 'rejected'], true)) {
+            throw new \InvalidArgumentException(
+                sprintf('当前状态（%s）不可删除，只有尚未开始审批或已驳回的单据可以删除', $app['status'])
+            );
         }
         $stmt = $this->db->prepare("DELETE FROM applications WHERE id = ? AND project_id = ?");
         $stmt->execute([$id, $projectId]);
