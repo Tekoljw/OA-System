@@ -353,11 +353,17 @@ class TransferService {
     }
 
     private function currencyOf(int $accountId): string {
-        $stmt = $this->db->prepare("SELECT currency_type FROM accounts WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT name, currency_type, status FROM accounts WHERE id = ?");
         $stmt->execute([$accountId]);
-        $c = $stmt->fetchColumn();
-        if (!$c) throw new \InvalidArgumentException('账户不存在');
-        return (string)$c;
+        $acc = $stmt->fetch(PDO::FETCH_ASSOC);
+        if (!$acc) throw new \InvalidArgumentException('账户不存在');
+        // 冻结/销户的账户不能参与划款
+        if (($acc['status'] ?? 'active') !== 'active') {
+            throw new \InvalidArgumentException(sprintf(
+                '账户「%s」已停用，不能用于划款。请先启用该账户或改选其他账户。', $acc['name']
+            ));
+        }
+        return (string)$acc['currency_type'];
     }
 
     private function assertAccountInProject(int $accountId, int $projectId): void {

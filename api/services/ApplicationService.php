@@ -444,11 +444,24 @@ class ApplicationService {
      * 不校验的话，一笔 100 USD 的申请归到人民币账户，会直接给该账户加 100 元 ——
      * 金额原样落账、不做换算，账目从此对不上，而且没有任何报错。
      */
+    /** 账户状态的中文说明 */
+    private static function accountStatusLabel(?string $status): string {
+        return ['inactive' => '已冻结', 'closed' => '已销户', 'frozen' => '已冻结'][$status] ?? ($status ?? '未知');
+    }
+
     private function assertCurrencyMatches(int $accountId, array $app): void {
-        $stmt = $this->db->prepare("SELECT name, currency_type FROM accounts WHERE id = ?");
+        $stmt = $this->db->prepare("SELECT name, currency_type, status FROM accounts WHERE id = ?");
         $stmt->execute([$accountId]);
         $acc = $stmt->fetch(\PDO::FETCH_ASSOC);
         if (!$acc) throw new \InvalidArgumentException('账户不存在');
+
+        // 冻结/销户的账户不能再收付款，否则「停用」这个状态毫无约束力
+        if (($acc['status'] ?? 'active') !== 'active') {
+            throw new \InvalidArgumentException(sprintf(
+                '账户「%s」当前状态为%s，不能用于收付款。请先启用该账户或改选其他账户。',
+                $acc['name'], self::accountStatusLabel($acc['status'])
+            ));
+        }
 
         $appCurrency = $app['currency_type'] ?? 'CNY';
         if ((string)$acc['currency_type'] !== (string)$appCurrency) {

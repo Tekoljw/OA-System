@@ -15,6 +15,8 @@ export interface Account {
   currencyType: string;
   accountType: string;
   bank?: string;
+  /** 服务端的账户状态：active 可收付款，其余（closed/inactive）一律禁止动账 */
+  status?: string;
 }
 
 export interface AccountCreate {

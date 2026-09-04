@@ -28,6 +28,7 @@ import {
   deleteAccount 
 } from "../../utils/config-api";
 import { useToast } from "../../hooks/use-toast";
+import { apiRequest } from "../../api/client";
 import { usePermissions } from "../../hooks/use-permissions";
 
 // 使用从config-api导入的Account接口
@@ -113,12 +114,14 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
           limit: account.limit,
           isVerified: account.isVerified ?? true,
           currencyType: account.currencyType,
-          accountType: account.accountType
+          accountType: account.accountType,
+          // 启用状态以服务端的 status 为准，不再从 isVerified 推断 ——
+          // 那是两回事，界面上开关的状态和实际能不能动账对不上
+          status: (account as any).status ?? 'active',
         }));
         
-        // 初始化激活状态（默认所有验证过的账户都是激活的）
         const initialActiveAccounts = processedAccounts
-          .filter(account => account.isVerified)
+          .filter(account => (account as any).status === 'active')
           .map(account => account.id);
         setActiveAccounts(initialActiveAccounts);
         
@@ -364,13 +367,31 @@ const AccountGrid: React.FC<AccountGridProps> = ({ currency, type }) => {
     }
   };
   
-  const handleAccountActiveToggle = (accountId: string, checked: boolean) => {
-    if (checked) {
-      setActiveAccounts(prev => [...prev, accountId]);
-      console.log(`账户 ${accountId} 已启用`);
-    } else {
-      setActiveAccounts(prev => prev.filter(id => id !== accountId));
-      console.log(`账户 ${accountId} 已冻结`);
+  /**
+   * 启用 / 冻结账户。
+   * 此前只改前端数组、打一行日志，服务端一无所知 —— 刷新页面开关就弹回去，
+   * 而被「冻结」的账户照样能收付款。
+   */
+  const handleAccountActiveToggle = async (accountId: string, checked: boolean) => {
+    const prev = activeAccounts;
+    // 先乐观更新，失败再回滚，避免开关卡顿
+    setActiveAccounts(checked ? [...prev, accountId] : prev.filter(id => id !== accountId));
+    try {
+      const res = await apiRequest('PUT', `/api/accounts/${accountId}`, {
+        status: checked ? 'active' : 'closed',
+      });
+      if (!res?.success) throw new Error(res?.message || res?.error?.message || '操作失败');
+      toast({
+        title: checked ? '账户已启用' : '账户已冻结',
+        description: checked ? '该账户可以正常收付款' : '该账户将无法用于收付款与划款',
+      });
+    } catch (err: any) {
+      setActiveAccounts(prev);
+      toast({
+        title: '操作失败',
+        description: err?.message || '请稍后重试',
+        variant: 'destructive',
+      });
     }
   };
 
