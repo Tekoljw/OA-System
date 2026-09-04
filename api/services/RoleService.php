@@ -44,6 +44,19 @@ class RoleService {
         return $this->repo->findAllRoles();
     }
 
+    /**
+     * 角色与权限的变更必须留痕：谁在什么时候给哪个角色加了什么权限，
+     * 是权限体系里最该说得清的一件事，此前完全没有记录。
+     */
+    private function logActivity(string $action, int $roleId, string $description, ?int $userId, int $projectId): void {
+        if ($projectId <= 0 || $userId === null) return;
+        $stmt = $this->db->prepare(
+            "INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id)
+             VALUES (?, 'roles', ?, ?, ?, ?)"
+        );
+        $stmt->execute([$action, $roleId, $description, $userId, $projectId]);
+    }
+
     /** 按角色码取角色，用于把 users.role 同步到 users.role_id */
     public function findRoleByCode(string $code): ?array {
         return $this->repo->findByCode($code);
@@ -72,7 +85,7 @@ class RoleService {
         return [$name, array_values(array_unique($perms))];
     }
 
-    public function createRole(array $d): array {
+    public function createRole(array $d, ?int $userId = null, int $projectId = 0): array {
         [$name, $perms] = $this->validate($d, true);
 
         // code 用于与 users.role 对应；未指定时按名称生成一个安全的标识
@@ -96,12 +109,16 @@ class RoleService {
             $this->db->rollBack();
             throw $e;
         }
+        $this->logActivity('create', (int)$role['id'],
+            sprintf('新建角色「%s」，权限：%s', $name, $perms ? implode('、', $perms) : '无'),
+            $userId, $projectId);
         return $this->repo->findByIdWithPerms((int)$role['id']);
     }
 
-    public function updateRole(int $id, array $d): array {
+    public function updateRole(int $id, array $d, ?int $userId = null, int $projectId = 0): array {
         $role = $this->repo->findByIdWithPerms($id);
         if (!$role) throw new \RuntimeException('角色不存在');
+        $before = $role['permissions'] ?? [];
 
         [$name, $perms] = $this->validate($d, false);
 
@@ -120,10 +137,20 @@ class RoleService {
             $this->db->rollBack();
             throw $e;
         }
+        // 记下权限的增减，而不是只说「更新了角色」——
+        // 出问题时要能一眼看出是谁把哪个权限加上去的
+        $added   = array_values(array_diff($perms, $before));
+        $removed = array_values(array_diff($before, $perms));
+        $changes = [];
+        if ($added)   $changes[] = '新增 ' . implode('、', $added);
+        if ($removed) $changes[] = '移除 ' . implode('、', $removed);
+        $this->logActivity('update', $id,
+            sprintf('修改角色「%s」%s', $name, $changes ? '：' . implode('；', $changes) : '（权限无变化）'),
+            $userId, $projectId);
         return $this->repo->findByIdWithPerms($id);
     }
 
-    public function deleteRole(int $id): void {
+    public function deleteRole(int $id, ?int $userId = null, int $projectId = 0): void {
         $role = $this->repo->findByIdWithPerms($id);
         if (!$role) throw new \RuntimeException('角色不存在');
         if ($role['isSystem']) {
@@ -136,5 +163,7 @@ class RoleService {
         if (!$this->repo->deleteRole($id)) {
             throw new \RuntimeException('删除失败');
         }
+        $this->logActivity('delete', $id,
+            sprintf('删除角色「%s」', $role['name'] ?? ('#' . $id)), $userId, $projectId);
     }
 }

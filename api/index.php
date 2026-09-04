@@ -119,6 +119,20 @@ if ($currentUser
 }
 
 /**
+ * 用户相关操作的审计留痕。
+ * 建号、改角色、停用、重置密码都属于权限层面的动作，
+ * 出了问题必须查得到是谁做的 —— 此前这些操作完全没有记录。
+ */
+function logUserActivity(PDO $db, string $action, int $targetId, string $description, int $userId, int $projectId): void {
+    if ($projectId <= 0) return;
+    $stmt = $db->prepare(
+        "INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id)
+         VALUES (?, 'users', ?, ?, ?, ?)"
+    );
+    $stmt->execute([$action, $targetId, $description, $userId, $projectId]);
+}
+
+/**
  * 账户请求体归一化。
  * 前端表单提交的是 camelCase（accountNumber/currencyType/accountType），
  * 且账户类型传的是显示名（如「活期账户」）而非库中的 code（current），
@@ -888,13 +902,14 @@ try {
                 if (!$roleService->can($currentUser, 'manage_accounting')) {
                     Response::error('权限不足，汇率只能由会计维护', 'FORBIDDEN', 403);
                 }
-                Response::success($rateSvc->refreshAuto($projectId), '汇率刷新完成');
+                Response::success($rateSvc->refreshAuto($projectId, (int)$currentUser['id']), '汇率刷新完成');
             } elseif ($method === 'PUT' && $resourceId) {
                 if (!$roleService->can($currentUser, 'manage_accounting')) {
                     Response::error('权限不足，汇率只能由会计维护', 'FORBIDDEN', 403);
                 }
                 Response::success(
-                    $rateSvc->updateSettings((int)$resourceId, $projectId, JsonMiddleware::getRequestBody()),
+                    $rateSvc->updateSettings((int)$resourceId, $projectId,
+                        JsonMiddleware::getRequestBody(), (int)$currentUser['id']),
                     '汇率已更新'
                 );
             } else {
@@ -926,6 +941,8 @@ try {
         // ===== 角色与权限 =====
         case 'roles':
             $roleSvc = $roleService; // 已在 4.6 处实例化
+            // 角色是全局的，但变更要记进当前项目的审计日志
+            $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
 
             if ($method === 'GET' && $resourceId === 'permissions') {
                 Response::success($roleSvc->allPermissions(), '获取权限项成功');
@@ -942,11 +959,11 @@ try {
                     Response::error('权限不足，无权管理角色', 'FORBIDDEN', 403);
                 }
                 if ($method === 'POST') {
-                    Response::success($roleSvc->createRole(JsonMiddleware::getRequestBody()), '角色创建成功', 201);
+                    Response::success($roleSvc->createRole(JsonMiddleware::getRequestBody(), (int)$currentUser['id'], $projectId), '角色创建成功', 201);
                 } elseif ($method === 'PUT' && $resourceId) {
-                    Response::success($roleSvc->updateRole((int)$resourceId, JsonMiddleware::getRequestBody()), '角色更新成功');
+                    Response::success($roleSvc->updateRole((int)$resourceId, JsonMiddleware::getRequestBody(), (int)$currentUser['id'], $projectId), '角色更新成功');
                 } elseif ($method === 'DELETE' && $resourceId) {
-                    $roleSvc->deleteRole((int)$resourceId);
+                    $roleSvc->deleteRole((int)$resourceId, (int)$currentUser['id'], $projectId);
                     Response::success(null, '角色删除成功');
                 } else {
                     Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -996,6 +1013,9 @@ try {
                     // 用户管理界面一直有部门下拉，此前提交上来直接被丢弃
                     'department_id' => $body['departmentId'] ?? $body['department_id'] ?? null,
                 ], $projectId);
+                logUserActivity($db, 'create', (int)$newUser['id'],
+                    sprintf('创建用户「%s」，角色 %s', $body['username'], $roleCode),
+                    (int)$currentUser['id'], $projectId);
                 Response::success($newUser, '用户创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 // 具备人员管理权限者可改任何人，其余只能改自己
@@ -1005,7 +1025,11 @@ try {
                 }
                 $body = JsonMiddleware::getRequestBody();
                 // 字段白名单：仅允许修改安全的字段
-                $body['department_id'] = $body['departmentId'] ?? $body['department_id'] ?? null;
+                // 只在请求里确实带了部门时才处理，否则每次改用户都会把部门
+                // 无条件写成 null —— 既误清了归属，审计日志里也总出现「调整所属部门」
+                if (array_key_exists('departmentId', $body)) {
+                    $body['department_id'] = $body['departmentId'];
+                }
                 $allowedFields = ['full_name', 'email', 'notes'];
                 // 具备人员管理权限者额外可修改 role、启用状态、用户名与部门归属
                 if ($canManagePersonnel) {
@@ -1032,6 +1056,9 @@ try {
                         Response::error('密码长度不能少于6位', 'VALIDATION_ERROR');
                     }
                     $userRepo->resetPassword((int)$resourceId, $body['password']);
+                    logUserActivity($db, 'reset_password', (int)$resourceId,
+                        sprintf('重置用户 #%d 的密码', (int)$resourceId),
+                        (int)$currentUser['id'], $projectId);
                 }
 
                 if (empty($safeBody)) {
@@ -1046,6 +1073,16 @@ try {
                 $user = $userRepo->update((int)$resourceId, $safeBody);
                 if ($user) {
                     unset($user['password']);
+                    // 只记权限相关的变更，改个姓名邮箱不必占用审计日志
+                    $notable = [];
+                    if (array_key_exists('role', $safeBody))      $notable[] = '角色改为 ' . $safeBody['role'];
+                    if (array_key_exists('is_active', $safeBody)) $notable[] = ($safeBody['is_active'] ? '启用账号' : '停用账号');
+                    if (array_key_exists('department_id', $safeBody)) $notable[] = '调整所属部门';
+                    if ($notable) {
+                        logUserActivity($db, 'update', (int)$resourceId,
+                            sprintf('修改用户「%s」：%s', $user['username'] ?? ('#' . $resourceId), implode('，', $notable)),
+                            (int)$currentUser['id'], $projectId);
+                    }
                     Response::success($user, '用户更新成功');
                 } else {
                     Response::error('用户不存在', 'NOT_FOUND', 404);
@@ -1066,6 +1103,8 @@ try {
                 if (!$userRepo->delete((int)$resourceId)) {
                     Response::error('用户不存在', 'NOT_FOUND', 404);
                 }
+                logUserActivity($db, 'delete', (int)$resourceId,
+                    sprintf('删除用户 #%d', (int)$resourceId), (int)$currentUser['id'], $projectId);
                 Response::success(null, '用户删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -1107,13 +1146,12 @@ try {
                     $logRepo->countByProject($projectId),
                     $page, $limit
                 );
-            } elseif ($method === 'POST') {
-                $body = JsonMiddleware::getRequestBody();
-                $body['project_id'] = $projectId;
-                $body['user_id']    = $currentUser['id'];
-                Response::success($logRepo->record($body), '日志记录成功', 201);
             } else {
-                Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
+                // 审计日志只能由服务端在各业务操作里自动写入。
+                // 原先开放 POST 让任何登录用户都能插入任意记录 ——
+                // 前端从未用过它，留着只是给伪造审计留了个口子，
+                // 而审计日志一旦可被污染就失去了作为凭据的意义。
+                Response::error('审计日志由系统自动记录，不接受手工写入', 'FORBIDDEN', 403);
             }
             break;
 

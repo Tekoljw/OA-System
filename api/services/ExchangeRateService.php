@@ -22,6 +22,20 @@ class ExchangeRateService {
         $this->db = $db;
     }
 
+    /**
+     * 汇率变动必须留痕。
+     * 汇率直接决定所有换算出来的金额，改一个数字就能让报表面目全非，
+     * 事后却查不到是谁在什么时候改的 —— 这类操作恰恰最需要审计。
+     */
+    private function logActivity(string $action, int $targetId, string $description, ?int $userId, int $projectId): void {
+        if ($projectId <= 0) return;
+        $stmt = $this->db->prepare(
+            "INSERT INTO activity_logs (action, target_type, target_id, description, user_id, project_id)
+             VALUES (?, 'currency_types', ?, ?, ?, ?)"
+        );
+        $stmt->execute([$action, $targetId, $description, $userId, $projectId]);
+    }
+
     /** 拉取失败后的冷却，避免报价源故障时每次请求都去重试并拖慢页面 */
     private const FAIL_COOLDOWN = 600;
     private const FAIL_FLAG = '/tmp/oa-exchange-rate-fail';
@@ -125,7 +139,7 @@ class ExchangeRateService {
 
     // ==================== 维护 ====================
 
-    public function updateSettings(int $id, int $projectId, array $d): array {
+    public function updateSettings(int $id, int $projectId, array $d, ?int $userId = null): array {
         $stmt = $this->db->prepare("SELECT * FROM currency_types WHERE id = ? AND project_id = ?");
         $stmt->execute([$id, $projectId]);
         $cur = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -170,7 +184,24 @@ class ExchangeRateService {
             'UPDATE currency_types SET ' . implode(', ', $sets) . ' WHERE id = ? AND project_id = ?'
         )->execute($params);
 
-        return $this->findOne($id, $projectId);
+        $after = $this->findOne($id, $projectId);
+        $parts = [];
+        if (array_key_exists('rateToUsd', $d) && $d['rateToUsd'] !== null && $d['rateToUsd'] !== '') {
+            $parts[] = sprintf('汇率 %s → %s',
+                $cur['rate_to_usd'] === null ? '未维护' : rtrim(rtrim((string)$cur['rate_to_usd'], '0'), '.'),
+                rtrim(rtrim((string)$after['rateToUsd'], '0'), '.'));
+        }
+        if (array_key_exists('autoFetch', $d)) {
+            $parts[] = ((bool)$d['autoFetch'] ? '改为自动获取' : '改为手动维护');
+        }
+        if (array_key_exists('validHours', $d)) {
+            $parts[] = sprintf('有效期 %d 小时', (int)$d['validHours']);
+        }
+        $this->logActivity('update', $id,
+            sprintf('维护币种「%s」：%s', $after['code'], $parts ? implode('，', $parts) : '无变化'),
+            $userId, $projectId);
+
+        return $after;
     }
 
     public function findOne(int $id, int $projectId): array {
@@ -191,7 +222,7 @@ class ExchangeRateService {
      * 从公开报价刷新所有开启自动获取的币种。
      * @return array{updated:string[], failed:array<string,string>}
      */
-    public function refreshAuto(int $projectId): array {
+    public function refreshAuto(int $projectId, ?int $userId = null): array {
         $stmt = $this->db->prepare(
             "SELECT id, code FROM currency_types
              WHERE project_id = ? AND auto_fetch = TRUE AND code <> 'USD'"
@@ -225,6 +256,13 @@ class ExchangeRateService {
             $updated[] = $code;
         }
         if ($updated) @unlink(self::FAIL_FLAG);
+        if ($userId !== null && ($updated || $failed)) {
+            $this->logActivity('refresh', 0, sprintf(
+                '刷新自动汇率：成功 %s%s',
+                $updated ? implode('、', $updated) : '无',
+                $failed ? '；失败 ' . implode('、', array_keys($failed)) : ''
+            ), $userId, $projectId);
+        }
         return ['updated' => $updated, 'failed' => $failed];
     }
 
