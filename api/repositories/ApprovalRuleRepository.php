@@ -58,7 +58,9 @@ class ApprovalRuleRepository extends BaseRepository {
             ($max === null || $max === '') ? null : (float)$max,
             $d['amount_scope'] ?? 'daily',
             (int)($d['priority'] ?? 0),
-            array_key_exists('active', $d) ? (bool)$d['active'] : true,
+            // PDO 把 PHP 的 false 绑成空字符串，boolean 列直接拒收 ——
+            // 在界面上关掉规则开关会保存失败，报「数据库操作失败」
+            self::normalizeValue(array_key_exists('active', $d) ? (bool)$d['active'] : true),
         ];
     }
 

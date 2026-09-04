@@ -84,7 +84,9 @@ class UserRepository extends BaseRepository {
                 // 空串会让第二个未填邮箱的用户撞 users_email_key，必须保持 NULL
                 ($d['email'] ?? null) !== '' ? ($d['email'] ?? null) : null,
                 $d['role'] ?? 'user',
-                $d['is_active'] ?? true,
+                // PDO 把 PHP 的 false 绑成空字符串，boolean 列拒收 ——
+                // 直接创建停用状态的用户会报「数据库操作失败」
+                self::normalizeValue($d['is_active'] ?? true),
                 !empty($d['department_id']) ? (int)$d['department_id'] : null,
                 ($d['notes'] ?? '') !== '' ? $d['notes'] : null,
             ]);

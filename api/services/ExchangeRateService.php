@@ -140,8 +140,7 @@ class ExchangeRateService {
 
         if (array_key_exists('autoFetch', $d)) {
             $sets[] = 'auto_fetch = ?';
-            // PDO 把 PHP false 绑成空字符串，Postgres 的 boolean 列会直接报
-            // invalid input syntax，必须显式转成 'true'/'false' 字面量
+            // PDO 把 PHP false 绑成空字符串，boolean 列会报 invalid input syntax
             $params[] = ((bool)$d['autoFetch']) ? 'true' : 'false';
         }
         if (array_key_exists('validHours', $d)) {
