@@ -13,6 +13,10 @@ class AuthService {
     }
 
     public function login(string $username, string $password, ?int $projectId = null): array {
+        // 前后空格一律忽略：既避免用户复制粘贴时莫名登不上，
+        // 也堵掉靠加空格把失败次数分散到多个计数键的绕过方式
+        $username = trim($username);
+
         // 暴力破解防护：检查登录失败次数（基于IP + 用户名）
         $this->checkLoginAttempts($username);
 
@@ -139,13 +143,21 @@ class AuthService {
     private const MAX_ATTEMPTS_PER_USER = 20;    // 纯用户名 最多失败次数（防IP伪造绕过）
     private const LOCKOUT_MINUTES = 15;          // 锁定时长（分钟）
 
+    /**
+     * 计数键做了小写归一，但没去空格 —— 「 admin」会被当成另一个账号单独计数，
+     * 攻击者靠加前后空格就能把失败次数分散到多个键上，锁定形同虚设。
+     */
+    private static function normalizeUsername(string $username): string {
+        return strtolower(trim($username));
+    }
+
     private function getLoginKey(string $username): string {
         $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
-        return md5($ip . ':' . strtolower($username));
+        return md5($ip . ':' . self::normalizeUsername($username));
     }
 
     private function getUserLoginKey(string $username): string {
-        return md5('user:' . strtolower($username));
+        return md5('user:' . self::normalizeUsername($username));
     }
 
     private function checkLoginAttempts(string $username): void {
