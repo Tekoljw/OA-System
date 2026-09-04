@@ -386,6 +386,11 @@ try {
                     'search' => $_GET['search'] ?? $_GET['searchTerm'] ?? null,
                     'date'   => $_GET['date'] ?? null,
                 ]);
+                // 出入金页要排除内部划款：划款有独立页面，
+                // 混进来只会让人以为多了一批莫名其妙的收支
+                if (!empty($_GET['excludeTransfer'])) {
+                    $filters['exclude_transfer'] = true;
+                }
                 $result = $txService->getTransactions($projectId, $filters, $page, $limit);
                 Response::paginated($result['items'], $result['total'], $page, $limit);
             } elseif ($method === 'POST') {

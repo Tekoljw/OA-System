@@ -9,7 +9,8 @@ import { apiRequest } from '../api/client';
 export interface TransactionData {
   id: string | number;
   currency: string;
-  type: "收入" | "支出";
+  /** 划款是内部划款产生的流水，不计入收入或支出 */
+  type: "收入" | "支出" | "划款";
   category: string;
   /** 一级流水类型的中文名，如「购买资产支出」 */
   transactionTypeName?: string;
@@ -42,6 +43,8 @@ export interface TransactionQueryParams {
   search?: string;
   /** 按一级流水类型筛选 */
   transactionTypeCode?: string;
+  /** 排除内部划款产生的流水（出入金页用） */
+  excludeTransfer?: boolean;
 }
 
 /**
@@ -53,7 +56,8 @@ function normalizeTransaction(r: any): TransactionData {
   return {
     id: r.id,
     currency: r.currency_type || r.currency || '',
-    type: r.type === 'income' ? '收入' : '支出',
+    // transfer 是内部划款产生的流水，不属于收入或支出
+    type: r.type === 'income' ? '收入' : r.type === 'transfer' ? '划款' : '支出',
     category: r.transaction_type_name || r.category || '',
     transactionTypeName: r.transaction_type_name || undefined,
     transactionTypeCode: r.transaction_type_code || undefined,
@@ -88,6 +92,7 @@ export async function getTransactions(params: TransactionQueryParams = {}): Prom
     if (params.limit) queryParams.append('limit', params.limit.toString());
     if (params.search) queryParams.append('search', params.search);
     if (params.transactionTypeCode) queryParams.append('transactionTypeCode', params.transactionTypeCode);
+    if (params.excludeTransfer) queryParams.append('excludeTransfer', '1');
     
     const queryString = queryParams.toString();
     const url = `/api/transactions${queryString ? `?${queryString}` : ''}`;

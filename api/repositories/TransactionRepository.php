@@ -59,6 +59,11 @@ class TransactionRepository extends BaseRepository {
             $where[]  = 't.status = ?';
             $params[] = $filters['status'];
         }
+        // 内部划款产生的流水（type='transfer'）有独立页面呈现，
+        // 出入金页要能把它们排除掉
+        if (!empty($filters['exclude_transfer'])) {
+            $where[] = "t.type <> 'transfer'";
+        }
         if (!empty($filters['account_id'])) {
             $where[]  = 't.account_id = ?';
             $params[] = $filters['account_id'];

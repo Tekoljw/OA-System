@@ -246,11 +246,11 @@ const MonthlyStats = ({ currency }: { currency: string }) => {
 
 
 
-// 获取交易类型样式
-const getTypeStyle = (type: "收入" | "支出") => {
-  return type === "收入" 
-    ? "bg-green-100 text-green-800" 
-    : "bg-red-100 text-red-800";
+// 获取交易类型样式。本页已排除划款，但类型上仍可能出现，给它一个中性配色
+const getTypeStyle = (type: "收入" | "支出" | "划款") => {
+  if (type === "收入") return "bg-green-100 text-green-800";
+  if (type === "划款") return "bg-blue-100 text-blue-800";
+  return "bg-red-100 text-red-800";
 };
 
 // 获取状态样式
@@ -472,14 +472,14 @@ const ExternalTransactions: React.FC = () => {
       setIsLoading(true);
       
       // 转换交易类型
-      let txType = transactionType;
-      if (transactionType === "income") txType = "收入";
-      if (transactionType === "expense") txType = "支出";
-      
-      // 构建查询参数
+      // 服务端的 type 取值是 income / expense，此前这里把它翻译成中文再传，
+      // 筛选条件永远匹配不上，收入/支出两个页签形同虚设
       const params = {
         currency: selectedCurrency === "all" ? undefined : selectedCurrency,
-        type: transactionType === "all" ? undefined : txType,
+        type: transactionType === "all" ? undefined : transactionType,
+        // 本页是「出入金记录」，内部划款有独立页面。不排除的话
+        // 划款流水会混进来，而且一律显示成「支出」—— 转入的那笔方向是反的
+        excludeTransfer: true,
         page: refresh ? 1 : page,
         limit: ITEMS_PER_PAGE,
         search: searchTerm || undefined
