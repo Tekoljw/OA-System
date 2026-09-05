@@ -155,6 +155,14 @@ const MyApplications: React.FC = () => {
           const apiApps = result.applications.map(app => ({
             id: app.id,
             type: app.type,
+            // 列表的「申请类型」列读的是 transactionTypeName（如「股东分红」），
+            // 这里只挑字段不带上它，前端就回落到 getTypeText(app.type)，
+            // 而它的 switch 里没有 expense/income 分支，于是原样显示成「expense」。
+            // description / content 同理 —— 不带上，「备注说明」列永远是空的。
+            transactionTypeName: (app as any).transactionTypeName,
+            transactionTypeCode: (app as any).transactionTypeCode,
+            description: (app as any).description,
+            content: (app as any).content,
             title: app.title,
             amount: app.amount,
             status: app.status,
@@ -293,6 +301,11 @@ const MyApplications: React.FC = () => {
         const newApps = result.applications.map(app => ({
           id: app.id,
           type: app.type,
+          // 与首屏加载保持同一套字段，漏掉的话翻页之后的行会缺列
+          transactionTypeName: (app as any).transactionTypeName,
+          transactionTypeCode: (app as any).transactionTypeCode,
+          description: (app as any).description,
+          content: (app as any).content,
           title: app.title,
           amount: app.amount,
           status: app.status,

@@ -111,6 +111,15 @@ const PendingAccounting: React.FC = () => {
           fetchedApps = result.applications.map((app: any) => ({
             id: app.id,
             type: app.type || 'payment',
+            // 列表要用到的字段必须完整带上：只挑几个字段的话，
+            // 「申请类型」会回落成原始的 expense/income，「备注说明」「提交人」
+            // 「附件」列则永远是空的 —— 而这几列在归账时正是会计要看的依据
+            transactionTypeName: app.transactionTypeName,
+            transactionTypeCode: app.transactionTypeCode,
+            description: app.description,
+            content: app.content,
+            submitter: app.submitter,
+            images: app.images,
             title: app.title || '未命名申请',
             amount: parseFloat(app.amount) || 0,
             status: app.status || 'pending',
