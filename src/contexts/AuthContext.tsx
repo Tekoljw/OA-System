@@ -97,9 +97,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (userData.projectsList && userData.projectsList.length > 0) {
           setAvailableProjects(userData.projectsList);
 
-          // 设置当前项目 (使用当前项目ID、currentProject或第一个项目)
-          const currentProj = userData.currentProject ||
+          // 设置当前项目：以 projectId 为准。
+          // projectId 是切换项目时唯一被更新的字段，userData.currentProject 是登录那一刻
+          // 写死的快照。若让快照优先，用户切换项目后一刷新就会被打回登录时的项目，
+          // 且 localStorage 也被一并覆盖（可能导致把数据录进错误的项目）。
+          const currentProj =
             userData.projectsList.find(p => p.id === userData.projectId) ||
+            userData.currentProject ||
             userData.projectsList[0];
 
           setCurrentProject(currentProj);
@@ -247,7 +251,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           if (user) {
             const updatedUser = {
               ...user,
-              projectId: selectedProject.id
+              projectId: selectedProject.id,
+              // currentProject 同步更新，避免登录时的旧快照残留在 localStorage 里
+              currentProject: selectedProject
             };
             setUser(updatedUser);
             

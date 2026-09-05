@@ -109,6 +109,19 @@ class AuthService {
         $isSuperAdmin = $this->userRepo->isSuperAdmin($userId);
         $projects = $this->userRepo->getUserProjects($userId, $isSuperAdmin);
 
+        // 当前项目取用户上次选择的那个；没有记录、或该项目已不可访问（被删除、
+        // 权限被收回）时才回落到第一个。此前这里硬编码 $projects[0]，
+        // 导致界面上切换项目后一刷新就被打回第一个项目。
+        $current = null;
+        if (!empty($user['last_project_id'])) {
+            foreach ($projects as $p) {
+                if ((int)$p['id'] === (int)$user['last_project_id']) { $current = $p; break; }
+            }
+        }
+        if ($current === null) {
+            $current = !empty($projects) ? $projects[0] : null;
+        }
+
         return [
             'id' => $user['id'],
             'username' => $user['username'],
@@ -119,8 +132,8 @@ class AuthService {
             'is_super_admin' => $isSuperAdmin,
             'permissions' => $this->permissionsFor($user, $isSuperAdmin),
             'projectsList' => $projects,
-            'currentProject' => !empty($projects) ? $projects[0] : null,
-            'projectId' => !empty($projects) ? $projects[0]['id'] : null,
+            'currentProject' => $current,
+            'projectId' => $current !== null ? $current['id'] : null,
             'hasMultipleProjects' => count($projects) > 1
         ];
     }
@@ -131,6 +144,8 @@ class AuthService {
 
         foreach ($projects as $project) {
             if ($project['id'] == $projectId) {
+                // 落库，否则刷新页面后 getUserInfo() 会把选择覆盖回第一个项目
+                $this->userRepo->setLastProject($userId, $projectId);
                 return $project;
             }
         }

@@ -7,10 +7,20 @@ class UserRepository extends BaseRepository {
     /**
      * 安全查询（不含密码），用于 API 返回
      */
+    /**
+     * 记录用户最后选择的项目。调用方（AuthService::switchProject）已校验过
+     * 该用户确实有权访问 $projectId，这里不再重复校验。
+     */
+    public function setLastProject(int $userId, int $projectId): void {
+        $stmt = $this->db->prepare("UPDATE users SET last_project_id = ? WHERE id = ?");
+        $stmt->execute([$projectId, $userId]);
+    }
+
     public function findByIdSafe(int $id): ?array {
         $stmt = $this->db->prepare("
             SELECT u.id, u.username, u.full_name, u.email, u.role, u.is_active,
-                   u.created_at, u.updated_at, u.department_id, u.notes, d.name AS department_name
+                   u.created_at, u.updated_at, u.department_id, u.notes,
+                   u.last_project_id, d.name AS department_name
             FROM users u
             LEFT JOIN departments d ON d.id = u.department_id
             WHERE u.id = ?
