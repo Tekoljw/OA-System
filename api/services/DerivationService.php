@@ -100,6 +100,11 @@ class DerivationService
 
             case 'asset_type':
                 if (empty($d['asset_type_id'])) throw new \InvalidArgumentException('必须选择资产分类');
+                // 必须校验归属：只判非空的话，传一个别的项目的分类 ID 就能通过，
+                // 执行后生成的资产记录会挂在本项目、却引用他项目的分类
+                if (!$this->belongsToProject('asset_types', (int)$d['asset_type_id'], $projectId)) {
+                    throw new \InvalidArgumentException('资产分类不存在或不属于当前项目');
+                }
                 break;
 
             case 'asset':
@@ -111,6 +116,11 @@ class DerivationService
             case 'shareholder':
                 if (empty($d['shareholder_id'])) {
                     throw new \InvalidArgumentException(sprintf('「%s」必须指定股东', $tt['name']));
+                }
+                // 同上：入资 / 分红都会改动股东的出资与分红累计，
+                // 挂错项目的股东等于把两个项目的股权账搅在一起
+                if (!$this->belongsToProject('shareholders', (int)$d['shareholder_id'], $projectId)) {
+                    throw new \InvalidArgumentException('股东不存在或不属于当前项目');
                 }
                 break;
         }
@@ -231,6 +241,20 @@ class DerivationService
         if ((int)round($amount * 100) > (int)round($limit * 100)) {
             throw new \InvalidArgumentException(sprintf('金额 %.2f 超过%s %.2f', $amount, $label, $limit));
         }
+    }
+
+    /**
+     * 二级选项必须属于当前项目。
+     * loan / asset 通过 findLoan / findAsset 的 project_id 条件天然带上了这层校验，
+     * asset_type 与 shareholder 此前只判了非空，是这一组校验里唯二的缺口。
+     * 表名只允许来自本类内部的字面量，不接受外部输入。
+     */
+    private function belongsToProject(string $table, int $id, int $projectId): bool {
+        if ($id <= 0) return false;
+        if (!in_array($table, ['asset_types', 'shareholders'], true)) return false;
+        $stmt = $this->db->prepare("SELECT 1 FROM $table WHERE id = ? AND project_id = ?");
+        $stmt->execute([$id, $projectId]);
+        return (bool)$stmt->fetchColumn();
     }
 
     private function assertSubjectMatches(int $subjectId, string $ttCode, int $projectId, string $ttName): void {
