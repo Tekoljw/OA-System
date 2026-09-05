@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { useIsMobile } from "../../hooks/use-mobile";
-import { Calendar, FileText, Building, CreditCard, Tag, FileQuestion, CheckCircle2 } from "lucide-react";
+import { Calendar, FileText, Building, CreditCard, Tag, FileQuestion, CheckCircle2, AlertTriangle } from "lucide-react";
 import ImageViewer from "../common/ImageViewer";
 import ApprovalDialog from "./ApprovalDialog";
 import { approveApplication } from "../../utils/approval-api";
@@ -42,6 +42,16 @@ interface ApplicationListProps {
   onRefresh?: () => void; // 添加可选的刷新回调函数
 }
 
+
+/* 选项为空时不能只给一个选不动的下拉：空的 SelectContent 展开后是一条空白窄条，
+   会盖住整个弹窗，连「取消」都点不到，用户只能按 Esc 才能脱身。
+   归账弹窗尤其要紧 —— 会计卡在这里就整条审批链都推不下去。 */
+const EmptyHint = ({ text }: { text: string }) => (
+  <div className="flex items-start gap-2 text-sm text-destructive border rounded-md p-2">
+    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+    <span>{text}</span>
+  </div>
+);
 const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, onRefresh }) => {
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -467,6 +477,9 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
           <div className="space-y-4 py-2">
             <div className="space-y-2">
               <Label>入账账户 *</Label>
+              {accounts.length === 0 ? (
+                <EmptyHint text="本项目还没有账户，无法归账，请先在「账户管理」中添加" />
+              ) : (
               <Select value={allocAccountId} onValueChange={setAllocAccountId}>
                 <SelectTrigger><SelectValue placeholder="请选择账户" /></SelectTrigger>
                 <SelectContent>
@@ -477,9 +490,13 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
                   ))}
                 </SelectContent>
               </Select>
+              )}
             </div>
             <div className="space-y-2">
               <Label>科目</Label>
+              {subjects.length === 0 ? (
+                <EmptyHint text="本项目还没有科目，请先在「配置管理 → 科目分类」中添加" />
+              ) : (
               <Select value={allocSubjectId} onValueChange={setAllocSubjectId}>
                 <SelectTrigger><SelectValue placeholder="请选择科目" /></SelectTrigger>
                 <SelectContent>
@@ -488,6 +505,7 @@ const ApplicationList: React.FC<ApplicationListProps> = ({ applications, type, o
                   ))}
                 </SelectContent>
               </Select>
+              )}
             </div>
           </div>
           <DialogFooter>

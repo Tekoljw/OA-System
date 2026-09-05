@@ -4,7 +4,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Textarea } from "../ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
-import { Loader2, FilePlus } from "lucide-react";
+import { Loader2, FilePlus, AlertTriangle } from "lucide-react";
 import { useToast } from "../../hooks/use-toast";
 import ImageUploader from "../common/ImageUploader";
 import { getDepartments, Department } from "../../utils/departments-api";
@@ -210,14 +210,25 @@ export function ApplicationDialog({ isOpen, onClose, onSubmit, presetType }: App
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium">申请部门</label>
-              <Select value={form.department} onValueChange={v => setForm({ ...form, department: v })}>
-                <SelectTrigger><SelectValue placeholder="请选择部门" /></SelectTrigger>
-                <SelectContent>
-                  {departments.map(d => (
-                    <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {/* 新建项目不会自动创建部门（代建的部门没有主管，会让人误以为审批链已可用），
+                  所以这个下拉在新项目里必然是空的。空的 SelectContent 展开后是一条空白窄条，
+                  会盖住整个弹窗、连「取消」都点不到 —— 必须像 SecondLevelPicker 那样
+                  直接说明原因，而不是给一个选不动的下拉框。 */}
+              {departments.length === 0 ? (
+                <div className="flex items-start gap-2 text-sm text-destructive border rounded-md p-2">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>还没有部门，请先在「人员管理 → 部门配置」中添加</span>
+                </div>
+              ) : (
+                <Select value={form.department} onValueChange={v => setForm({ ...form, department: v })}>
+                  <SelectTrigger><SelectValue placeholder="请选择部门" /></SelectTrigger>
+                  <SelectContent>
+                    {departments.map(d => (
+                      <SelectItem key={d.id} value={String(d.id)}>{d.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 

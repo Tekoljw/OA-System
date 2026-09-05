@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { apiRequest } from "@/api/client";
 import { useToast } from "@/hooks/use-toast";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Users, Plus, Pencil, Trash2, TrendingUp, PieChart, Loader2, DollarSign, ArrowDownToLine } from "lucide-react";
+import { Users, Plus, Pencil, Trash2, TrendingUp, PieChart, Loader2, DollarSign, ArrowDownToLine, AlertTriangle } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 
 // ====== 类型定义 ======
@@ -50,6 +50,16 @@ interface DividendRow {
 }
 
 // ====== 股东表单对话框 ======
+/* 选项为空时不能只给一个选不动的下拉：空的 SelectContent 展开后是一条
+   空白窄条，会盖住整个弹窗，连「取消」都点不到，用户只能按 Esc 脱身。
+   与 SecondLevelPicker 保持同一种表达方式。 */
+const EmptyHint = ({ text }: { text: string }) => (
+  <div className="flex items-start gap-2 text-sm text-destructive border rounded-md p-2">
+    <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+    <span>{text}</span>
+  </div>
+);
+
 function ShareholderFormDialog({
   open, onClose, onSuccess, shareholder, currentRatioSum,
 }: {
@@ -241,6 +251,9 @@ function ShareholderTransactionDialog({
         <div className="space-y-4 py-4">
           <div className="space-y-2">
             <Label>选择股东 *</Label>
+            {shareholders.length === 0 ? (
+              <EmptyHint text="还没有股东，请先在本页「添加股东」中创建" />
+            ) : (
             <Select value={shareholderId} onValueChange={setShareholderId}>
               <SelectTrigger><SelectValue placeholder="请选择股东" /></SelectTrigger>
               <SelectContent>
@@ -251,9 +264,13 @@ function ShareholderTransactionDialog({
                 ))}
               </SelectContent>
             </Select>
+            )}
           </div>
           <div className="space-y-2">
             <Label>所属部门 *</Label>
+            {departments.length === 0 ? (
+              <EmptyHint text="还没有部门，请先在「人员管理 → 部门配置」中添加" />
+            ) : (
             <Select value={departmentId} onValueChange={setDepartmentId}>
               <SelectTrigger><SelectValue placeholder="请选择部门" /></SelectTrigger>
               <SelectContent>
@@ -262,9 +279,13 @@ function ShareholderTransactionDialog({
                 ))}
               </SelectContent>
             </Select>
+            )}
           </div>
           <div className="space-y-2">
             <Label>选择账户 *</Label>
+            {accounts.length === 0 ? (
+              <EmptyHint text="还没有账户，请先在「账户管理」中添加" />
+            ) : (
             <Select value={accountId} onValueChange={setAccountId}>
               <SelectTrigger><SelectValue placeholder="请选择账户" /></SelectTrigger>
               <SelectContent>
@@ -275,6 +296,7 @@ function ShareholderTransactionDialog({
                 ))}
               </SelectContent>
             </Select>
+            )}
           </div>
           <div className="space-y-2">
             <Label>金额 *</Label>
