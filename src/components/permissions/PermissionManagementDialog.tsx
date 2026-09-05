@@ -14,7 +14,7 @@ import { PermissionList } from "./PermissionList";
 import { createRole, updateRole, getPermissionKeys } from "../../utils/roles-api";
 
 const roleFormSchema = z.object({
-  name: z.string().min(2, "Role name must be at least 2 characters"),
+  name: z.string().trim().min(2, "角色名称至少 2 个字符"),
   description: z.string().optional(),
 });
 
