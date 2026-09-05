@@ -36,6 +36,7 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
   const [isPasswordDialogOpen, setIsPasswordDialogOpen] = React.useState(false);
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
+  const [oldPassword, setOldPassword] = React.useState("");
   const { toast } = useToast();
   const navigate = useNavigate();
   // 使用新的useAuth hook
@@ -55,6 +56,14 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
       });
       return;
     }
+    if (!oldPassword) {
+      toast({
+        title: t('common.failedOperation'),
+        description: "请输入当前密码",
+        variant: "destructive",
+      });
+      return;
+    }
     if (newPassword.length < 6) {
       toast({
         title: t('common.failedOperation'),
@@ -67,7 +76,7 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
     try {
       // 使用API修改密码
       const { changePassword } = await import('../../utils/api');
-      const result = await changePassword(newPassword);
+      const result = await changePassword(oldPassword, newPassword);
       
       if (result.success) {
         toast({
@@ -75,6 +84,7 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
           description: t('auth.passwordChangeSuccess'),
         });
         setIsPasswordDialogOpen(false);
+        setOldPassword("");
         setNewPassword("");
         setConfirmPassword("");
       } else {
@@ -161,6 +171,15 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
             <DialogTitle>{t('auth.changePassword')}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              {/* 改自己的密码必须验证当前密码，否则拿到会话就能把人锁在外面 */}
+              <Input
+                type="password"
+                placeholder="当前密码"
+                value={oldPassword}
+                onChange={(e) => setOldPassword(e.target.value)}
+              />
+            </div>
             <div className="space-y-2">
               <Input
                 type="password"

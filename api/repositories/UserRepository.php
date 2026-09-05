@@ -30,6 +30,17 @@ class UserRepository extends BaseRepository {
         return $result ?: null;
     }
 
+    /**
+     * 按 id 取含密码哈希的整行，仅用于校验旧密码。
+     * findByIdSafe 刻意不返回 password，那是给对外接口用的；
+     * 这里单开一个方法，避免为了验密码把敏感字段混进常规查询。
+     */
+    public function findByIdWithPassword(int $id): ?array {
+        $stmt = $this->db->prepare("SELECT id, username, password FROM users WHERE id = ?");
+        $stmt->execute([$id]);
+        return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+    }
+
     public function findByUsername(string $username): ?array {
         $stmt = $this->db->prepare("SELECT * FROM users WHERE username = ?");
         $stmt->execute([$username]);

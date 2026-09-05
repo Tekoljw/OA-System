@@ -1109,8 +1109,25 @@ try {
                 // 提示「更新成功」而密码分文未动 —— 用户拿新密码登不进去，旧密码照样能用。
                 // 本人可改自己的；改他人的需要人员管理权限。
                 if (($body['password'] ?? '') !== '') {
-                    if (!$canManagePersonnel && (int)$resourceId !== (int)$currentUser['id']) {
+                    $isSelf = ((int)$resourceId === (int)$currentUser['id']);
+                    if (!$canManagePersonnel && !$isSelf) {
                         Response::error('权限不足，无权重置他人密码', 'FORBIDDEN', 403);
+                    }
+                    // 改自己的密码必须验证旧密码。此前只要拿到会话就能直接改，
+                    // 不需要知道原密码 —— 未锁屏的电脑、泄露的 token，任何一种
+                    // 都足以让人把账号的密码换掉并把本人锁在外面。
+                    // 管理员重置「他人」密码是管理操作，不需要旧密码（有审计留痕）。
+                    if ($isSelf) {
+                        $old = (string)($body['oldPassword'] ?? $body['old_password'] ?? '');
+                        if ($old === '') {
+                            Response::error('修改自己的密码需要提供当前密码', 'VALIDATION_ERROR');
+                        }
+                        // 按 id 取，不能按 username —— JWT 载荷里没有 username 字段，
+                        // 取到的永远是 null，结果「旧密码正确」也会被判为不正确
+                        $me = $userRepo->findByIdWithPassword((int)$currentUser['id']);
+                        if (!$me || !password_verify($old, $me['password'])) {
+                            Response::error('当前密码不正确', 'VALIDATION_ERROR');
+                        }
                     }
                     if (strlen($body['password']) < 6) {
                         Response::error('密码长度不能少于6位', 'VALIDATION_ERROR');
