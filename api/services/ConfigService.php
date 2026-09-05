@@ -33,13 +33,12 @@ class ConfigService {
         $result = $this->repo->updateItem('currency_types', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'currency_types', $id,
-                sprintf('更新币种 #%d', $id),
-                $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
+                sprintf('更新币种 #%d', $id), $data['updated_by'] ?? $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
         }
         return $result;
     }
 
-    public function deleteCurrencyType(int $id, int $projectId = 0): bool {
+    public function deleteCurrencyType(int $id, int $projectId = 0, ?int $userId = null): bool {
         // accounts.currency_type 存的是币种代码字符串，不是外键 ——
         // 数据库拦不住，删掉之后账户挂着一个已不存在的币种，
         // 汇率查不到、换算全部失效，而且无从知道原本是什么币种
@@ -47,7 +46,7 @@ class ConfigService {
         $ok = $this->repo->deleteItem('currency_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'currency_types', $id,
-                sprintf('删除币种 #%d', $id), null, $projectId);
+                sprintf('删除币种 #%d', $id), $userId, $projectId);
         }
         return $ok;
     }
@@ -74,19 +73,18 @@ class ConfigService {
         $result = $this->repo->updateItem('account_types', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'account_types', $id,
-                sprintf('更新账户类型 #%d', $id),
-                $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
+                sprintf('更新账户类型 #%d', $id), $data['updated_by'] ?? $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
         }
         return $result;
     }
 
-    public function deleteAccountType(int $id, int $projectId = 0): bool {
+    public function deleteAccountType(int $id, int $projectId = 0, ?int $userId = null): bool {
         // accounts.account_type 同样是代码字符串而非外键
         $this->assertCodeNotUsed('account_types', 'accounts', 'account_type', $id, $projectId, '账户类型', '账户');
         $ok = $this->repo->deleteItem('account_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'account_types', $id,
-                sprintf('删除账户类型 #%d', $id), null, $projectId);
+                sprintf('删除账户类型 #%d', $id), $userId, $projectId);
         }
         return $ok;
     }
@@ -155,13 +153,12 @@ class ConfigService {
         $result = $this->repo->updateItem('subjects', $id, $data, $projectId);
         if ($result) {
             $this->logActivity('update', 'subjects', $id,
-                sprintf('更新科目 #%d', $id),
-                $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
+                sprintf('更新科目 #%d', $id), $data['updated_by'] ?? $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
         }
         return $result;
     }
 
-    public function deleteSubject(int $id, int $projectId = 0): bool {
+    public function deleteSubject(int $id, int $projectId = 0, ?int $userId = null): bool {
         $cur = $this->repo->findSubject($id, $projectId);
         if ($cur && !empty($cur['is_system'])) {
             throw new \InvalidArgumentException('系统科目不可删除');
@@ -171,7 +168,7 @@ class ConfigService {
         $ok = $this->repo->deleteItem('subjects', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'subjects', $id,
-                sprintf('删除科目 #%d', $id), null, $projectId);
+                sprintf('删除科目 #%d', $id), $userId, $projectId);
         }
         return $ok;
     }
@@ -198,20 +195,19 @@ class ConfigService {
         $result = $this->repo->updateItem('asset_types', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'asset_types', $id,
-                sprintf('更新资产类型 #%d', $id),
-                $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
+                sprintf('更新资产类型 #%d', $id), $data['updated_by'] ?? $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
         }
         return $result;
     }
 
-    public function deleteAssetType(int $id, int $projectId = 0): bool {
+    public function deleteAssetType(int $id, int $projectId = 0, ?int $userId = null): bool {
         // 外键是 ON DELETE SET NULL：直接删会让已有资产悄悄失去归类，
         // 报表里凭空多出一堆「无分类」资产，且无从追回原来属于哪类
         $this->assertNotReferenced('assets', 'asset_type_id', $id, '资产分类', '资产记录');
         $ok = $this->repo->deleteItem('asset_types', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'asset_types', $id,
-                sprintf('删除资产类型 #%d', $id), null, $projectId);
+                sprintf('删除资产类型 #%d', $id), $userId, $projectId);
         }
         return $ok;
     }
@@ -238,13 +234,12 @@ class ConfigService {
         $result = $this->repo->updateItem('departments', $id, $data, (int)($data['project_id'] ?? 0));
         if ($result) {
             $this->logActivity('update', 'departments', $id,
-                sprintf('更新部门 #%d', $id),
-                $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
+                sprintf('更新部门 #%d', $id), $data['updated_by'] ?? $data['created_by'] ?? null, (int)($data['project_id'] ?? 0));
         }
         return $result;
     }
 
-    public function deleteDepartment(int $id, int $projectId = 0): bool {
+    public function deleteDepartment(int $id, int $projectId = 0, ?int $userId = null): bool {
         // 部门被多张表引用，外键多为 SET NULL：直接删会让历史申请单、流水、
         // 资产、借贷悄悄失去部门归属，部门成本分析从此少一块且无从追回。
         // applications 是 RESTRICT，硬删会抛出外键错误，报给用户也看不懂。
@@ -269,7 +264,7 @@ class ConfigService {
         $ok = $this->repo->deleteItem('departments', $id, $projectId);
         if ($ok) {
             $this->logActivity('delete', 'departments', $id,
-                sprintf('删除部门 #%d', $id), null, $projectId);
+                sprintf('删除部门 #%d', $id), $userId, $projectId);
         }
         return $ok;
     }

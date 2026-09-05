@@ -106,7 +106,7 @@ class AccountService {
         return $result;
     }
 
-    public function deleteAccount(int $id, int $currentProjectId = 0): void {
+    public function deleteAccount(int $id, int $currentProjectId = 0, ?int $userId = null): void {
         $existing = $this->repo->findById($id);
         if (!$existing) throw new \RuntimeException('账户不存在');
         // 跨项目越权校验
@@ -136,9 +136,11 @@ class AccountService {
         $stmt = $this->db->prepare("UPDATE accounts SET status = 'closed', updated_at = NOW() WHERE id = ?");
         $stmt->execute([$id]);
 
+        // 销户是不可逆操作，必须记下是谁做的 —— 此前这里写死 null，
+        // 审计日志里只看得到「关闭了某账户」，看不到经手人
         $this->logActivity('delete', 'accounts', $id,
             sprintf('关闭账户「%s」', $existing['name']),
-            null, (int)$existing['project_id']);
+            $userId, (int)$existing['project_id']);
     }
 
     public function getAccountSummary(int $projectId): array {

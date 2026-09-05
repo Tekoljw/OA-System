@@ -345,7 +345,7 @@ try {
                 $account = $accountService->updateAccount((int)$resourceId, $body, $projectId);
                 Response::success($account, '账户更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
-                $accountService->deleteAccount((int)$resourceId, $projectId);
+                $accountService->deleteAccount((int)$resourceId, $projectId, $currentUser['id'] ?? null);
                 Response::success(null, '账户删除成功');
             } else {
                 Response::error('不支持的请求方法', 'METHOD_NOT_ALLOWED', 405);
@@ -363,15 +363,17 @@ try {
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->createAccountType($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['updated_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->updateAccountType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
                 // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
                 // 否则并发场景下另一人已删除时前端仍会显示成功
-                if (!$configService->deleteAccountType((int)$resourceId, $projectId)) {
+                if (!$configService->deleteAccountType((int)$resourceId, $projectId, $currentUser['id'] ?? null)) {
                     Response::error('账户类型不存在', 'NOT_FOUND', 404);
                 }
                 Response::success(null, '删除成功');
@@ -594,15 +596,17 @@ try {
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->createCurrencyType($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['updated_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->updateCurrencyType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
                 // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
                 // 否则并发场景下另一人已删除时前端仍会显示成功
-                if (!$configService->deleteCurrencyType((int)$resourceId, $projectId)) {
+                if (!$configService->deleteCurrencyType((int)$resourceId, $projectId, $currentUser['id'] ?? null)) {
                     Response::error('币种不存在', 'NOT_FOUND', 404);
                 }
                 Response::success(null, '删除成功');
@@ -629,15 +633,17 @@ try {
             } elseif ($method === 'POST') {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['created_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->createSubject($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['updated_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->updateSubject((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
                 // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
                 // 否则并发场景下另一人已删除时前端仍会显示成功
-                if (!$configService->deleteSubject((int)$resourceId, $projectId)) {
+                if (!$configService->deleteSubject((int)$resourceId, $projectId, $currentUser['id'] ?? null)) {
                     Response::error('科目不存在', 'NOT_FOUND', 404);
                 }
                 Response::success(null, '删除成功');
@@ -740,11 +746,12 @@ try {
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
+                $body['updated_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->updateAssetType((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
                 // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
                 // 否则并发场景下另一人已删除时前端仍会显示成功
-                if (!$configService->deleteAssetType((int)$resourceId, $projectId)) {
+                if (!$configService->deleteAssetType((int)$resourceId, $projectId, $currentUser['id'] ?? null)) {
                     Response::error('资产类型不存在', 'NOT_FOUND', 404);
                 }
                 Response::success(null, '删除成功');
@@ -776,16 +783,18 @@ try {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
                 $body['manager_id'] = $body['managerId'] ?? $body['manager_id'] ?? null;
+                $body['created_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->createDepartment($body), '创建成功', 201);
             } elseif ($method === 'PUT' && $resourceId) {
                 $body = JsonMiddleware::getRequestBody();
                 $body['project_id'] = $projectId;
                 if (array_key_exists('managerId', $body)) $body['manager_id'] = $body['managerId'];
+                $body['updated_by'] = $currentUser['id'] ?? null;
                 Response::success($configService->updateDepartment((int)$resourceId, $body), '更新成功');
             } elseif ($method === 'DELETE' && $resourceId) {
                 // 删不到说明目标不存在或不属于当前项目，不能报「删除成功」，
                 // 否则并发场景下另一人已删除时前端仍会显示成功
-                if (!$configService->deleteDepartment((int)$resourceId, $projectId)) {
+                if (!$configService->deleteDepartment((int)$resourceId, $projectId, $currentUser['id'] ?? null)) {
                     Response::error('部门不存在', 'NOT_FOUND', 404);
                 }
                 Response::success(null, '删除成功');
