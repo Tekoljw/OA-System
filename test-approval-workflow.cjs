@@ -165,8 +165,12 @@ async function run() {
 
     // ---------- 7. 归帐 + 执行落账 ----------
     console.log('\n[7] 归帐 → 执行 → 生成流水并动余额');
-    const accts = await request('GET', `/api/accounts?projectId=${P}&limit=5`, null, ADMIN);
-    const acct = (accts.body?.data || [])[0];
+    // 必须挑一个余额够扣的账户，不能直接取列表第一个：
+    // 这个用例每跑一次就扣 50，反复运行会把首个账户耗到 0，
+    // 之后整组断言以「账户余额不足」失败 —— 看着像产品坏了，
+    // 实际是测试自己把钱花光了。回归结果不稳定就是这么来的。
+    const accts = await request('GET', `/api/accounts?projectId=${P}&limit=200`, null, ADMIN);
+    const acct = (accts.body?.data || []).find(a => Number(a.balance) >= 100 && a.status === 'active');
     const subs = await request('GET', `/api/subjects?projectId=${P}&type=expense`, null, ADMIN);
     const sub = (subs.body?.data || [])[0];
     assert('取到账户与科目', !!acct && !!sub);
