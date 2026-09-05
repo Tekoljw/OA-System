@@ -92,6 +92,12 @@ export async function apiRequest(urlOrMethod: string, urlOrOptions?: string | Re
       localStorage.removeItem('user');
       window.location.href = '/login';
     }
+    // 请求体超限由 nginx 直接返回 HTML 错误页，下面的 response.json()
+    // 必然解析失败，用户看到的是「API Error: 413」——完全看不出是附件太大。
+    // 上传几张手机拍的照片就会撞到（client_max_body_size 2M）。
+    if (response.status === 413) {
+      throw new Error('附件过大，请压缩后重试（单次提交总大小不超过 2MB）');
+    }
     // 尝试解析错误消息
     try {
       const errorData = await response.json();

@@ -119,6 +119,33 @@ class ApplicationService {
 
     // ==================== 创建 ====================
 
+    /**
+     * 附件按前端的约定校验：最多 5 张，且必须是图片的 data URL。
+     *
+     * 界面上的 ImageUploader 限了 5 张、只收 image/*，再用 FileReader
+     * 转成 data:image/...;base64 内嵌提交。但服务端此前对 images 一律
+     * 原样 json_encode 存进 jsonb —— 直接调接口就能塞 20 张，或塞
+     * 「javascript:alert(1)」「http://evil.com/a.exe」这类根本不是图片的
+     * 字符串（实测都能存进去）。它们最终会渲染到 <img src>：外链会让
+     * 每个查看申请单的人向第三方发一次请求，其余的只是坏数据。
+     * 单张大小不在这里限 —— nginx 的 client_max_body_size 2M 已经卡住了总量。
+     */
+    private const MAX_IMAGES = 5;
+
+    private static function normalizeImages($images): array {
+        if ($images === null || $images === '') return [];
+        if (!is_array($images)) throw new \InvalidArgumentException('附件格式无效');
+        if (count($images) > self::MAX_IMAGES) {
+            throw new \InvalidArgumentException(sprintf('附件最多 %d 张', self::MAX_IMAGES));
+        }
+        foreach ($images as $img) {
+            if (!is_string($img) || !preg_match('#^data:image/[a-zA-Z0-9.+-]+;base64,#', $img)) {
+                throw new \InvalidArgumentException('附件只能是图片');
+            }
+        }
+        return array_values($images);
+    }
+
     public function create(array $d): array {
         if (empty($d['title']))                                   throw new \InvalidArgumentException('标题不能为空');
         if (!isset($d['amount']) || !is_numeric($d['amount']) || (float)$d['amount'] <= 0) {
@@ -136,6 +163,8 @@ class ApplicationService {
         // 非法日期不校验的话会一路撞到 date 列上，
         // 报给用户的是「数据库操作失败」，看不出是日期填错了
         $d['due_date'] = self::normalizeDate($d['due_date'] ?? null, '期限日期');
+
+        $d['images'] = self::normalizeImages($d['images'] ?? []);
 
         $this->assertBelongsToProject('departments', (int)$d['department_id'], (int)$d['project_id'], '部门');
 
