@@ -262,10 +262,27 @@ try {
                 $project = $projectRepo->update((int)$resourceId, $body);
                 $project ? Response::success($project, '项目更新成功') : Response::error('项目不存在', 'NOT_FOUND', 404);
             } elseif ($method === 'DELETE' && $resourceId) {
+                // projects 上挂着 9 个 ON DELETE CASCADE，删项目会把科目、部门、
+                // 股东、币种、账户类型、资产分类、审批规则、活动日志一并带走。
+                // 此前只拦账户与交易 —— 一个还没建账户、但已经配好部门股东科目的
+                // 项目，删除时没有任何提示就全没了，连活动日志（审计留痕）也一起消失。
+                // 逐项列出还有什么，让人知道自己要删掉的到底是些什么东西。
                 $assoc = $projectRepo->hasAssociatedData((int)$resourceId);
-                if ($assoc['accounts'] > 0 || $assoc['transactions'] > 0) {
+                $labels = [
+                    'accounts' => '个账户', 'transactions' => '条交易记录',
+                    'departments' => '个部门', 'shareholders' => '名股东',
+                    'subjects' => '个科目', 'currency_types' => '种币种',
+                    'account_types' => '种账户类型', 'asset_types' => '种资产分类',
+                    'activity_logs' => '条操作日志',
+                ];
+                $blocking = [];
+                foreach ($labels as $key => $label) {
+                    if (($assoc[$key] ?? 0) > 0) $blocking[] = $assoc[$key] . $label;
+                }
+                if ($blocking) {
                     Response::error(
-                        sprintf('该项目下有 %d 个账户和 %d 条交易记录，无法删除', $assoc['accounts'], $assoc['transactions']),
+                        sprintf('该项目下还有 %s，无法删除。删除项目会连同这些数据一并清除，请先处理。',
+                                implode('、', $blocking)),
                         'CONFLICT', 409
                     );
                 }
@@ -1186,6 +1203,31 @@ try {
                 if (!$userRepo->belongsToProject((int)$resourceId, $projectId)) {
                     Response::error('用户不属于当前项目，无权删除', 'FORBIDDEN', 403);
                 }
+                // 有历史留痕的账号只能停用，不能删。users 被 21 处外键引用，
+                // 除两处 CASCADE 外全是 ON DELETE SET NULL —— 删了人数据还在，
+                // 但「是谁做的」变成空：实测删掉一个提过申请的用户后，他的
+                // 操作日志全部变成匿名、申请单的 submitter_id 变 NULL，
+                // 单子还在却查不出是谁提的。对财务系统这是审计追溯的硬伤。
+                $trail = $userRepo->hasHistoryTrail((int)$resourceId);
+                $trailLabels = [
+                    'activity_logs' => '条操作日志', 'applications' => '张申请单',
+                    'transactions' => '条流水', 'transfers' => '张划款单',
+                    'approvals' => '条审批记录', 'assets' => '条资产记录',
+                    'loans' => '条借贷记录', 'loan_settlements' => '条销账记录',
+                    'managed_departments' => '个由他任主管的部门',
+                ];
+                $found = [];
+                foreach ($trailLabels as $key => $label) {
+                    if (($trail[$key] ?? 0) > 0) $found[] = $trail[$key] . $label;
+                }
+                if ($found) {
+                    Response::error(
+                        sprintf('该用户已产生 %s，删除会让这些记录失去操作人、无法追溯。'
+                              . '请改用「停用」保留历史。', implode('、', $found)),
+                        'CONFLICT', 409
+                    );
+                }
+
                 if (!$userRepo->delete((int)$resourceId)) {
                     Response::error('用户不存在', 'NOT_FOUND', 404);
                 }

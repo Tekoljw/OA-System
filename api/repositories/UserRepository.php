@@ -35,6 +35,36 @@ class UserRepository extends BaseRepository {
      * findByIdSafe 刻意不返回 password，那是给对外接口用的；
      * 这里单开一个方法，避免为了验密码把敏感字段混进常规查询。
      */
+    /**
+     * 删除用户前要检查的历史留痕。
+     *
+     * users 被 21 处外键引用，除 super_admins / user_projects 是 CASCADE 外
+     * 其余全是 ON DELETE SET NULL —— 删了人，数据还在，但「是谁做的」变成空：
+     * 实测删掉一个提过申请的用户后，他的操作日志全部变成匿名、申请单的
+     * submitter_id 变 NULL，单子还在却查不出是谁提的。
+     * 对财务系统来说这是审计追溯的硬伤，有历史记录的账号应当停用而非删除。
+     */
+    public function hasHistoryTrail(int $id): array {
+        $counts = [];
+        foreach ([
+            'activity_logs'         => ['activity_logs', 'user_id'],
+            'applications'          => ['applications', 'submitter_id'],
+            'transactions'          => ['transactions', 'created_by'],
+            'transfers'             => ['transfers', 'submitter_id'],
+            'approvals'             => ['application_approvals', 'approver_id'],
+            'assets'                => ['assets', 'submitter_id'],
+            'loans'                 => ['loans', 'submitter_id'],
+            'loan_settlements'      => ['loan_settlements', 'operator_id'],
+            'managed_departments'   => ['departments', 'manager_id'],
+        ] as $key => [$table, $col]) {
+            // 表名与列名都是本方法内的字面量，不接受外部输入
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM $table WHERE $col = ?");
+            $stmt->execute([$id]);
+            $counts[$key] = (int)$stmt->fetchColumn();
+        }
+        return $counts;
+    }
+
     public function findByIdWithPassword(int $id): ?array {
         $stmt = $this->db->prepare("SELECT id, username, password FROM users WHERE id = ?");
         $stmt->execute([$id]);

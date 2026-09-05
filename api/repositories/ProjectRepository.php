@@ -120,16 +120,36 @@ class ProjectRepository extends BaseRepository {
     /**
      * 检查项目是否有关联数据（账户/交易），有则不可删除
      */
+    /**
+     * 删除项目前要检查的关联数据。
+     *
+     * projects 上挂了 9 个 ON DELETE CASCADE：科目、部门、账户类型、币种、
+     * 股东、审批规则、活动日志、用户项目关联、超管项目关联。删项目会把它们
+     * 一并带走，而此前只检查了 accounts 与 transactions —— 实测一个有
+     * 1 个部门、1 个股东、4 个科目、2 个币种、3 条审批规则但还没建账户的项目，
+     * 删除时没有任何提示就全没了，连活动日志（审计留痕）也一起消失。
+     *
+     * 这里把会被级联删除的都数上，由调用方决定拦不拦。
+     */
     public function hasAssociatedData(int $id): array {
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM accounts WHERE project_id = ?");
-        $stmt->execute([$id]);
-        $accountCount = (int)$stmt->fetchColumn();
-
-        $stmt = $this->db->prepare("SELECT COUNT(*) FROM transactions WHERE project_id = ?");
-        $stmt->execute([$id]);
-        $txCount = (int)$stmt->fetchColumn();
-
-        return ['accounts' => $accountCount, 'transactions' => $txCount];
+        $counts = [];
+        // 表名是本方法内的字面量，不接受外部输入
+        foreach ([
+            'accounts'       => 'accounts',
+            'transactions'   => 'transactions',
+            'departments'    => 'departments',
+            'shareholders'   => 'shareholders',
+            'subjects'       => 'subjects',
+            'currency_types' => 'currency_types',
+            'account_types'  => 'account_types',
+            'asset_types'    => 'asset_types',
+            'activity_logs'  => 'activity_logs',
+        ] as $key => $table) {
+            $stmt = $this->db->prepare("SELECT COUNT(*) FROM $table WHERE project_id = ?");
+            $stmt->execute([$id]);
+            $counts[$key] = (int)$stmt->fetchColumn();
+        }
+        return $counts;
     }
 
     public function findActive(): array {
