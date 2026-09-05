@@ -34,7 +34,11 @@ class ShareholderService {
      * 添加股东
      */
     public function create(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('股东姓名不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('股东姓名不能为空');
         if (!isset($data['share_ratio']) || !is_numeric($data['share_ratio'])) {
             throw new \InvalidArgumentException('股份比例不能为空');
         }

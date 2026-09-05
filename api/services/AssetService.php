@@ -74,7 +74,11 @@ class AssetService {
     }
 
     public function create(array $d): array {
-        if (empty($d['name']))       throw new \InvalidArgumentException('资产名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $d['name'] = trim((string)($d['name'] ?? ''));
+        if ($d['name'] === '') throw new \InvalidArgumentException('资产名称不能为空');
         if (empty($d['project_id'])) throw new \InvalidArgumentException('项目ID不能为空');
 
         $quantity  = (int)($d['quantity'] ?? 1);

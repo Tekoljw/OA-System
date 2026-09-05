@@ -17,7 +17,11 @@ class AccountService {
     }
 
     public function createAccount(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('账户名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('账户名称不能为空');
         if (empty($data['account_type'])) throw new \InvalidArgumentException('账户类型不能为空');
         if (empty($data['currency_type'])) throw new \InvalidArgumentException('币种不能为空');
         if (empty($data['project_id'])) throw new \InvalidArgumentException('项目ID不能为空');
@@ -25,8 +29,23 @@ class AccountService {
         // 开户余额要同时落到 balance：此前只写 initial_balance，
         // 账户建出来余额是 0，任何支出都被判「余额不足」，
         // 而界面上明明填了开户金额
-        $initial = (float)($data['initial_balance'] ?? 0);
+        // 校验要与「金额」一致地把话说清楚：
+        // 此前 (float)'abc' 静默变成 0，用户以为开户金额填进去了；
+        // 而超大数值直接撞 numeric(15,2) 溢出，返回一句没有信息量的
+        // 「数据库操作失败」500，用户不知道是数太大还是别的毛病。
+        $rawInitial = $data['initial_balance'] ?? 0;
+        if ($rawInitial === '' || $rawInitial === null) $rawInitial = 0;
+        if (!is_numeric($rawInitial)) {
+            throw new \InvalidArgumentException('初始余额必须是数字');
+        }
+        $initial = round((float)$rawInitial, 2);
+        if (!is_finite($initial)) throw new \InvalidArgumentException('初始余额必须是数字');
         if ($initial < 0) throw new \InvalidArgumentException('初始余额不能为负数');
+        // balance 列是 numeric(15,2)，整数部分最多 13 位；
+        // 与单笔流水一样卡在 9.99 亿，留足累加空间
+        if ($initial > 999999999.99) {
+            throw new \InvalidArgumentException('初始余额超出有效范围（最大 9.99 亿）');
+        }
         $data['initial_balance'] = $initial;
         $data['balance'] = $initial;
 

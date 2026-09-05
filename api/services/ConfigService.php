@@ -16,7 +16,11 @@ class ConfigService {
     }
 
     public function createCurrencyType(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('名称不能为空');
         if (empty($data['code'])) throw new \InvalidArgumentException('代码不能为空');
         $result = $this->repo->createCurrencyType($data);
         $this->logActivity('create', 'currency_types', (int)$result['id'],
@@ -54,7 +58,11 @@ class ConfigService {
     }
 
     public function createAccountType(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('名称不能为空');
         $result = $this->repo->createAccountType($data);
         $this->logActivity('create', 'account_types', (int)$result['id'],
             sprintf('创建账户类型「%s」', $data['name']),
@@ -117,7 +125,11 @@ class ConfigService {
     }
 
     public function createSubject(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('名称不能为空');
         if (empty($data['transaction_type_code'])) {
             throw new \InvalidArgumentException('必须指定所属流水类型');
         }
@@ -170,7 +182,11 @@ class ConfigService {
     }
 
     public function createAssetType(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('名称不能为空');
         $result = $this->repo->createAssetType($data);
         $this->logActivity('create', 'asset_types', (int)$result['id'],
             sprintf('创建资产类型「%s」', $data['name']),
@@ -206,7 +222,11 @@ class ConfigService {
     }
 
     public function createDepartment(array $data): array {
-        if (empty($data['name'])) throw new \InvalidArgumentException('名称不能为空');
+        // trim 后再判空：empty(' ') 为 false，纯空格会被当成合法名称存进去，
+        // 列表里显示为一片空白，用户既看不出是什么也搜不到。
+        // 顺带把 trim 后的值写回，避免「同名但首尾空格不同」的重复记录。
+        $data['name'] = trim((string)($data['name'] ?? ''));
+        if ($data['name'] === '') throw new \InvalidArgumentException('名称不能为空');
         $result = $this->repo->createDepartment($data);
         $this->logActivity('create', 'departments', (int)$result['id'],
             sprintf('创建部门「%s」', $data['name']),
