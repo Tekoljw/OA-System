@@ -203,6 +203,8 @@ export default function LoanRecords() {
                   <Input
                     placeholder="搜索借贷记录ID、描述或部门..."
                     className="w-full"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
                   />
                 </div>
               </div>

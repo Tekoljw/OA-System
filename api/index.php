@@ -1159,8 +1159,8 @@ try {
 
             if ($method === 'GET') {
                 Response::paginated(
-                    $logRepo->findByProject($projectId, $page, $limit),
-                    $logRepo->countByProject($projectId),
+                    $logRepo->findByProject($projectId, $page, $limit, $_GET),
+                    $logRepo->countByProject($projectId, $_GET),
                     $page, $limit
                 );
             } else {
