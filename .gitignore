@@ -38,6 +38,10 @@ Thumbs.db
 *.sql
 # 迁移脚本必须纳入版本库，否则换环境无法重建表结构
 !db/migrations/*.sql
+# 建库入口同理 —— docker-entrypoint 执行的就是它，被 *.sql 挡在版本库外的话，
+# 克隆仓库的人拿不到、新机器根本建不起库。它长期缺失也是这张表结构里
+# asset_types 漏建、shareholders 顺序颠倒这些问题一直没被发现的原因。
+!api/config/init.sql
 *.sqlite
 *.db
 
