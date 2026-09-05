@@ -326,7 +326,7 @@ const MobileTransferCard = ({
             {/* 手续费 */}
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground flex-shrink-0">手续费:</span> 
-              <span className="truncate">{formatCurrency(transfer.fees, "CNY")}</span>
+              <span className="truncate">{formatCurrency(transfer.fees, transfer.fromCurrency)}</span>
             </div>
             {/* 汇损 */}
             {(transfer.exchangeLoss > 0) && (
@@ -460,7 +460,7 @@ const TransferTable = ({
                       {formatCurrency(transfer.toAmount, transfer.toCurrency)}
                     </TableCell>
                     <TableCell>
-                      {formatCurrency(transfer.fees, "CNY")}
+                      {formatCurrency(transfer.fees, transfer.fromCurrency)}
                     </TableCell>
                     <TableCell className={transfer.exchangeLoss > 0 ? "text-red-500" : ""}>
                       {transfer.exchangeLoss > 0 

@@ -150,6 +150,54 @@ const TAG = 'NF' + Math.floor(Math.random() * 100000);
         assert('改库后界面显示新值', shown, '界面没跟着变，说明这块是写死的');
     }
 
+    console.log('\n[4] 出入金「全部」页签的卡片必须是真实数字');
+    // 这四张卡曾经写死 value="查看币种详情"，四个格子一个数都没有
+    await page.goto(`${BASE}/transactions/external`, { waitUntil: 'networkidle' });
+    await page.waitForTimeout(2600);
+    const cardText = await page.locator('text=系统总收入').first()
+        .locator('xpath=ancestor::div[contains(@class,"grid")][1]').innerText().catch(() => '');
+    assert('卡片里没有占位文案', cardText.length > 0 && !cardText.includes('查看币种详情'),
+           cardText.slice(0, 80));
+
+    // 逐币种核对：卡片上的每个数都要能在库里算出来。跨币种不求和 ——
+    // 人民币加美元既不是人民币也不是美元，页签本来就是按币种分开的
+    const curRows = q(`SELECT a.currency_type,
+                              COALESCE(sum(t.amount) FILTER (WHERE t.type='income'),0),
+                              COALESCE(sum(t.amount) FILTER (WHERE t.type='expense'),0)
+                       FROM transactions t JOIN accounts a ON a.id=t.account_id
+                       WHERE t.project_id=${PROJECT} AND t.status='completed'
+                       GROUP BY 1`).split('\n').filter(Boolean);
+    const digits = s => s.replace(/[^0-9.]/g, '');
+    for (const line of curRows) {
+        const [cur, inc, exp] = line.split('|');
+        const bal = q(`SELECT COALESCE(sum(balance),0) FROM accounts
+                       WHERE project_id=${PROJECT} AND currency_type='${cur}'`);
+        for (const [label, val] of [['收入', inc], ['支出', exp],
+                                    ['盈余', (Number(inc) - Number(exp)).toFixed(2)], ['余额', bal]]) {
+            const want = Number(val).toFixed(2);
+            // 卡片上是「¥193,111.53」这类，去掉符号和千分位再比
+            const found = cardText.split('\n').some(l => digits(l).replace(/,/g, '') === want);
+            assert(`${cur} ${label} ${want} 出现在卡片上`, found);
+        }
+    }
+
+    console.log('\n[5] 金额的币种符号必须跟着流水自己的币种');
+    // 曾经整张表写死 CNY 格式化，一笔 100 美元显示成「¥100.00」，
+    // 金额、符号、币种列三处互相矛盾
+    const rowMismatch = await page.evaluate(() => {
+        const bad = [];
+        for (const tr of document.querySelectorAll('table tbody tr')) {
+            const td = tr.querySelectorAll('td');
+            if (td.length < 5) continue;
+            const cur = td[1].innerText.trim();
+            const amt = td[4].innerText.trim();
+            if (cur === 'USD' && amt.includes('¥')) bad.push(`${cur} 显示成 ${amt}`);
+            if (cur === 'CNY' && /US?\$/.test(amt)) bad.push(`${cur} 显示成 ${amt}`);
+        }
+        return bad;
+    });
+    assert('表格金额的符号与币种一致', rowMismatch.length === 0, rowMismatch.slice(0, 3).join('、'));
+
     await browser.close();
     console.log(`\n真实数据：总计 ${pass + fail} | ✅ ${pass} | ❌ ${fail}`);
     process.exit(fail > 0 ? 1 : 0);

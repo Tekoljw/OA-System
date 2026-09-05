@@ -494,7 +494,10 @@ try {
             $txService = new TransactionService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
             if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
-            if (!$resourceId) Response::error('币种代码不能为空', 'VALIDATION_ERROR');
+            // 不带币种代码 = 取全部币种（出入金页「全部」页签按币种分行展示）
+            if (!$resourceId) {
+                Response::success($txService->getAllCurrencyStats($projectId), '获取全部币种统计成功');
+            }
             Response::success($txService->getCurrencyStats($projectId, $resourceId), '获取币种统计成功');
             break;
 

@@ -5,7 +5,8 @@ import { ArrowUp, ArrowDown } from "lucide-react";
 
 interface StatCardProps {
   title: string;
-  value: string;
+  // 允许传节点：出入金页「全部」页签要在一张卡里按币种分行列出金额
+  value: React.ReactNode;
   icon: React.ReactNode;
   change?: { value: number; isPositive: boolean };
   description?: string;
@@ -34,7 +35,7 @@ const StatCard: React.FC<StatCardProps> = ({
         </div>
       </div>
       <div className="mt-4">
-        <p className="text-2xl font-semibold min-w-[180px]">{value}</p>
+        <div className="text-2xl font-semibold min-w-[180px]">{value}</div>
         {change && (
           <div className="flex items-center mt-2">
             <div

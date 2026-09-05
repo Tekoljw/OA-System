@@ -105,12 +105,10 @@ const useCurrencies = () => {
   return { currencies, isLoading };
 };
 
-const formatCurrency = (amount: number) => {
-  return new Intl.NumberFormat('zh-CN', {
-    style: 'currency',
-    currency: 'CNY'
-  }).format(amount);
-};
+// 按流水自身的币种格式化。曾经写死 CNY，导致一笔 100 美元的流水显示成
+// 「¥100.00」—— 金额、符号、币种列三处互相矛盾，看账的人无从判断这是多少钱
+const formatCurrency = (amount: number, currency: string = 'CNY') =>
+  safeFormatCurrency(amount, currency);
 
 // 获取币种统计数据
 const useCurrencyStats = (currency: string) => {
@@ -244,6 +242,127 @@ const MonthlyStats = ({ currency }: { currency: string }) => {
   );
 };
 
+// 全部币种的统计。跨币种不做求和 —— 人民币加美元既不是人民币也不是美元，
+// 所以一张卡里按币种分行列出，币种页签就在正上方，对得上号
+interface AllCurrencyStat {
+  currency: string;
+  totalIncome: number;
+  totalExpense: number;
+  totalSurplus: number;
+  currentBalance: number;
+}
+
+const useAllCurrencyStats = () => {
+  const [rows, setRows] = useState<AllCurrencyStat[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
+
+  useEffect(() => {
+    const fetchAll = async () => {
+      try {
+        setIsLoading(true);
+        const response = await apiRequest('GET', '/api/currency-stats');
+        if (response && response.success && Array.isArray(response.data)) {
+          setRows(response.data);
+        } else {
+          // 拿不到就空着并提示，不要用编造的数字把接口故障盖过去
+          setRows([]);
+          toast({
+            title: "获取币种统计失败",
+            description: response?.message || "请稍后再试",
+            variant: "destructive"
+          });
+        }
+      } catch (error: any) {
+        console.error('获取全部币种统计错误:', error);
+        setRows([]);
+        toast({
+          title: "获取币种统计错误",
+          description: error.message || "请稍后再试",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchAll();
+  }, []);
+
+  return { rows, isLoading };
+};
+
+const AllCurrencyStats = () => {
+  const { rows, isLoading } = useAllCurrencyStats();
+
+  if (isLoading) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
+        {[1, 2, 3, 4].map(i => (
+          <Card key={i} className="p-4">
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-muted-foreground/20 rounded w-1/2"></div>
+              <div className="h-8 bg-muted-foreground/20 rounded w-2/3"></div>
+              <div className="h-4 bg-muted-foreground/20 rounded w-1/4"></div>
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  }
+
+  // 建了币种但一分钱都没走过的，列出来只是噪音；全都没数据时仍照列，
+  // 免得整张卡空白让人以为接口挂了
+  const active = rows.filter(r => r.totalIncome || r.totalExpense || r.currentBalance);
+  const shown = active.length > 0 ? active : rows;
+
+  const lines = (pick: (r: AllCurrencyStat) => number) => (
+    shown.length === 0
+      ? <span className="text-base text-muted-foreground">暂无数据</span>
+      : (
+        <div className="space-y-1">
+          {shown.map(r => (
+            <div key={r.currency} className="flex items-baseline justify-between gap-3">
+              <span className="text-xs font-mono text-muted-foreground">{r.currency}</span>
+              <span className="text-lg">{safeFormatCurrency(pick(r), r.currency)}</span>
+            </div>
+          ))}
+        </div>
+      )
+  );
+
+  const desc = shown.length > 1 ? `${shown.length} 个币种，按币种分列` : undefined;
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
+      <StatCard
+        title="系统总收入"
+        value={lines(r => r.totalIncome)}
+        icon={<ArrowUp className="h-5 w-5" />}
+        description={desc}
+      />
+      <StatCard
+        title="系统总支出"
+        value={lines(r => r.totalExpense)}
+        icon={<ArrowDown className="h-5 w-5" />}
+        description={desc}
+      />
+      <StatCard
+        title="系统总盈余"
+        value={lines(r => r.totalSurplus)}
+        icon={<ArrowUpDown className="h-5 w-5" />}
+        description={desc}
+      />
+      <StatCard
+        title="当前总余额"
+        value={lines(r => r.currentBalance)}
+        icon={<CreditCard className="h-5 w-5" />}
+        description={desc}
+      />
+    </div>
+  );
+};
+
 
 
 // 获取交易类型样式。本页已排除划款，但类型上仍可能出现，给它一个中性配色
@@ -299,7 +418,7 @@ const MobileTransactionCard = ({ transaction }: { transaction: TransactionData }
           <div className="flex items-center gap-2 overflow-hidden">
             <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
             <span className={`text-sm font-medium truncate ${transaction.type === "收入" ? "text-green-600" : "text-red-600"}`}>
-              {formatCurrency(Math.abs(transaction.amount))}
+              {formatCurrency(Math.abs(transaction.amount), transaction.currency)}
             </span>
           </div>
           <div className="flex items-center gap-2">
@@ -340,7 +459,7 @@ const MobileTransactionCard = ({ transaction }: { transaction: TransactionData }
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground flex-shrink-0">账户余额:</span> 
-              <span className="truncate">{formatCurrency(transaction.balance)}</span>
+              <span className="truncate">{formatCurrency(transaction.balance, transaction.currency)}</span>
             </div>
           </div>
         )}
@@ -420,7 +539,7 @@ const TransactionTable = ({ transactions }: { transactions: TransactionData[] })
                   {/* 一级流水类型：决定了这笔钱有没有在资产或借贷里留下记录 */}
                   <TableCell className="text-sm">{tx.transactionTypeName || '—'}</TableCell>
                   <TableCell className={tx.type === "收入" ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
-                    {formatCurrency(Math.abs(tx.amount))}
+                    {formatCurrency(Math.abs(tx.amount), tx.currency)}
                   </TableCell>
                   <TableCell>{tx.subject}</TableCell>
                   <TableCell>{tx.department}</TableCell>
@@ -686,32 +805,7 @@ const ExternalTransactions: React.FC = () => {
             </TabsList>
 
             <TabsContent key="all" value="all">
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6 mb-6">
-                <StatCard
-                  title="系统总收入"
-                  value="查看币种详情"
-                  icon={<CreditCard className="h-5 w-5" />}
-                  description="请选择币种查看详细统计数据"
-                />
-                <StatCard
-                  title="系统总支出"
-                  value="查看币种详情"
-                  icon={<CreditCard className="h-5 w-5" />}
-                  description="请选择币种查看详细统计数据"
-                />
-                <StatCard
-                  title="系统总盈余"
-                  value="查看币种详情"
-                  icon={<CreditCard className="h-5 w-5" />}
-                  description="请选择币种查看详细统计数据"
-                />
-                <StatCard
-                  title="当前总余额"
-                  value="查看币种详情"
-                  icon={<CreditCard className="h-5 w-5" />}
-                  description="请选择币种查看详细统计数据"
-                />
-              </div>
+              <AllCurrencyStats />
               
               <Tabs defaultValue="all" className="space-y-4">
                 <TabsList>

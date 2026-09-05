@@ -346,8 +346,23 @@ class TransactionService {
             throw new \InvalidArgumentException('币种代码无效');
         }
 
-        $s = $this->repo->getCurrencyStats($projectId, $currency);
+        return $this->shapeCurrencyStats($currency, $this->repo->getCurrencyStats($projectId, $currency));
+    }
 
+    /**
+     * 全部币种的统计，供出入金页「全部」页签按币种分行展示。
+     * 不做跨币种求和 —— 不同币种的金额相加得到的数没有意义。
+     */
+    public function getAllCurrencyStats(int $projectId): array {
+        $out = [];
+        foreach ($this->repo->getAllCurrencyStats($projectId) as $row) {
+            $out[] = $this->shapeCurrencyStats($row['currency'], $row);
+        }
+        return $out;
+    }
+
+    /** 把仓储层的原始聚合整理成前端要的字段与环比 */
+    private function shapeCurrencyStats(string $currency, array $s): array {
         // 上月为 0 时无法计算百分比，返回 0，避免除零得到 Infinity
         $change = function (float $now, float $prev): array {
             $value = $prev > 0 ? round((($now - $prev) / $prev) * 100, 1) : 0.0;
@@ -362,6 +377,9 @@ class TransactionService {
             'monthlyIncome'  => $s['monthIncome'],
             'monthlyExpense' => $s['monthExpense'],
             'monthlySurplus' => $surplus,
+            'totalIncome'    => $s['totalIncome'],
+            'totalExpense'   => $s['totalExpense'],
+            'totalSurplus'   => $s['totalIncome'] - $s['totalExpense'],
             'currentBalance' => $s['currentBalance'],
             'incomeChange'   => $change($s['monthIncome'], $s['prevIncome']),
             'expenseChange'  => $change($s['monthExpense'], $s['prevExpense']),

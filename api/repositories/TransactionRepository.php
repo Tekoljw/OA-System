@@ -189,7 +189,9 @@ class TransactionRepository extends BaseRepository {
                 COALESCE(SUM(CASE WHEN t.type = 'expense'
                     AND t.transaction_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
                     AND t.transaction_date <  date_trunc('month', CURRENT_DATE)
-                    THEN t.amount END), 0) AS prev_expense
+                    THEN t.amount END), 0) AS prev_expense,
+                COALESCE(SUM(CASE WHEN t.type = 'income'  THEN t.amount END), 0) AS total_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount END), 0) AS total_expense
             FROM transactions t
             JOIN accounts a ON t.account_id = a.id
             WHERE t.project_id = ? AND a.currency_type = ? AND t.status = 'completed'
@@ -207,8 +209,86 @@ class TransactionRepository extends BaseRepository {
             'monthExpense'  => (float)($tx['month_expense'] ?? 0),
             'prevIncome'    => (float)($tx['prev_income'] ?? 0),
             'prevExpense'   => (float)($tx['prev_expense'] ?? 0),
+            'totalIncome'   => (float)($tx['total_income'] ?? 0),
+            'totalExpense'  => (float)($tx['total_expense'] ?? 0),
             'currentBalance' => (float)$balStmt->fetchColumn(),
         ];
+    }
+
+    /**
+     * 一次取回全部币种的收支与余额，供出入金页「全部」页签使用。
+     *
+     * 为什么不返回一个合计数：人民币加美元既不是人民币也不是美元。
+     * 跨币种只能各算各的，由前端按币种分行展示。
+     *
+     * 币种清单以 currency_types 为准 —— 新建了币种但还没建账户时，
+     * 它在页签上有、卡片里没有会让人以为漏了数据，这里补 0 行。
+     */
+    public function getAllCurrencyStats(int $projectId): array {
+        $stmt = $this->db->prepare("
+            SELECT a.currency_type,
+                COALESCE(SUM(CASE WHEN t.type = 'income'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS month_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS month_expense,
+                COALESCE(SUM(CASE WHEN t.type = 'income'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+                    AND t.transaction_date <  date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS prev_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense'
+                    AND t.transaction_date >= date_trunc('month', CURRENT_DATE - INTERVAL '1 month')
+                    AND t.transaction_date <  date_trunc('month', CURRENT_DATE)
+                    THEN t.amount END), 0) AS prev_expense,
+                COALESCE(SUM(CASE WHEN t.type = 'income'  THEN t.amount END), 0) AS total_income,
+                COALESCE(SUM(CASE WHEN t.type = 'expense' THEN t.amount END), 0) AS total_expense
+            FROM transactions t
+            JOIN accounts a ON t.account_id = a.id
+            WHERE t.project_id = ? AND t.status = 'completed'
+            GROUP BY a.currency_type
+        ");
+        $stmt->execute([$projectId]);
+        $byCurrency = [];
+        foreach ($stmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $byCurrency[$r['currency_type']] = $r;
+        }
+
+        $balStmt = $this->db->prepare(
+            "SELECT currency_type, COALESCE(SUM(balance), 0) AS bal
+             FROM accounts WHERE project_id = ? GROUP BY currency_type"
+        );
+        $balStmt->execute([$projectId]);
+        $balances = [];
+        foreach ($balStmt->fetchAll(PDO::FETCH_ASSOC) as $r) {
+            $balances[$r['currency_type']] = (float)$r['bal'];
+        }
+
+        $curStmt = $this->db->prepare(
+            "SELECT code FROM currency_types WHERE project_id = ? ORDER BY id"
+        );
+        $curStmt->execute([$projectId]);
+        $codes = $curStmt->fetchAll(PDO::FETCH_COLUMN);
+        // 账户上出现过、但币种表里没有的代码也要列出来，否则那部分钱凭空消失
+        foreach (array_keys($balances + $byCurrency) as $code) {
+            if (!in_array($code, $codes, true)) $codes[] = $code;
+        }
+
+        $out = [];
+        foreach ($codes as $code) {
+            $tx = $byCurrency[$code] ?? [];
+            $out[] = [
+                'currency'      => $code,
+                'monthIncome'   => (float)($tx['month_income'] ?? 0),
+                'monthExpense'  => (float)($tx['month_expense'] ?? 0),
+                'prevIncome'    => (float)($tx['prev_income'] ?? 0),
+                'prevExpense'   => (float)($tx['prev_expense'] ?? 0),
+                'totalIncome'   => (float)($tx['total_income'] ?? 0),
+                'totalExpense'  => (float)($tx['total_expense'] ?? 0),
+                'currentBalance' => $balances[$code] ?? 0.0,
+            ];
+        }
+        return $out;
     }
 
     public function getByDepartment(int $projectId, string $period = 'month'): array {
