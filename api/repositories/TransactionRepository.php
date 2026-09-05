@@ -117,14 +117,21 @@ class TransactionRepository extends BaseRepository {
         //    会被整个排除，图表合计比实际收入少一大截，用户却看不出少了什么
         // 2) 没有过滤 status，未完成的流水也被算了进去
         // 现在按科目归类，无科目的回落到一级流水类型名，保证合计等于总额
+        // 第三处口径问题：不带币种分组，等于把 CNY 和 USD 的金额直接相加。
+        // 实测「其他收入」被算成 7184.89 CNY + 5700 USD = 12884.89，
+        // 这个数既不是人民币也不是美元，前端却当作本位币画进图表。
+        // 与 accountSummary 一样按币种拆开返回，由前端按汇率折算后汇总 ——
+        // 折算放前端才能跟随本位币切换，也能复用「汇率已失效」的提示。
         $stmt = $this->db->prepare("
             SELECT COALESCE(s.name, tt.name, '未分类') as subject_name,
+                   a.currency_type,
                    COALESCE(SUM(t.amount), 0) as total
             FROM transactions t
             LEFT JOIN subjects s          ON t.subject_id = s.id
             LEFT JOIN transaction_types tt ON tt.code = t.transaction_type_code
+            LEFT JOIN accounts a          ON a.id = t.account_id
             WHERE t.project_id = ? AND t.type = ? AND t.status = 'completed' $dateCondition
-            GROUP BY COALESCE(s.name, tt.name, '未分类')
+            GROUP BY COALESCE(s.name, tt.name, '未分类'), a.currency_type
             ORDER BY total DESC
         ");
         $stmt->execute([$projectId, $type]);
@@ -180,13 +187,16 @@ class TransactionRepository extends BaseRepository {
 
         // 与按科目统计同样的两处问题：JOIN 会漏掉没有部门的支出，
         // 且未过滤 status，未完成的流水也被计入
+        // 同样按币种拆开，理由见 getBySubject
         $stmt = $this->db->prepare("
             SELECT COALESCE(d.name, '未指定部门') as department_name,
+                   a.currency_type,
                    COALESCE(SUM(t.amount), 0) as total
             FROM transactions t
             LEFT JOIN departments d ON t.department_id = d.id
+            LEFT JOIN accounts a    ON a.id = t.account_id
             WHERE t.project_id = ? AND t.type = 'expense' AND t.status = 'completed' $dateCondition
-            GROUP BY COALESCE(d.name, '未指定部门')
+            GROUP BY COALESCE(d.name, '未指定部门'), a.currency_type
             ORDER BY total DESC
         ");
         $stmt->execute([$projectId]);

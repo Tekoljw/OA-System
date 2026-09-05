@@ -95,9 +95,12 @@ const Dashboard: React.FC = () => {
   const [summaryRows, setSummaryRows] = useState<Array<{ currency_type: string; total_balance: string }>>([]);
   const [accountSummaryData, setAccountSummaryData] = useState<AccountSummaryData>(defaultAccountSummaryData);
   const [transactionData, setTransactionData] = useState<TransactionData>(defaultTransactionData);
-  const [incomeBySubject, setIncomeBySubject] = useState<ChartDataItem[]>([]);
-  const [expenseBySubject, setExpenseBySubject] = useState<ChartDataItem[]>([]);
-  const [expenseByDept, setExpenseByDept] = useState<ChartDataItem[]>([]);
+  // 存服务端返回的原始行（含币种），折算放到渲染时的 useMemo 里做。
+  // 不能在 fetch 回调里直接折算：图表数据和汇率是各自异步加载的，
+  // 先到的那次折算会因为 rates 还是空而全部失败，图表变成「加载失败」。
+  const [incomeBySubjectRaw, setIncomeBySubjectRaw] = useState<any[]>([]);
+  const [expenseBySubjectRaw, setExpenseBySubjectRaw] = useState<any[]>([]);
+  const [expenseByDeptRaw, setExpenseByDeptRaw] = useState<any[]>([]);
   
   // 加载状态
   const [isSummaryLoading, setIsSummaryLoading] = useState<boolean>(true);
@@ -141,6 +144,57 @@ const Dashboard: React.FC = () => {
     }
     return { convertedSummary: total, rateError: null };
   }, [summaryRows, convert, rates, baseCurrency]);
+
+  /**
+   * 把服务端按「分组名 + 币种」返回的统计折算成本位币，再按分组名合并。
+   *
+   * 两处都要做：
+   * 1. 字段名转换 —— 服务端给的是 subject_name / department_name / total，
+   *    而图表要的是 name / value。此前直接把原始数组塞进 <Pie>，
+   *    dataKey="value" 取不到任何值，三个图表一直是空白的。
+   * 2. 按汇率折算 —— 服务端此前不分币种，把 CNY 和 USD 直接相加
+   *    （实测「其他收入」= 7184.89 CNY + 5700 USD = 12884.89），
+   *    这个数既不是人民币也不是美元。现在服务端按币种拆开，在这里折算。
+   *
+   * 与总资产一致：只要有一个币种汇率失效就整体报错，不做「跳过该币种」
+   * 的处理 —— 少算一个币种的图表看上去正常，实际是错的。
+   */
+  const groupToChartData = React.useCallback(
+    (rows: any[], nameKey: string): { data: ChartDataItem[]; error: string | null } => {
+      const acc = new Map<string, number>();
+      const bad = new Set<string>();
+      for (const row of rows || []) {
+        const label = row[nameKey] ?? '未分类';
+        const amount = parseFloat(row.total ?? '0');
+        const cur = row.currency_type;
+        // 没有币种的历史数据按本位币处理，不静默丢弃
+        const converted = cur ? convert(amount, cur) : amount;
+        if (converted === null) { bad.add(cur); continue; }
+        acc.set(label, (acc.get(label) ?? 0) + converted);
+      }
+      if (bad.size) {
+        return {
+          data: [],
+          error: `${[...bad].join('、')} 汇率已失效，请先在「配置管理 → 账户分类 → 币种管理」中更新`,
+        };
+      }
+      return {
+        data: [...acc.entries()]
+          .map(([name, value]) => ({ name, value: Math.round(value * 100) / 100 }))
+          .sort((a, b) => b.value - a.value),
+        error: null,
+      };
+    },
+    [convert, rates, baseCurrency]
+  );
+
+  // 汇率或原始数据任一变化都会重算，因此不存在「先算后到」的时序问题
+  const { data: incomeBySubject, error: incomeRateError } =
+    useMemo(() => groupToChartData(incomeBySubjectRaw, 'subject_name'), [incomeBySubjectRaw, groupToChartData]);
+  const { data: expenseBySubject, error: expenseRateError } =
+    useMemo(() => groupToChartData(expenseBySubjectRaw, 'subject_name'), [expenseBySubjectRaw, groupToChartData]);
+  const { data: expenseByDept, error: expenseDeptRateError } =
+    useMemo(() => groupToChartData(expenseByDeptRaw, 'department_name'), [expenseByDeptRaw, groupToChartData]);
 
   useEffect(() => {
     if (convertedSummary === null) {
@@ -345,8 +399,7 @@ const Dashboard: React.FC = () => {
       console.log('收入分析API响应数据:', responseData);
       
       if (responseData.success && responseData.data) {
-        console.log('设置收入分析数据:', responseData.data);
-        setIncomeBySubject(responseData.data);
+        setIncomeBySubjectRaw(responseData.data);
       } else {
         throw new Error('获取收入分析数据格式不正确: ' + JSON.stringify(responseData));
       }
@@ -373,8 +426,7 @@ const Dashboard: React.FC = () => {
       console.log('支出主题API响应数据:', responseData);
       
       if (responseData.success && responseData.data) {
-        console.log('设置支出主题数据:', responseData.data);
-        setExpenseBySubject(responseData.data);
+        setExpenseBySubjectRaw(responseData.data);
       } else {
         throw new Error('获取支出主题分析数据格式不正确: ' + JSON.stringify(responseData));
       }
@@ -401,8 +453,7 @@ const Dashboard: React.FC = () => {
       console.log('部门成本API响应数据:', responseData);
       
       if (responseData.success && responseData.data) {
-        console.log('设置部门成本数据:', responseData.data);
-        setExpenseByDept(responseData.data);
+        setExpenseByDeptRaw(responseData.data);
       } else {
         throw new Error('获取部门成本分析数据格式不正确: ' + JSON.stringify(responseData));
       }
