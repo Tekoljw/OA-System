@@ -94,7 +94,8 @@ const Dashboard: React.FC = () => {
   // 后端按币种分组返回，换算放到前端做——本位币是每个用户各自的选择
   const [summaryRows, setSummaryRows] = useState<Array<{ currency_type: string; total_balance: string }>>([]);
   const [accountSummaryData, setAccountSummaryData] = useState<AccountSummaryData>(defaultAccountSummaryData);
-  const [transactionData, setTransactionData] = useState<TransactionData>(defaultTransactionData);
+  // 同样存原始行（含币种），折算放到渲染时的 useMemo 里，理由见 groupToChartData
+  const [transactionRaw, setTransactionRaw] = useState<{ daily: any[]; monthly: any[] }>({ daily: [], monthly: [] });
   // 存服务端返回的原始行（含币种），折算放到渲染时的 useMemo 里做。
   // 不能在 fetch 回调里直接折算：图表数据和汇率是各自异步加载的，
   // 先到的那次折算会因为 rates 还是空而全部失败，图表变成「加载失败」。
@@ -195,6 +196,25 @@ const Dashboard: React.FC = () => {
     useMemo(() => groupToChartData(expenseBySubjectRaw, 'subject_name'), [expenseBySubjectRaw, groupToChartData]);
   const { data: expenseByDept, error: expenseDeptRateError } =
     useMemo(() => groupToChartData(expenseByDeptRaw, 'department_name'), [expenseByDeptRaw, groupToChartData]);
+
+  /** 交易摘要同样按币种折算后再汇总，口径与图表、总资产一致 */
+  const transactionData: TransactionData = useMemo(() => {
+    const sum = (rows: any[], type: string) => {
+      let total = 0;
+      for (const r of rows || []) {
+        if (r.type !== type) continue;
+        const v = r.currency_type ? convert(parseFloat(r.total ?? '0'), r.currency_type) : parseFloat(r.total ?? '0');
+        if (v !== null) total += v;
+      }
+      return Math.round(total * 100) / 100;
+    };
+    const d = { income: sum(transactionRaw.daily, 'income'), expense: sum(transactionRaw.daily, 'expense') };
+    const m = { income: sum(transactionRaw.monthly, 'income'), expense: sum(transactionRaw.monthly, 'expense') };
+    return {
+      daily:   { ...d, netIncome: Math.round((d.income - d.expense) * 100) / 100, monthToDate: m.income, yearToDate: 0 },
+      monthly: { ...m, netIncome: Math.round((m.income - m.expense) * 100) / 100, monthToMonthChange: 0, yearToDateExpense: 0 },
+    };
+  }, [transactionRaw, convert, rates, baseCurrency]);
 
   useEffect(() => {
     if (convertedSummary === null) {
@@ -341,31 +361,10 @@ const Dashboard: React.FC = () => {
       if (responseData.success && responseData.data) {
         console.log('设置交易摘要数据:', responseData.data);
         
-        // 不使用defaultTransactionData，直接使用API返回的数据
-        const rawData = responseData.data;
-        
-        // 确保数据结构完整性
-        const processedData = {
-          daily: {
-            income: rawData.daily?.income ?? 0,
-            expense: rawData.daily?.expense ?? 0,
-            netIncome: rawData.daily?.netIncome ?? 0,
-            monthToDate: rawData.daily?.monthToDate ?? 0,
-            yearToDate: rawData.daily?.yearToDate ?? 0,
-          },
-          monthly: {
-            income: rawData.monthly?.income ?? 0,
-            expense: rawData.monthly?.expense ?? 0,
-            netIncome: rawData.monthly?.netIncome ?? 0,
-            monthToMonthChange: rawData.monthly?.monthToMonthChange ?? 0,
-            yearToDateExpense: rawData.monthly?.yearToDateExpense ?? 0,
-          }
-        };
-        
-        console.log('最终交易摘要数据(完全重构):', processedData);
-        
-        // 强制直接覆盖状态
-        setTransactionData({...processedData});
+        setTransactionRaw({
+          daily: responseData.data?.daily ?? [],
+          monthly: responseData.data?.monthly ?? [],
+        });
         
         // ======== 关键调试 - 前后对比 ========
         console.log('交易摘要API获取后，新状态:', JSON.stringify(processedData));

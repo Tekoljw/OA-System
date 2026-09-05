@@ -106,6 +106,37 @@ class TransactionRepository extends BaseRepository {
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    /**
+     * 仪表盘「交易摘要」用的日/月聚合。
+     *
+     * 单独开一个方法而不改 getTransactionSummary()：后者被 /api/transaction-summary
+     * 共用，返回结构是按 type 分组的扁平数组，改了会波及另一个端点。
+     *
+     * 与按科目/部门的统计一样带上币种，由前端折算后汇总 —— 直接把
+     * CNY 和 USD 相加得到的数既不是人民币也不是美元。
+     */
+    public function getDailyMonthlySummary(int $projectId): array {
+        $sql = "
+            SELECT :scope AS scope, t.type, a.currency_type,
+                   COUNT(*) AS count, COALESCE(SUM(t.amount), 0) AS total
+            FROM transactions t
+            LEFT JOIN accounts a ON a.id = t.account_id
+            WHERE t.project_id = ? AND t.status = 'completed' AND t.type <> 'transfer'
+              AND %s
+            GROUP BY t.type, a.currency_type";
+
+        $out = [];
+        foreach ([
+            'daily'   => "t.transaction_date = CURRENT_DATE",
+            'monthly' => "t.transaction_date >= date_trunc('month', CURRENT_DATE)",
+        ] as $scope => $cond) {
+            $stmt = $this->db->prepare(str_replace(':scope', "'$scope'", sprintf($sql, $cond)));
+            $stmt->execute([$projectId]);
+            $out[$scope] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        }
+        return $out;
+    }
+
     public function getBySubject(int $projectId, string $type, string $period = 'month'): array {
         $dateCondition = $period === 'month'
             ? "AND t.transaction_date >= date_trunc('month', CURRENT_DATE)"

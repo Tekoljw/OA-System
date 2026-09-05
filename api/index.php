@@ -849,6 +849,12 @@ try {
                     Response::success($accountService->getAccountSummary($projectId), '获取账户摘要成功');
                     break;
                 case 'transactions':
+                    // 仪表盘的「交易摘要」要的是日/月两组数字，前端读的是
+                    // {daily:{income,...}, monthly:{...}}；此前这里返回的是按 type
+                    // 分组的扁平数组，前端 rawData.daily?.income ?? 0 全部兜底成 0，
+                    // 六个数字长期显示 0.00，看着像「今天还没有流水」
+                    Response::success($txService->getDailyMonthlySummary($projectId), '获取交易摘要成功');
+                    break;
                 case 'transaction-summary':
                     Response::success($txService->getTransactionSummary($projectId, $period), '获取交易摘要成功');
                     break;

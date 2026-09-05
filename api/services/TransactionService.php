@@ -330,6 +330,11 @@ class TransactionService {
         return $this->repo->getTransactionSummary($projectId, $period);
     }
 
+    /** 仪表盘「交易摘要」的日/月聚合，按币种拆开由前端折算 */
+    public function getDailyMonthlySummary(int $projectId): array {
+        return $this->repo->getDailyMonthlySummary($projectId);
+    }
+
     /**
      * 币种维度统计，环比上月算涨跌幅，供出入金页各币种 Tab 使用
      */
