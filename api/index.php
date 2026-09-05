@@ -321,6 +321,10 @@ try {
             require_once __DIR__ . '/services/AccountService.php';
             $accountService = new AccountService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            // 缺少项目ID时必须报错。静默按 0 查询会返回空列表，
+            // 界面显示「暂无数据」，用户以为数据丢了 —— 其余接口都是报错，
+            // 这几处不一致反而最容易误导
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET' && !$resourceId) {
                 $page = max(1, (int)($_GET['page'] ?? 1));
@@ -352,6 +356,7 @@ try {
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET') {
                 Response::success($configService->getAccountTypes($projectId), '获取account_types列表成功');
@@ -388,6 +393,10 @@ try {
             require_once __DIR__ . '/services/TransactionService.php';
             $txService = new TransactionService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            // 缺少项目ID时必须报错。静默按 0 查询会返回空列表，
+            // 界面显示「暂无数据」，用户以为数据丢了 —— 其余接口都是报错，
+            // 这几处不一致反而最容易误导
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET' && !$resourceId) {
                 $page = max(1, (int)($_GET['page'] ?? 1));
@@ -578,6 +587,7 @@ try {
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET') {
                 Response::success($configService->getCurrencyTypes($projectId), '获取currency_types列表成功');
@@ -606,6 +616,10 @@ try {
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            // 缺少项目ID时必须报错。静默按 0 查询会返回空列表，
+            // 界面显示「暂无数据」，用户以为数据丢了 —— 其余接口都是报错，
+            // 这几处不一致反而最容易误导
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET') {
                 $type = $_GET['type'] ?? null;
@@ -714,6 +728,7 @@ try {
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET') {
                 Response::success($configService->getAssetTypes($projectId), '获取资产类型列表成功');
@@ -753,6 +768,7 @@ try {
             require_once __DIR__ . '/services/ConfigService.php';
             $configService = new ConfigService($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET') {
                 Response::success($configService->getDepartments($projectId), '获取部门列表成功');
@@ -977,6 +993,7 @@ try {
             require_once __DIR__ . '/repositories/UserRepository.php';
             $userRepo = new UserRepository($db);
             $projectId = (int)($_GET['projectId'] ?? $currentUser['projectId'] ?? 0);
+            if ($projectId <= 0) Response::error('项目ID不能为空', 'VALIDATION_ERROR');
 
             if ($method === 'GET' && !$resourceId) {
                 $users = $userRepo->findByProjectId($projectId);
