@@ -261,16 +261,35 @@ async function run() {
     assert('项目A Dashboard正常', dashA.status === 200);
     assert('项目B Dashboard正常', dashB.status === 200);
 
-    // 项目A有数据，项目B应该很少或没有
-    const summaryA = dashA.body?.data?.accountSummary;
-    const summaryB = dashB.body?.data?.accountSummary;
-    if (summaryA && summaryB) {
-        console.log(`    项目A账户数: ${summaryA.total_accounts || summaryA.length || 'N/A'}`);
-        console.log(`    项目B账户数: ${summaryB.total_accounts || summaryB.length || 'N/A'}`);
-        // 如果都是数组
-        if (Array.isArray(summaryA) && Array.isArray(summaryB)) {
-            assert('Dashboard数据量不同（项目A > 项目B）', summaryA.length > summaryB.length);
+    // accountSummary 是「按币种分组」的合计。原先断言 A 的分组数 > B 的分组数，
+    // 证明不了隔离 —— 两个项目用同一套币种时分组数必然相等，断言必挂。
+    // 真正要验的是：每个项目 Dashboard 的合计，只能由该项目自己的账户构成。
+    const sumByCurrency = (rows) => {
+        const m = {};
+        for (const r of rows || []) {
+            m[r.currency_type] = (m[r.currency_type] || 0) + Number(r.total_balance || 0);
         }
+        return m;
+    };
+    for (const [label, pid, dash] of [['项目A', PROJECT_A, dashA], ['项目B', PROJECT_B, dashB]]) {
+        const dashSum = sumByCurrency(dash.body?.data?.accountSummary);
+        // 服务端把 limit 钳在 200（防一次拉全表），必须翻页取完，
+        // 否则拿到的只是第一页，合计天然对不上。
+        const realSum = {};
+        for (let page = 1; ; page++) {
+            const resp = await request('GET',
+                `/api/accounts?projectId=${pid}&limit=200&page=${page}`, null, ADMIN);
+            const rows = resp.body?.data || [];
+            for (const a of rows) {
+                realSum[a.currency_type] = (realSum[a.currency_type] || 0) + Number(a.balance || 0);
+            }
+            if (rows.length < 200) break;
+        }
+        const keys = [...new Set([...Object.keys(dashSum), ...Object.keys(realSum)])];
+        const mismatch = keys.filter(k => Math.abs((dashSum[k] || 0) - (realSum[k] || 0)) > 0.01);
+        console.log(`    ${label} Dashboard合计: ${JSON.stringify(dashSum)}`);
+        assert(`${label} Dashboard 合计等于该项目账户实际合计`, mismatch.length === 0,
+            mismatch.length ? `币种 ${mismatch.join(',')} 对不上` : '');
     }
 
     // ===== [8] 非项目成员访问隔离 =====

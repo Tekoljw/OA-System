@@ -43,8 +43,23 @@ suite = suite.filter(n => fs.existsSync(path.join(__dirname, `${n}.cjs`)));
 const results = [];
 const started = Date.now();
 
+/**
+ * 每个套件跑之前把「上次选择的项目」清空。
+ *
+ * 系统会记住用户上次切换到的项目（users.last_project_id），登录后落回那里。
+ * 这对产品是对的，但会让套件之间互相污染：test-project-isolation 把 admin
+ * 切到项目 8，后面所有按 projectId=1 断言的套件就整片失败，而且失败原因
+ * 完全看不出来源。清空后各套件都从「第一个可访问项目」这个确定状态开始。
+ */
+function resetLastProject() {
+    spawnSync('docker', ['exec', '-i', 'oa-system-postgres', 'psql', '-U', 'postgres',
+        '-d', 'oa_system', '-c', 'UPDATE users SET last_project_id = NULL;'],
+        { encoding: 'utf8', timeout: 30000 });
+}
+
 for (const name of suite) {
     process.stdout.write(`▶ ${name.padEnd(28)}`);
+    resetLastProject();
     const t0 = Date.now();
     // 必须指定 cwd 与绝对路径：否则被测脚本的相对 require('./test-helpers') 解析失败
     const r = spawnSync('node', [path.join(__dirname, `${name}.cjs`)],
