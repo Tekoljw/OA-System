@@ -185,8 +185,11 @@ const UserManagement = () => {
   const handleActivateUser = async (userId: string) => {
     try {
       // 调用API来激活用户
+      // 字段名必须是 is_active：服务端的白名单只认这个，发 active 会被
+      // 整个滤掉，请求以「无有效的可修改字段」失败，界面上只弹一句「错误」，
+      // 用户完全看不出停用/启用其实从来没生效过
       const result = await updateUser(userId, {
-        active: true
+        is_active: true
       });
       
       if (result.success) {
@@ -235,7 +238,7 @@ const UserManagement = () => {
     try {
       // 调用API来停用用户
       const result = await updateUser(userId, {
-        active: false
+        is_active: false
       });
       
       if (result.success) {

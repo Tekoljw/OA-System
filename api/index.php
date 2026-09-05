@@ -1016,8 +1016,17 @@ try {
                     Response::error('权限不足，无权创建用户', 'FORBIDDEN', 403);
                 }
                 $body = JsonMiddleware::getRequestBody();
-                if (empty($body['username']) || empty($body['password'])) {
+                // 用户名必须与登录侧一样先 trim：登录时做了 trim 而创建时没做，
+                // 于是「 alice 」这种带空格的用户名存进去后永远登录不上 ——
+                // 输 alice 或「 alice 」都会被 trim 成 alice，跟库里的值对不上，
+                // 而用户列表里看着完全正常。纯空格更是直接建出一个僵尸账号，
+                // 登不进去还占着名字。管理员复制粘贴时带上尾随空格很常见。
+                $body['username'] = trim((string)($body['username'] ?? ''));
+                if ($body['username'] === '' || empty($body['password'])) {
                     Response::error('用户名和密码不能为空', 'VALIDATION_ERROR');
+                }
+                if (preg_match('/\s/u', $body['username'])) {
+                    Response::error('用户名不能包含空格', 'VALIDATION_ERROR');
                 }
                 if (strlen($body['password']) < 6) {
                     Response::error('密码长度不能少于6位', 'VALIDATION_ERROR');
@@ -1063,12 +1072,31 @@ try {
                 }
                 $safeBody = array_intersect_key($body, array_flip($allowedFields));
 
+                // 用户名与创建时同样要 trim 并禁止空格：登录侧做了 trim，
+                // 这里若放行「 alice 」或纯空格，账号立刻变成登录不上的僵尸，
+                // 而用户列表里看着完全正常
+                if (array_key_exists('username', $safeBody)) {
+                    $safeBody['username'] = trim((string)$safeBody['username']);
+                    if ($safeBody['username'] === '') {
+                        Response::error('用户名不能为空', 'VALIDATION_ERROR');
+                    }
+                    if (preg_match('/\s/u', $safeBody['username'])) {
+                        Response::error('用户名不能包含空格', 'VALIDATION_ERROR');
+                    }
+                }
+
                 // users 里角色存了两份：role（代码字符串）与 role_id（外键）。
                 // 只改 role 不同步 role_id 的话，按 role_id 统计的「该角色下还有几个用户」
                 // 永远数不到人，角色的删除保护就形同虚设 —— 删掉后这些用户会失去权限。
                 if (array_key_exists('role', $safeBody)) {
                     $roleRow = $roleService->findRoleByCode((string)$safeBody['role']);
-                    $safeBody['role_id'] = $roleRow ? (int)$roleRow['id'] : null;
+                    // 创建用户时会校验角色是否存在，改用户时却不校验：
+                    // 写入一个不存在的角色代码后 role_id 变 null，该用户按 role_id
+                    // 查不到任何权限，登录后处处受阻，而界面上显示的角色名照旧
+                    if (!$roleRow) {
+                        Response::error('角色无效：' . $safeBody['role'], 'VALIDATION_ERROR');
+                    }
+                    $safeBody['role_id'] = (int)$roleRow['id'];
                 }
 
                 // 重置密码：界面上的用户编辑弹窗一直有密码输入框，但 password 不在白名单里，
