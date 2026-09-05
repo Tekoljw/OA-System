@@ -50,6 +50,17 @@ class AuthMiddleware {
             }
             return null;
         }
+        // 退出登录后签发时间早于 tokens_valid_after 的 token 一律作废。
+        // 不做这一步的话，JWT 是无状态的，点了退出照样能用满 24 小时。
+        $validAfter = $current['tokens_valid_after'] ?? null;
+        if ($validAfter !== null && (int)($payload['iat'] ?? 0) < (int)$validAfter) {
+            if ($required) {
+                require_once __DIR__ . '/../utils/Response.php';
+                Response::error('登录状态已失效，请重新登录', 'UNAUTHORIZED', 401);
+            }
+            return null;
+        }
+
         // PDO 取回来的 boolean 是字符串 'f'/'t'，直接判真会把停用账号放行
         $isActive = filter_var($current['is_active'], FILTER_VALIDATE_BOOLEAN);
         if (!$isActive) {
@@ -75,7 +86,7 @@ class AuthMiddleware {
 
         $db = (new Database())->getConnection();
         if (!$db) return null;
-        $stmt = $db->prepare("SELECT id, username, full_name, role, is_active FROM users WHERE id = ?");
+        $stmt = $db->prepare("SELECT id, username, full_name, role, is_active, tokens_valid_after FROM users WHERE id = ?");
         $stmt->execute([$userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
         return $cache[$userId] = $row;

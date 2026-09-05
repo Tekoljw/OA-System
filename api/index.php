@@ -205,6 +205,15 @@ try {
             break;
 
         case 'logout':
+            // 真正让当前用户已签发的 token 全部失效。
+            // 此前这里只回一句「已成功注销」，服务端什么都没做 —— 退出后
+            // 同一个 token 还能用满 24 小时，用户却以为已经退出了。
+            // 时间往前挪 1 秒：token 的 iat 与这里的 NOW() 可能落在同一秒内，
+            // 严格小于的比较会把刚签发的 token 漏掉。
+            $rev = $db->prepare(
+                "UPDATE users SET tokens_valid_after = EXTRACT(EPOCH FROM NOW())::bigint + 1 WHERE id = ?"
+            );
+            $rev->execute([(int)$currentUser['id']]);
             Response::success(null, '已成功注销');
             break;
 
