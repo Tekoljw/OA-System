@@ -12,6 +12,7 @@
  * 落账逻辑一旦被改坏，这里会立刻失败。
  */
 const { execFileSync } = require('child_process');
+const { recalcBalances } = require('./test-helpers.cjs');
 const BASE = process.env.OA_BASE_URL || 'http://localhost:8000';
 let pass = 0, fail = 0;
 const assert = (name, ok, extra = '') => {
@@ -172,13 +173,27 @@ function unbalancedCount() {
     assert('全部账户仍然对平', unbalancedCount() === 0, `${unbalancedCount()} 个账户对不上`);
     assert('衍生记录仍然对平', derivedMismatch() === 0, `${derivedMismatch()} 条对不上`);
 
-    // 本套件自己造的划款单要清掉，否则留给后面的套件就是孤儿流水
+    // 本套件自己造的数据全部清掉，并把账户余额重算回去。
+    //
+    // 原先只清划款单，那两笔「LEDGER对账收入 211.33 / 支出 137.45」的流水
+    // 和对应的申请单从来不删，账户余额也不还原 —— 每跑一轮就往同两个账户上
+    // 累加一次。跑了 48 笔之后，它们相对「初始余额 + 收入 - 支出」的公式
+    // 差出 97.77 和 -99.27，全库对账从此永远有 2 个账户不平。
+    // 讽刺的是，这个套件本身就是用来验账目一致性的，却在污染账目。
     execFileSync('docker', ['compose','exec','-T','postgres','psql','-U','postgres','-d','oa_system','-c',
         `DELETE FROM transactions WHERE id IN (${tr.data.out_transaction_id ?? 0}, ${tr.data.in_transaction_id ?? 0})
            OR id IN (SELECT out_transaction_id FROM transfers WHERE id=${tr.data.id} AND out_transaction_id IS NOT NULL)
            OR id IN (SELECT in_transaction_id FROM transfers WHERE id=${tr.data.id} AND in_transaction_id IS NOT NULL);
          DELETE FROM application_approvals WHERE transfer_id=${tr.data.id};
-         DELETE FROM transfers WHERE id=${tr.data.id};`], { stdio: 'pipe' });
+         DELETE FROM transfers WHERE id=${tr.data.id};
+         DELETE FROM transactions WHERE description LIKE '%LEDGER对账%';
+         DELETE FROM application_approvals WHERE application_id IN
+           (SELECT id FROM applications WHERE title IN ('LEDGER对账收入','LEDGER对账支出'));
+         DELETE FROM applications WHERE title IN ('LEDGER对账收入','LEDGER对账支出');
+         DELETE FROM activity_logs WHERE description LIKE '%LEDGER对账%';`], { stdio: 'pipe' });
+    // 删了流水就必须重算余额，否则账户里留着已不存在的流水的影响 ——
+    // 这正是上面那 48 笔累积成 97.77 差额的直接原因
+    recalcBalances();
 
     console.log(`\n账目一致性：总计 ${pass + fail} | ✅ ${pass} | ❌ ${fail}`);
     process.exit(fail > 0 ? 1 : 0);
