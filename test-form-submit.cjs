@@ -2,7 +2,7 @@
  * 表单提交端到端测试
  *
  * 补上最大的测试盲区：此前的交互扫描只「点开弹窗」从不填写提交，
- * POST /api/users 长期返回 405（用户管理的 Add User 必然失败）就是这么藏住的。
+ * POST /api/users 长期返回 405（用户管理的「添加用户」必然失败）就是这么藏住的。
  * 本用例真实填写并提交各创建表单，断言数据确实落库。
  */
 const { chromium } = require('/home/ubuntu/playwright-tools/node_modules/playwright');
@@ -97,6 +97,12 @@ async function pickFirstOption(page, triggerText) {
     const token = await page.evaluate(() => localStorage.getItem('token'));
     assert('登录成功', !!token);
 
+    // 系统会记住用户上次选择的项目，登录后不一定落在项目 1。
+    // 本套件的断言都按 projectId=1 查库，所以先显式切回去。
+    await api('POST', '/api/switch-project', token, { projectId: 1 });
+    await page.reload({ waitUntil: 'networkidle' });
+    await page.waitForTimeout(1200);
+
     const open = async (path, btnText) => {
         await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle' });
         await page.waitForTimeout(1200);
@@ -113,7 +119,7 @@ async function pickFirstOption(page, triggerText) {
 
     // ---------- 1. 账户 ----------
     console.log('\n[1] 账户管理 → 新建账户');
-    if (await open('/accounts', 'Add Account')) {
+    if (await open('/accounts', '添加账户')) {
         await page.fill('[role="dialog"] input[name="name"]', `${TAG}账户`);
         await page.fill('[role="dialog"] input[name="accountNumber"]', `${TAG}-001`);
         await page.fill('[role="dialog"] input[name="bank"]', '测试银行');
@@ -127,13 +133,13 @@ async function pickFirstOption(page, triggerText) {
 
     // ---------- 2. 用户（此前 POST /api/users 返回 405）----------
     console.log('\n[2] 用户管理 → 创建用户');
-    if (await open('/personnel/users', 'Add User')) {
+    if (await open('/personnel/users', '添加用户')) {
         await page.fill('[role="dialog"] input[name="username"]', `ft_${TAG.toLowerCase()}`);
         await page.fill('[role="dialog"] input[name="password"]', 'ft123456');
         await page.fill('[role="dialog"] input[name="fullName"]', `${TAG}员工`);
-        await pickFirstOption(page, 'Select a role');
+        await pickFirstOption(page, '选择角色');
         await pickFirstOption(page, '请选择部门');
-        await submit('Create User');
+        await submit('创建用户');
         const list = await api('GET', '/api/users?projectId=1', token);
         assert('用户已落库', (list.data || []).some(u => u.username === `ft_${TAG.toLowerCase()}`));
     } else assert('打开创建用户弹窗', false);

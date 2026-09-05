@@ -25,9 +25,11 @@ i18n
         translation: enTranslation
       }
     },
-    // 检测语言顺序: localStorage, navigator, ...
+    // 本系统 96% 界面文案为硬编码中文，i18n 仅覆盖少量组件。
+    // 若让浏览器 locale 参与检测，英文环境会得到「中英混杂」的界面，
+    // 因此只认用户显式切换后写入 localStorage 的选择，其余一律中文。
     detection: {
-      order: ['localStorage', 'navigator'],
+      order: ['localStorage'],
       lookupLocalStorage: 'i18nextLng',
       caches: ['localStorage'],
     }
