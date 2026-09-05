@@ -76,51 +76,31 @@ const AccountFormDialog: React.FC<AccountFormDialogProps> = ({
     const fetchConfigData = async () => {
       setIsLoading(true);
       try {
-        // 分别获取币种和账户类型数据，如果一个失败不影响另一个
+        // 币种与账户类型都必须来自服务端，不做假数据兜底。
+        //
+        // 原先这里在「接口失败」和「返回空」两种情况下都塞进一套写死的默认值
+        // （人民币/美元/欧元/日元/英镑、运营账户/资本账户/外汇账户/投资账户），
+        // id 固定为 1~5。这些在库里根本不存在 —— 用户照着选并提交，服务端拿到
+        // 一个对不上的 id，要么建错要么报一句看不懂的错；而接口其实早就挂了，
+        // 界面上却一切正常，问题被这套假数据完全盖住。
+        // 现在失败就是空列表，下拉里会明确提示「请先到配置管理添加」。
         let currencies: CurrencyType[] = [];
         let types: AccountType[] = [];
-        
+
         try {
-          currencies = await getCurrencyTypes();
-          console.log("AccountFormDialog - 币种数据加载成功:", currencies);
-          
-          // 如果获取到的数据为空或无效，使用默认币种
-          if (!currencies || currencies.length === 0) {
-            console.log("AccountFormDialog - API返回空数据，使用默认币种");
-            currencies = [
-              { id: "1", name: "人民币", code: "CNY", description: "中国法定货币" },
-              { id: "2", name: "美元", code: "USD", description: "美国法定货币" },
-              { id: "3", name: "欧元", code: "EUR", description: "欧盟法定货币" },
-              { id: "4", name: "日元", code: "JPY", description: "日本法定货币" },
-              { id: "5", name: "英镑", code: "GBP", description: "英国法定货币" }
-            ];
-          }
+          currencies = (await getCurrencyTypes()) || [];
         } catch (error) {
           console.error("AccountFormDialog - 币种数据加载失败:", error);
-          // 如果币种加载失败，使用默认币种
-          currencies = [
-            { id: "1", name: "人民币", code: "CNY", description: "中国法定货币" },
-            { id: "2", name: "美元", code: "USD", description: "美国法定货币" },
-            { id: "3", name: "欧元", code: "EUR", description: "欧盟法定货币" },
-            { id: "4", name: "日元", code: "JPY", description: "日本法定货币" },
-            { id: "5", name: "英镑", code: "GBP", description: "英国法定货币" }
-          ];
+          currencies = [];
         }
-        
+
         try {
-          types = await getAccountTypes();
-          console.log("AccountFormDialog - 账户类型数据加载成功:", types);
+          types = (await getAccountTypes()) || [];
         } catch (error) {
           console.error("AccountFormDialog - 账户类型数据加载失败:", error);
-          // 如果账户类型加载失败，使用默认账户类型
-          types = [
-            { id: "1", name: "运营账户", description: "用于日常经营活动的资金账户" },
-            { id: "2", name: "资本账户", description: "用于股本和长期投资的资金账户" },
-            { id: "3", name: "外汇账户", description: "用于外币交易和汇率管理的账户" },
-            { id: "4", name: "投资账户", description: "用于证券、基金等投资活动的账户" }
-          ];
+          types = [];
         }
-        
+
         setCurrencyTypes(currencies);
         setAccountTypes(types);
       } catch (error) {

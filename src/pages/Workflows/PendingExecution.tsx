@@ -66,7 +66,7 @@ interface TransferData {
 
 // 申请类型和部门常量 - 仅用于显示
 const applicationTypes = ["payment", "income", "transfer", "loan", "investment"];
-const departments = ["市场部", "财务部", "研发部", "人力资源部", "客服部", "行政部", "IT部"];
+// 假的部门常量已删除：没有任何地方引用它，内容也与库里的真实部门不符
 
 // 申请状态映射
 const statusMap = {

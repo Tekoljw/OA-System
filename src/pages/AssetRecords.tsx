@@ -42,6 +42,7 @@ import { cn } from "../lib/utils";
 import { useIsMobile } from "../hooks/use-mobile";
 import { useToast } from "../hooks/use-toast";
 import { apiRequest } from "../api/client";
+import { getAssetTypes } from "../utils/config-api";
 
 interface DepreciationRecord {
   id: string;
@@ -129,6 +130,20 @@ const AssetRecordsContent: React.FC = () => {
   const canManageAssets = can('manage_assets');
   const [expandedRows, setExpandedRows] = useState<string[]>([]);
   const [activeTab, setActiveTab] = useState("all");
+  // 本项目的真实资产分类，页签与筛选都基于它
+  const [assetTypeList, setAssetTypeList] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const rows = await getAssetTypes();
+        setAssetTypeList(rows.map((t: any) => ({ id: String(t.id), name: t.name })));
+      } catch (e) {
+        console.error('加载资产分类失败:', e);
+        setAssetTypeList([]);
+      }
+    })();
+  }, []);
   const [selectedAsset, setSelectedAsset] = useState<Asset | null>(null);
   const [isDepreciationDialogOpen, setIsDepreciationDialogOpen] = useState(false);
   const [deletingAsset, setDeletingAsset] = useState<Asset | null>(null);
@@ -339,22 +354,19 @@ const AssetRecordsContent: React.FC = () => {
     if (!matchesSearch) return false;
     
     if (activeTab === "all") return true;
-    if (activeTab === "computers" && asset.type.includes("电脑")) return true;
-    if (activeTab === "phones" && asset.type.includes("手机")) return true;
-    if (activeTab === "electronics" && asset.type.includes("电子")) return true;
-    if (activeTab === "furniture" && asset.type.includes("家具")) return true;
-    if (activeTab === "simcards" && asset.type.includes("卡")) return true;
-    
-    return false;
+    // 按分类精确匹配。原先靠中文关键词 includes（"电脑"/"手机"/"卡"），
+    // 分类名一改就失效，而且「手机卡」会被「手机」的规则先吃掉
+    const tab = assetTypeList.find(t => String(t.id) === activeTab);
+    return !!tab && asset.type === tab.name;
   });
 
+  // 页签按本项目真实的资产分类生成。
+  // 原先这里写死了「电脑设备/手机设备/其他电子设备/办公家具/手机卡」五个，
+  // 而库里的分类是「办公家具/交通工具/房产/软件资产/电子设备」—— 除了办公家具
+  // 碰巧对上，其余点进去都是空列表；新建的分类也永远不会出现在页签里。
   const assetTabs = [
     { id: "all", label: "全部" },
-    { id: "computers", label: "电脑设备", icon: Computer },
-    { id: "phones", label: "手机设备", icon: Smartphone },
-    { id: "electronics", label: "其他电子设备", icon: Laptop },
-    { id: "furniture", label: "办公家具", icon: Building },
-    { id: "simcards", label: "手机卡", icon: Smartphone }
+    ...assetTypeList.map(t => ({ id: String(t.id), label: t.name })),
   ];
 
   // 获取状态样式

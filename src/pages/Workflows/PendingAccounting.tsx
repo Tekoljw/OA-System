@@ -27,9 +27,8 @@ interface Application {
   department: string;
 }
 
-// 申请类型和部门常量 - 仅用于显示
-const applicationTypes = ["payment", "income", "transfer", "loan", "investment"];
-const departments = ["市场部", "财务部", "研发部", "人力资源部", "客服部", "行政部"];
+// 假的部门与申请类型常量已删除：库里的部门是「财务部」等真实数据，
+// 这两个数组既没被任何地方引用，内容也与实际不符，留着只会误导。
 
 // 申请状态映射
 const statusMap = {

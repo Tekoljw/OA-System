@@ -161,12 +161,13 @@ const getTypeIcon = (type: string) => {
 };
 
 const AccountTabs = () => {
-  // 默认值
-  const defaultCurrencyList = ["全部", "CNY", "USD", "EUR", "JPY"];
-  const defaultTypeList = ["全部", "运营账户", "资本账户", "外汇账户", "投资账户"];
-  
-  const [currencies, setCurrencies] = useState<string[]>(defaultCurrencyList);
-  const [types, setTypes] = useState<string[]>(defaultTypeList);
+  // 初始只放「全部」，其余等 API 返回。
+  // 原先这里写死了默认列表（"运营账户/资本账户/外汇账户/投资账户"），
+  // 而库里的账户类型是「活期账户/定期账户/信用卡/投资账户」—— 首屏会闪一下
+  // 假类型，接口一旦失败（catch 里只 console.error）就一直显示这些并不存在的
+  // 类型，用户按它筛选永远筛不出东西，还看不出是接口挂了。
+  const [currencies, setCurrencies] = useState<string[]>(["全部"]);
+  const [types, setTypes] = useState<string[]>(["全部"]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {

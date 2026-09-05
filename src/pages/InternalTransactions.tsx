@@ -40,7 +40,9 @@ import { cn } from "@/lib/utils";
 import PageLayout from "@/components/layout/PageLayout";
 import { useIsMobile } from "@/hooks/use-mobile";
 import LoadMoreButton from "@/components/common/LoadMoreButton";
-import { getCurrencyTypes } from "@/utils/config-api";
+import { getCurrencyTypes, getAccounts } from "@/utils/config-api";
+import { useAuth } from "@/contexts/AuthContext";
+import { createTransfer } from "@/utils/transfer-api";
 import { apiRequest } from "@/api/client";
 
 // 币种图标映射
@@ -765,6 +767,13 @@ const StatusChangeButton = ({ transferId, currentStatus, onStatusChange, pageTyp
 };
 
 // 新建划款表单接口
+/** 划款表单里用的账户：必须带 id，服务端要的是 from_account_id / to_account_id */
+export interface TransferAccountOption {
+  id: number;
+  name: string;
+  currency_type: string;
+}
+
 interface TransferFormData {
   fromAccount: string;
   fromCurrency: string;
@@ -787,14 +796,14 @@ const NewTransferDialog = ({
   isOpen: boolean, 
   onClose: () => void, 
   onSubmit: (data: TransferFormData) => void,
-  accounts: string[],
+  accounts: TransferAccountOption[],
   currencies: string[]
 }) => {
   const [formData, setFormData] = useState<TransferFormData>({
-    fromAccount: accounts[0] || "",
+    fromAccount: accounts[0] ? String(accounts[0].id) : "",
     fromCurrency: currencies[0] || "CNY",
     amount: 10000,
-    toAccount: accounts[1] || (accounts[0] || ""),
+    toAccount: accounts[1] ? String(accounts[1].id) : (accounts[0] ? String(accounts[0].id) : ""),
     toCurrency: currencies[0] || "CNY",
     officialExchangeRate: null,
     fees: 0,
@@ -871,7 +880,9 @@ const NewTransferDialog = ({
                 required
               >
                 {accounts.map(account => (
-                  <option key={account} value={account}>{account}</option>
+                  <option key={account.id} value={String(account.id)}>
+                    {account.name}（{account.currency_type}）
+                  </option>
                 ))}
               </select>
             </div>
@@ -906,7 +917,9 @@ const NewTransferDialog = ({
                 required
               >
                 {accounts.map(account => (
-                  <option key={account} value={account}>{account}</option>
+                  <option key={account.id} value={String(account.id)}>
+                    {account.name}（{account.currency_type}）
+                  </option>
                 ))}
               </select>
             </div>
@@ -1055,6 +1068,7 @@ const TransferListSection = ({
 
 const InternalTransactions: React.FC = () => {
   const isMobile = useIsMobile();
+  const { currentProject } = useAuth();
   const [selectedCurrency, setSelectedCurrency] = useState("all");
   const [transferType, setTransferType] = useState("all");
   const [allTransfers, setAllTransfers] = useState<TransferData[]>([]);
@@ -1138,59 +1152,76 @@ const InternalTransactions: React.FC = () => {
     }
   };
   
-  // 可用账户列表 (实际应该从API获取)
-  const accounts = ["运营账户A", "运营账户B", "外汇账户A", "外汇账户B", "投资账户A"];
+  // 可用账户列表：从 API 取真实账户。
+  // 原先这里写死了 5 个并不存在的名字（"运营账户A" 之类），下拉里选到的账户
+  // 数据库里根本没有；而服务端要的是 from_account_id / to_account_id，
+  // 传个名字过去也对不上 —— 这个「新建划款」从来就没有真正提交过。
+  const [accounts, setAccounts] = useState<TransferAccountOption[]>([]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        // 复用 config-api 的 getAccounts（它已把服务端的 snake_case 转成驼峰）
+        const rows = await getAccounts();
+        setAccounts(
+          rows
+            .filter((a: any) => (a.status ?? 'active') === 'active')
+            .map((a: any) => ({
+              id: Number(a.id),
+              name: a.name,
+              currency_type: a.currencyType || a.currency_type || '',
+            }))
+        );
+      } catch (e) {
+        console.error('加载可用账户失败:', e);
+        setAccounts([]);
+      }
+    })();
+  }, [currentProject?.id]);
   
   // 创建新的划款记录
-  const handleNewTransfer = (formData: TransferFormData) => {
-    // 生成新ID
-    const newId = `TR${String(allTransfers.length + 1).padStart(3, '0')}`;
-    
-    // 计算实际汇率和到账金额
-    const isSameCurrency = formData.fromCurrency === formData.toCurrency;
-    const actualExchangeRate = isSameCurrency ? null : formData.officialExchangeRate;
-    let toAmount = formData.amount;
-    let exchangeLoss = 0;
-    
-    // 同币种划款，到账金额等于划出金额
-    if (isSameCurrency) {
-      toAmount = formData.amount;
-    } 
-    // 跨币种划款，需要设置实际汇率和计算汇损
-    else if (actualExchangeRate) {
-      // 假设实际汇率等于官方汇率 (在实际实施中，这通常是在到账金额确认后才确定的)
-      toAmount = +(formData.amount / actualExchangeRate).toFixed(2);
-      exchangeLoss = 0; // 实际应用中由实际到账金额决定
+  const handleNewTransfer = async (formData: TransferFormData) => {
+    // 真正提交到服务端。原先这里只是 setAllTransfers 往本地数组塞一条：
+    // ID 是前端拼的 TR001、提交人写死「当前用户」、一个请求都不发，
+    // 刷新页面记录就没了 —— 实测点提交后 transfers 表纹丝不动。
+    const fromId = Number(formData.fromAccount);
+    const toId = Number(formData.toAccount);
+    if (!fromId || !toId) {
+      toast({ title: '请选择划出与划入账户', variant: 'destructive' });
+      return;
     }
-    
-    // 创建新划款记录
-    const newTransfer: TransferData = {
-      id: newId,
-      fromAccount: formData.fromAccount,
-      fromCurrency: formData.fromCurrency,
-      amount: formData.amount,
-      actualExchangeRate,
-      officialExchangeRate: formData.officialExchangeRate,
-      toAccount: formData.toAccount,
-      toCurrency: formData.toCurrency,
-      toAmount,
-      submitter: "当前用户",
-      submitTime: format(new Date(), 'yyyy-MM-dd HH:mm'),
-      approver: "",
-      approveTime: "",
-      fees: formData.fees,
-      exchangeLoss,
-      reason: formData.reason,
-      status: "未提交"
-    };
-    
-    // 添加到数据列表
-    setAllTransfers(prev => [newTransfer, ...prev]);
-    
-    // 关闭对话框
-    setIsNewTransferDialogOpen(false);
+    if (fromId === toId) {
+      toast({ title: '划出与划入不能是同一个账户', variant: 'destructive' });
+      return;
+    }
+    try {
+      const payload: any = {
+        fromAccount: fromId,
+        toAccount: toId,
+        amount: formData.amount,
+        fees: formData.fees,
+        reason: formData.reason,
+      };
+      // 跨币种必须给出实际到账金额，服务端按它倒推实际汇率、算汇兑损益；
+      // 同币种不传，由服务端强制等于转出金额
+      if (formData.fromCurrency !== formData.toCurrency && formData.officialExchangeRate) {
+        payload.toAmount = +(formData.amount / formData.officialExchangeRate).toFixed(2);
+      }
+      await createTransfer(payload);
+      toast({ title: '划款单已提交', description: '等待审批' });
+      setIsNewTransferDialogOpen(false);
+      // 重新拉取列表，拿到服务端生成的真实 ID 与状态
+      setPage(1);
+      await loadTransactionData(1, true);
+    } catch (err: any) {
+      toast({
+        title: '提交划款失败',
+        description: err?.message || '请稍后重试',
+        variant: 'destructive',
+      });
+    }
   };
-  
+
   // 加载更多数据
   // 从API加载交易数据
   const loadTransactionData = async (pageNum: number, isInitialLoad: boolean = false) => {

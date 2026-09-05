@@ -122,6 +122,18 @@ class TransferService {
         foreach (['from_account_id' => '转出账户', 'to_account_id' => '转入账户'] as $k => $label) {
             if (empty($d[$k])) throw new \InvalidArgumentException($label . '不能为空');
         }
+
+        // 没指定部门时，取提交人自己所属的部门。
+        // 划款单的第一级审批人是「申请人所属部门的主管」，业务上本就该按提交人
+        // 的部门来定，而划款表单里没有部门这一项（前端原型如此，不擅自加字段）。
+        // 不补这一步的话，服务端在 resolveDeptManager 里直接抛
+        // 「申请单未指定部门，无法确定审批主管」，整个新建划款走不通。
+        if (empty($d['department_id']) && !empty($d['submitter_id'])) {
+            $stmt = $this->db->prepare("SELECT department_id FROM users WHERE id = ?");
+            $stmt->execute([(int)$d['submitter_id']]);
+            $dept = $stmt->fetchColumn();
+            if ($dept) $d['department_id'] = (int)$dept;
+        }
         if ((int)$d['from_account_id'] === (int)$d['to_account_id']) {
             throw new \InvalidArgumentException('转出和转入账户不能相同');
         }
