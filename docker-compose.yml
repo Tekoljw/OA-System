@@ -9,6 +9,12 @@ services:
       POSTGRES_DB: oa_system
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      # 使用者在 UTC+8。此前库与应用都跑 UTC，导致「哪一天」的判断整体偏移 8 小时：
+      # 本地时间 0:00-7:59 的记录筛「今天」筛不到、主管每日审批额度早上 8 点才重置、
+      # 流水默认日期写成前一天、仪表盘本月本年边界错位。
+      # 存量数据由 migration 019 一次性 +8 小时对齐。
+      TZ: Asia/Singapore
+      PGTZ: Asia/Singapore
     # 仅内网访问，不暴露到宿主机
     # ports:
     #   - "5433:5432"
@@ -52,6 +58,8 @@ services:
       # 写死开启会让绕过审批直写账本的入口跟着代码进生产。
       # 本地跑测试时用 docker-compose.override.yml 打开（该文件不进版本库）。
       OA_ENABLE_TEST_HARNESS: "${OA_ENABLE_TEST_HARNESS:-0}"
+      # 与 postgres 保持同一时区，否则 PHP 的 date() 和库里的 now() 会差 8 小时
+      TZ: Asia/Singapore
       PGHOST: postgres
       PGPORT: 5432
       PGDATABASE: oa_system
