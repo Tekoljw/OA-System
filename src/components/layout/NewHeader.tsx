@@ -123,7 +123,14 @@ const NewHeader: React.FC<HeaderProps> = ({ title, subtitle }) => {
           {/* 项目切换器 - 仅超级管理员可见 */}
           <ProjectSwitcher />
           
-          <LanguageSwitcher />
+          {/* 语言切换入口先收起来。
+              整套界面 96% 是硬编码中文（3327 行），走 i18n 的只有 137 处，
+              切到英文得到的不是英文界面，而是「中文界面里夹着几个英文按钮」——
+              实测账户页在英文模式下仍有 685 个中文字符、11 个英文单词，
+              对英文用户没有价值，只会让人以为系统坏了。
+              i18n 的基础设施（i18next、两份语言包、LanguageSwitcher 组件）
+              全部保留，将来真要做国际化时，把这一行放回来即可。 */}
+          {/* <LanguageSwitcher /> */}
 
           <BaseCurrencySwitcher />
           
