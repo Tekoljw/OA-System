@@ -28,9 +28,17 @@ const sql = q => { try { execFileSync('docker', ['compose', 'exec', '-T', 'postg
     assert('管理员登录', !!T);
     if (!T) process.exit(1);
 
-    const accs = (await api('GET', '/api/accounts?projectId=1&limit=200', T)).data || [];
-    const cny = accs.filter(a => a.currency_type === 'CNY' && Number(a.balance) > 2000).slice(0, 2);
-    const usd = accs.find(a => a.currency_type === 'USD');
+    // 翻页取全量再挑，不能只看第一页：整跑时前面的套件会消耗掉靠前那些
+    // 账户的余额，「前 200 个里有 2 个余额 >2000 的 CNY 账户」这个前提
+    // 随执行顺序而变 —— 单独跑通过、整跑却挂在第一条断言上。
+    const accs = [];
+    for (let page = 1; page <= 20; page++) {
+        const rows = (await api('GET', `/api/accounts?projectId=1&limit=200&page=${page}`, T)).data || [];
+        accs.push(...rows);
+        if (rows.length < 200) break;
+    }
+    const cny = accs.filter(a => a.currency_type === 'CNY' && a.status === 'active' && Number(a.balance) > 2000).slice(0, 2);
+    const usd = accs.find(a => a.currency_type === 'USD' && a.status === 'active');
     assert('取到两个 CNY 账户和一个 USD 账户', cny.length === 2 && !!usd);
     if (cny.length < 2 || !usd) process.exit(1);
 
