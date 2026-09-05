@@ -171,6 +171,14 @@ class ExchangeRateService {
             if (!is_finite($rate) || $rate <= 0) {
                 throw new \InvalidArgumentException('汇率必须大于 0');
             }
+            // rate_to_usd 是 numeric(20,10)，整数部分只有 10 位。
+            // 没有上限校验时，超大数值直接撞溢出，用户拿到的是一句
+            // 没有信息量的「数据库操作失败」500。取 100 万作上限 ——
+            // 远高于任何现实币种（最贵的科威特第纳尔也不到 4 USD），
+            // 又离溢出点足够远。
+            if ($rate > 1000000) {
+                throw new \InvalidArgumentException('汇率超出有效范围（最大 1000000）');
+            }
             $sets[] = 'rate_to_usd = ?';   $params[] = $rate;
             $sets[] = 'rate_updated_at = NOW()';
             $sets[] = "rate_source = 'manual'";

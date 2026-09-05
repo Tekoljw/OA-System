@@ -362,6 +362,27 @@ class TransferService {
         // 实际汇率按真实到账倒推，与官方汇率的差额就是汇兑损益
         $actualRate   = $amount > 0 ? $toAmount / $amount : 0;
 
+        // 到账金额与官方汇率算出来的参考值偏差不得超过 50%。
+        //
+        // 此前完全不校验：实测 10000 CNY 填「到账 999999 USD」被照单全收并执行，
+        // USD 账户凭空多出 99 万，那 99 万还被记成汇兑收益进了报表。
+        // 到账金额是人工填的，多打或少打一个 0 是最常见的手滑。
+        //
+        // 阈值取得很宽（正常点差与手续费差异通常在 5% 以内，小币种极端行情
+        // 也就 10~20%），只挡数量级错误，不干涉真实业务；错误信息里带上官方
+        // 汇率与参考金额，用户能当场核对是自己填错还是汇率该更新了。
+        if ($expected > 0) {
+            $deviation = abs($toAmount - $expected) / $expected;
+            if ($deviation > 0.5) {
+                throw new \InvalidArgumentException(sprintf(
+                    '到账金额 %.2f %s 与按官方汇率折算的 %.2f %s 相差 %.0f%%，请核对。'
+                    . '（官方汇率 1 %s = %.6f %s；确属实际到账请先更新汇率）',
+                    $toAmount, $to, $expected, $to, $deviation * 100,
+                    $from, $officialRate, $to
+                ));
+            }
+        }
+
         return [
             'to_amount'     => $toAmount,
             'official_rate' => round($officialRate, 8),
