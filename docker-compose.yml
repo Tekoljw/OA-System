@@ -8,7 +8,10 @@ services:
     environment:
       POSTGRES_DB: oa_system
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      # 与 JWT_SECRET 一样强制要求，不给默认值：
+      # 原先是 ${DB_PASSWORD:-postgres}，部署时忘了设环境变量就静默用上
+      # 弱口令 postgres，而且不会有任何提示 —— 这种「忘了设」不该靠人记得
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD 环境变量必须设置}
       # 使用者在 UTC+8。此前库与应用都跑 UTC，导致「哪一天」的判断整体偏移 8 小时：
       # 本地时间 0:00-7:59 的记录筛「今天」筛不到、主管每日审批额度早上 8 点才重置、
       # 流水默认日期写成前一天、仪表盘本月本年边界错位。
@@ -69,7 +72,7 @@ services:
       PGPORT: 5432
       PGDATABASE: oa_system
       PGUSER: postgres
-      PGPASSWORD: ${DB_PASSWORD:-postgres}
+      PGPASSWORD: ${DB_PASSWORD:?DB_PASSWORD 环境变量必须设置}
       REDIS_HOST: redis
       REDIS_PORT: 6379
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 环境变量必须设置}
