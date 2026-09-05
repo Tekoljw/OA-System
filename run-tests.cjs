@@ -25,6 +25,8 @@ const CORE = [
     // 仪表盘的数字曾长期是空/0、停用用户的按钮从未生效、两个搜索框形同虚设，
     // 而上面那些套件全绿 —— 它们只验接口 200 与页面不白屏，验不到这些。
     'test-dashboard-values', 'test-toggle-persist', 'test-search-filters',
+    // 并发下的资金安全：去掉账户行锁就会透支到负数，这条必须一直守着
+    'test-concurrency-money',
 ];
 
 // 遗留套件：早期编写，本次已修复到可运行
