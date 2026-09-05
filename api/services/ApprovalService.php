@@ -236,6 +236,12 @@ class ApprovalService {
         }
         $min = (float)($d['min_amount'] ?? 0);
         $max = ($d['max_amount'] ?? null);
+        // 申请金额本身就不允许为负（提交时已卡在 0.01 以上），负数下限只会让这条
+        // 规则的覆盖区间凭空变大，把本该由其他档位处理的小额申请也吃进来，
+        // 而配置界面上完全看不出问题
+        if ($min < 0) {
+            throw new \InvalidArgumentException('金额下限不能为负数');
+        }
         if ($max !== null && $max !== '' && (float)$max <= $min) {
             throw new \InvalidArgumentException('金额上限必须大于下限');
         }
