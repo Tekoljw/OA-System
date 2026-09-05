@@ -15,6 +15,11 @@ services:
       # 存量数据由 migration 019 一次性 +8 小时对齐。
       TZ: Asia/Singapore
       PGTZ: Asia/Singapore
+    # PGTZ 只作用于本容器内的 psql 客户端；应用是从另一个容器连进来的，
+    # 拿到的仍是服务端默认时区（UTC），于是 DEFAULT CURRENT_TIMESTAMP
+    # 写入的还是 UTC —— 只设 PGTZ 会造成「psql 里看着是对的、应用写进去
+    # 却是错的」这种极难发现的半吊子状态。必须改服务端默认。
+    command: postgres -c timezone=Asia/Singapore
     # 仅内网访问，不暴露到宿主机
     # ports:
     #   - "5433:5432"
