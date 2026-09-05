@@ -184,7 +184,11 @@ const AccountFormDialog: React.FC<AccountFormDialogProps> = ({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {currencyTypes.map((currency) => (
+                        {currencyTypes.length === 0 ? (
+                          <div className="px-2 py-3 text-sm text-muted-foreground">
+                            该项目还没有币种，请先到「配置管理 → 账户配置」添加
+                          </div>
+                        ) : currencyTypes.map((currency) => (
                           <SelectItem key={currency.id} value={currency.code}>
                             {currency.name} ({currency.code})
                           </SelectItem>
@@ -211,7 +215,14 @@ const AccountFormDialog: React.FC<AccountFormDialogProps> = ({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        {accountTypes.map((type) => (
+                        {/* 选项为空时必须给出提示：Radix 的空 SelectContent 会展开成一条
+                            空白窄条并盖住整个弹窗，点不到「确定」「取消」，
+                            用户只能按 Esc 才能脱身，看起来像界面卡死 */}
+                        {accountTypes.length === 0 ? (
+                          <div className="px-2 py-3 text-sm text-muted-foreground">
+                            该项目还没有账户类型，请先到「配置管理 → 账户配置」添加
+                          </div>
+                        ) : accountTypes.map((type) => (
                           // 提交 code 而非显示名：库中 account_type 存的是 current/fixed 等 code
                           <SelectItem key={type.id} value={type.code || type.name}>
                             {type.name}
