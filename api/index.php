@@ -267,13 +267,20 @@ try {
                 // 此前只拦账户与交易 —— 一个还没建账户、但已经配好部门股东科目的
                 // 项目，删除时没有任何提示就全没了，连活动日志（审计留痕）也一起消失。
                 // 逐项列出还有什么，让人知道自己要删掉的到底是些什么东西。
+                // 只拦「用户真正录入的业务数据」，不拦建项目时自动铺的基础配置。
+                //
+                // 建项目会 seed 币种、账户类型、科目、审批规则（见
+                // ProjectRepository::seedBaseConfig），所以新建的项目从来就不是
+                // 「空」的。把这些也算进拦截条件的话，建错一个项目就再也删不掉了 ——
+                // 第一版就是这么写的，test-round18 的「空项目可以删除」随即失败。
+                //
+                // 部门、股东、资产分类、账户、交易、操作日志才是人录进去的东西，
+                // 删项目会连它们一起 CASCADE 掉，这些必须拦。
                 $assoc = $projectRepo->hasAssociatedData((int)$resourceId);
                 $labels = [
                     'accounts' => '个账户', 'transactions' => '条交易记录',
                     'departments' => '个部门', 'shareholders' => '名股东',
-                    'subjects' => '个科目', 'currency_types' => '种币种',
-                    'account_types' => '种账户类型', 'asset_types' => '种资产分类',
-                    'activity_logs' => '条操作日志',
+                    'asset_types' => '种资产分类', 'activity_logs' => '条操作日志',
                 ];
                 $blocking = [];
                 foreach ($labels as $key => $label) {
