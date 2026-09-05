@@ -21,6 +21,10 @@ const CORE = [
     'test-currency-match', 'test-transfer-currency', 'test-ledger-integrity',
     'test-project-switch', 'test-multi-role', 'test-project-isolation',
     'test-all-pages', 'test-interactions',
+    // 下面三个专门守「界面看着能用、数字其实是假的」这类缺陷：
+    // 仪表盘的数字曾长期是空/0、停用用户的按钮从未生效、两个搜索框形同虚设，
+    // 而上面那些套件全绿 —— 它们只验接口 200 与页面不白屏，验不到这些。
+    'test-dashboard-values', 'test-toggle-persist', 'test-search-filters',
 ];
 
 // 遗留套件：早期编写，本次已修复到可运行
