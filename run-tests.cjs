@@ -27,6 +27,12 @@ const CORE = [
     'test-dashboard-values', 'test-toggle-persist', 'test-search-filters',
     // 并发下的资金安全：去掉账户行锁就会透支到负数，这条必须一直守着
     'test-concurrency-money',
+    // 完整业务链路 + 跨模块数字自洽：单点都对、合起来对不上账是财务系统
+    // 最难发现的一类错误，这个套件把一笔采购从提交走到落账再回头核对四处数字
+    'test-business-chain',
+    // 守住「假数据」：下拉/页签的选项必须在库里找得到、提交必须真的落库、
+    // 界面数据必须随库变化。这三条正是「新建划款整条链路都是假的」漏网的原因
+    'test-no-fake-data',
 ];
 
 // 遗留套件：早期编写，本次已修复到可运行

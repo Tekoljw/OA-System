@@ -66,9 +66,17 @@ class DerivationService
 
         switch ($tt['second_level']) {
             case 'subject':
-                // 科目可以在归账时再定，但若填了必须属于这个一级类型
-                if (!empty($d['subject_id'])) {
-                    $this->assertSubjectMatches((int)$d['subject_id'], $ttCode, $projectId, $tt['name']);
+                // 科目可以在归账时再定，但若填了必须属于这个一级类型。
+                //
+                // 必须同时认 allocated_subject_id：路由把前端传的 subjectId 直接
+                // 映射成了 allocated_subject_id（科目在提交时就选好，直接预置为
+                // 归账结果），$d['subject_id'] 因此永远是空 —— 这个校验被
+                // !empty() 整个跳过，一笔支出申请可以挂到「主营业务收入」这种
+                // 收入科目上。实测库里就有这样一条错配的流水，它还会出现在
+                // 仪表盘的「支出按科目」饼图里，显示成一个方向不对的分片。
+                $subjectId = $d['subject_id'] ?? $d['allocated_subject_id'] ?? null;
+                if (!empty($subjectId)) {
+                    $this->assertSubjectMatches((int)$subjectId, $ttCode, $projectId, $tt['name']);
                 }
                 break;
 

@@ -53,6 +53,11 @@ function resetFixtures() {
             OR id IN (SELECT in_transaction_id  FROM transfers WHERE project_id=1 AND in_transaction_id  IS NOT NULL);
         DELETE FROM transfers WHERE project_id=1;
         DELETE FROM transactions WHERE project_id=1 AND (description LIKE 'TX%' OR description LIKE '%] TX%');
+        -- 还要删掉挂在测试账户上的其余流水：经审批流落账的描述是
+        -- 「[申请单#N] …」，上面按 TX% 匹配的规则漏掉它们，账户就因为
+        -- transactions_account_id_fkey 删不掉，每轮报一次「清理失败」
+        DELETE FROM transactions
+         WHERE account_id IN (SELECT id FROM accounts WHERE project_id=1 AND name LIKE 'TX%');
         DELETE FROM accounts WHERE project_id=1 AND name LIKE 'TX%';`, '交易测试清理');
     // 删流水后必须重算余额，否则账户里留着已不存在的流水的影响
     recalcBalances();
@@ -85,10 +90,19 @@ async function run() {
     const accB = await mkAcc(`${TAG}账户B`);
     assert('创建两个测试账户', !!accA && !!accB, `A=${accA} B=${accB}`);
 
+    // 必须挑「属于所用流水类型」的科目，不能只按 type 分收入/支出：
+    // 服务端会校验科目归属于该一级流水类型（一笔「其他收入」不能挂到
+    // 主营收入的科目上），只按 type 挑到的科目多半属于别的流水类型，
+    // 整组用例会以「该科目不属于「其他收入」」失败。
+    // createTransactionViaApproval 默认用 other_income / other_expense。
     const subs = await api('GET', `/api/subjects?projectId=${P}`, T);
-    const incomeSub = (subs.data || []).find(s => s.type === 'income');
-    const expenseSub = (subs.data || []).find(s => s.type === 'expense');
-    assert('取到收入与支出科目', !!incomeSub && !!expenseSub);
+    const rows = subs.data || [];
+    const incomeSub = rows.find(s => s.transaction_type_code === 'other_income')
+                   || rows.find(s => s.type === 'income');
+    const expenseSub = rows.find(s => s.transaction_type_code === 'other_expense')
+                    || rows.find(s => s.type === 'expense');
+    assert('取到收入与支出科目', !!incomeSub && !!expenseSub,
+           `收入=${incomeSub?.name} 支出=${expenseSub?.name}`);
 
     // ---------- 1. 收入 ----------
     console.log('\n[1] 收入：余额增加');
