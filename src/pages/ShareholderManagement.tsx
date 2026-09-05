@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import PageLayout from "@/components/layout/PageLayout";
+import { useBaseCurrency } from "@/contexts/BaseCurrencyContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -342,6 +343,93 @@ export default function ShareholderManagement() {
   const [dividendData, setDividendData] = useState<any>(null);
   const [dividendLoading, setDividendLoading] = useState(false);
 
+  const { baseCurrency, convert, rates } = useBaseCurrency();
+
+  // 金额一律带上本位币，不能再写死 ¥ —— 折算之后这些数已经是本位币口径了
+  const cur = (v: number) => `${baseCurrency} ${fmt(v)}`;
+
+  /**
+   * 服务端按「股东 + 币种」返回明细，这里折算成本位币后再按股东合并。
+   *
+   * 折算必须放在前端：此前服务端直接 SUM(amount) 把 CNY 和 USD 加在一起，
+   * 实测总收入被算成 920241.54 CNY + 6200 USD = 926441.54，6200 美元被当成
+   * 6200 元计进了净利润 —— 而净利润是分红的基数，它错了每个股东该分多少
+   * 就跟着错，界面上完全看不出来。
+   *
+   * 与总资产、仪表盘一致：只要有一个币种汇率失效就整体报错，不做
+   * 「跳过该币种」—— 少算一个币种的分红看上去正常，实际是错的。
+   */
+  const mergeByShareholder = useCallback((rows: any[], amountKey: string) => {
+    const acc = new Map<number, any>();
+    const bad = new Set<string>();
+    for (const r of rows || []) {
+      const raw = Number(r[amountKey] ?? 0);
+      const cur = r.currency_type;
+      const v = cur ? convert(raw, cur) : raw;
+      if (v === null) { bad.add(cur); continue; }
+      const prev = acc.get(r.id) || { id: r.id, name: r.name, share_ratio: Number(r.share_ratio), amount: 0 };
+      prev.amount += v;
+      acc.set(r.id, prev);
+    }
+    return { list: [...acc.values()], bad: [...bad] };
+  }, [convert, rates, baseCurrency]);
+
+  const contributionView = useMemo(() => {
+    if (!contributionData) return null;
+    const { list, bad } = mergeByShareholder(contributionData.shareholders, 'total_contribution');
+    if (bad.length) return { error: `${bad.join('、')} 汇率已失效，请先在「配置管理 → 账户配置 → 币种管理」中更新` };
+    const total = list.reduce((s, x) => s + x.amount, 0);
+    return {
+      total_contribution: Math.round(total * 100) / 100,
+      shareholders: list
+        .map(x => {
+          const expected = total > 0 ? Math.round(total * x.share_ratio) / 100 : 0;
+          return {
+            ...x,
+            total_contribution: Math.round(x.amount * 100) / 100,
+            expected_contribution: expected,
+            difference: Math.round((x.amount - expected) * 100) / 100,
+          };
+        })
+        .sort((a, b) => b.share_ratio - a.share_ratio),
+    };
+  }, [contributionData, mergeByShareholder]);
+
+  const dividendView = useMemo(() => {
+    if (!dividendData) return null;
+    const bad = new Set<string>();
+    let income = 0, expense = 0;
+    for (const f of dividendData.financials || []) {
+      const v = f.currency_type ? convert(Number(f.total), f.currency_type) : Number(f.total);
+      if (v === null) { bad.add(f.currency_type); continue; }
+      if (f.type === 'income') income += v; else expense += v;
+    }
+    const merged = mergeByShareholder(dividendData.shareholders, 'total_dividend');
+    merged.bad.forEach(c => bad.add(c));
+    if (bad.size) return { error: `${[...bad].join('、')} 汇率已失效，请先在「配置管理 → 账户配置 → 币种管理」中更新` };
+
+    const netProfit = Math.round((income - expense) * 100) / 100;
+    const paid = merged.list.reduce((s, x) => s + x.amount, 0);
+    return {
+      total_income: Math.round(income * 100) / 100,
+      total_expense: Math.round(expense * 100) / 100,
+      net_profit: netProfit,
+      total_dividend_paid: Math.round(paid * 100) / 100,
+      distributable: Math.max(0, Math.round((netProfit - paid) * 100) / 100),
+      shareholders: merged.list
+        .map(x => {
+          const entitled = netProfit > 0 ? Math.round(netProfit * x.share_ratio) / 100 : 0;
+          return {
+            ...x,
+            total_dividend: Math.round(x.amount * 100) / 100,
+            entitled_dividend: entitled,
+            remaining_dividend: Math.round((entitled - x.amount) * 100) / 100,
+          };
+        })
+        .sort((a, b) => b.share_ratio - a.share_ratio),
+    };
+  }, [dividendData, convert, rates, baseCurrency, mergeByShareholder]);
+
   const loadShareholders = useCallback(async () => {
     setLoading(true);
     try {
@@ -487,12 +575,18 @@ export default function ShareholderManagement() {
             <CardContent>
               {contributionLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-              ) : !contributionData || contributionData.shareholders.length === 0 ? (
+              ) : contributionView?.error ? (
+                // 汇率失效不能显示成「暂无数据」—— 那会让人以为真的没有入资记录
+                <div className="flex items-start gap-2 text-sm text-destructive border rounded-md p-3">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{contributionView.error}</span>
+                </div>
+              ) : !contributionView || (contributionView.shareholders?.length ?? 0) === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">暂无股东入资数据</div>
               ) : (
                 <>
                   <div className="mb-4 p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-600">入资总额：<span className="text-lg font-bold">¥{fmt(contributionData.total_contribution)}</span></p>
+                    <p className="text-sm text-blue-600">入资总额：<span className="text-lg font-bold">{cur(contributionView.total_contribution)}</span></p>
                   </div>
                   <Table>
                     <TableHeader>
@@ -506,12 +600,12 @@ export default function ShareholderManagement() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {contributionData.shareholders.map((row) => (
+                      {contributionView.shareholders.map((row) => (
                         <TableRow key={row.id}>
                           <TableCell className="font-medium">{row.name}</TableCell>
                           <TableCell className="text-right">{Number(row.share_ratio).toFixed(2)}%</TableCell>
-                          <TableCell className="text-right">¥{fmt(row.expected_contribution)}</TableCell>
-                          <TableCell className="text-right">¥{fmt(row.total_contribution)}</TableCell>
+                          <TableCell className="text-right">{cur(row.expected_contribution)}</TableCell>
+                          <TableCell className="text-right">{cur(row.total_contribution)}</TableCell>
                           <TableCell className={`text-right font-medium ${row.difference > 0 ? 'text-green-600' : row.difference < 0 ? 'text-red-600' : ''}`}>
                             {row.difference > 0 ? '+' : ''}{fmt(row.difference)}
                           </TableCell>
@@ -543,32 +637,37 @@ export default function ShareholderManagement() {
             <CardContent>
               {dividendLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin" /></div>
-              ) : !dividendData ? (
+              ) : dividendView?.error ? (
+                <div className="flex items-start gap-2 text-sm text-destructive border rounded-md p-3">
+                  <AlertTriangle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{dividendView.error}</span>
+                </div>
+              ) : !dividendView ? (
                 <div className="text-center py-8 text-muted-foreground">暂无数据</div>
               ) : (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                     <div className="p-4 bg-green-50 rounded-lg">
                       <p className="text-xs text-green-600">总收入</p>
-                      <p className="text-lg font-bold text-green-700">¥{fmt(dividendData.total_income)}</p>
+                      <p className="text-lg font-bold text-green-700">{cur(dividendView.total_income)}</p>
                     </div>
                     <div className="p-4 bg-red-50 rounded-lg">
                       <p className="text-xs text-red-600">总支出</p>
-                      <p className="text-lg font-bold text-red-700">¥{fmt(dividendData.total_expense)}</p>
+                      <p className="text-lg font-bold text-red-700">{cur(dividendView.total_expense)}</p>
                     </div>
-                    <div className={`p-4 rounded-lg ${dividendData.net_profit >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
+                    <div className={`p-4 rounded-lg ${dividendView.net_profit >= 0 ? 'bg-blue-50' : 'bg-orange-50'}`}>
                       <p className="text-xs text-blue-600">净利润</p>
-                      <p className={`text-lg font-bold ${dividendData.net_profit >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
-                        ¥{fmt(dividendData.net_profit)}
+                      <p className={`text-lg font-bold ${dividendView.net_profit >= 0 ? 'text-blue-700' : 'text-orange-700'}`}>
+                        {cur(dividendView.net_profit)}
                       </p>
                     </div>
                     <div className="p-4 bg-purple-50 rounded-lg">
                       <p className="text-xs text-purple-600">剩余可分配</p>
-                      <p className="text-lg font-bold text-purple-700">¥{fmt(dividendData.distributable)}</p>
+                      <p className="text-lg font-bold text-purple-700">{cur(dividendView.distributable)}</p>
                     </div>
                   </div>
 
-                  {dividendData.shareholders.length === 0 ? (
+                  {dividendView.shareholders.length === 0 ? (
                     <div className="text-center py-4 text-muted-foreground">暂无股东</div>
                   ) : (
                     <Table>
@@ -582,14 +681,14 @@ export default function ShareholderManagement() {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {dividendData.shareholders.map((row: DividendRow) => (
+                        {dividendView.shareholders.map((row: DividendRow) => (
                           <TableRow key={row.id}>
                             <TableCell className="font-medium">{row.name}</TableCell>
                             <TableCell className="text-right">{Number(row.share_ratio).toFixed(2)}%</TableCell>
-                            <TableCell className="text-right">¥{fmt(row.entitled_dividend)}</TableCell>
-                            <TableCell className="text-right">¥{fmt(row.total_dividend)}</TableCell>
+                            <TableCell className="text-right">{cur(row.entitled_dividend)}</TableCell>
+                            <TableCell className="text-right">{cur(row.total_dividend)}</TableCell>
                             <TableCell className={`text-right font-medium ${row.remaining_dividend > 0 ? 'text-green-600' : row.remaining_dividend < 0 ? 'text-red-600' : ''}`}>
-                              ¥{fmt(row.remaining_dividend)}
+                              {cur(row.remaining_dividend)}
                             </TableCell>
                           </TableRow>
                         ))}

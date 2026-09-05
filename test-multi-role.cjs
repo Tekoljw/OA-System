@@ -265,29 +265,19 @@ async function run() {
     assert('入资汇总返回成功', contrib.status === 200 && contrib.body?.data?.shareholders);
 
     if (contrib.body?.data?.shareholders) {
-        const shareholders = contrib.body.data.shareholders;
+        const rows = contrib.body.data.shareholders;
+        // 服务端按「股东 + 币种」返回明细，同一股东可能有多行（各币种一行）。
+        // 「应入资额」「差额」这类要先折算才能算的字段已挪到前端 ——
+        // 服务端再算一遍等于把 CNY 和 USD 直接相加。
+        const sumOf = id => rows.filter(r => r.id === id)
+            .reduce((s, r) => s + Number(r.total_contribution || 0), 0);
 
-        const shARow = shareholders.find(r => r.id === shAId);
-        const shBRow = shareholders.find(r => r.id === shBId);
-        const shCRow = shareholders.find(r => r.id === shCId);
-
-        if (shARow) {
-            assert('股东甲入资额 >= 50000', shARow.total_contribution >= 50000);
-            // 甲占50%，总入资100000，应入50000，实入50000，差额接近0
-            console.log(`    甲: 应入=${shARow.expected_contribution}, 实入=${shARow.total_contribution}, 差额=${shARow.difference}`);
-        }
-        if (shBRow) {
-            assert('股东乙入资额 >= 20000', shBRow.total_contribution >= 20000);
-            // 乙占30%，应入30000，实入20000，差额应为负（少入）
-            assert('股东乙少入（差额为负）', shBRow.difference < 0);
-            console.log(`    乙: 应入=${shBRow.expected_contribution}, 实入=${shBRow.total_contribution}, 差额=${shBRow.difference}`);
-        }
-        if (shCRow) {
-            assert('股东丙入资额 >= 30000', shCRow.total_contribution >= 30000);
-            // 丙占20%，应入20000，实入30000，差额应为正（多入）
-            assert('股东丙多入（差额为正）', shCRow.difference > 0);
-            console.log(`    丙: 应入=${shCRow.expected_contribution}, 实入=${shCRow.total_contribution}, 差额=${shCRow.difference}`);
-        }
+        assert('入资明细带币种字段', rows.every(r => 'currency_type' in r),
+               JSON.stringify(rows[0] || {}));
+        assert('股东甲入资额 >= 50000', sumOf(shAId) >= 50000);
+        assert('股东乙入资额 >= 20000', sumOf(shBId) >= 20000);
+        assert('股东丙入资额 >= 30000', sumOf(shCId) >= 30000);
+        console.log(`    甲=${sumOf(shAId)} 乙=${sumOf(shBId)} 丙=${sumOf(shCId)}`);
     }
 
     // ===== [7] 分红计算 =====
@@ -297,8 +287,12 @@ async function run() {
     assert('分红计算返回成功', div.status === 200 && div.body?.data);
 
     if (div.body?.data) {
-        assert('总收入 > 0', div.body.data.total_income > 0);
-        assert('净利润已计算', typeof div.body.data.net_profit === 'number');
+        // 收支同样按币种拆开返回，净利润由前端折算后计算
+        const fin = div.body.data.financials || [];
+        assert('收支明细带币种字段', fin.length > 0 && fin.every(r => 'currency_type' in r && 'type' in r),
+               JSON.stringify(fin[0] || {}));
+        assert('总收入 > 0', fin.filter(r => r.type === 'income')
+               .reduce((s, r) => s + Number(r.total || 0), 0) > 0);
         console.log(`    总收入=${div.body.data.total_income}, 总支出=${div.body.data.total_expense}, 净利润=${div.body.data.net_profit}`);
 
         if (div.body.data.shareholders) {
@@ -349,8 +343,9 @@ async function run() {
         const shADiv = divAfter.body.data.shareholders.find(r => r.id === shAId);
         const shBDiv = divAfter.body.data.shareholders.find(r => r.id === shBId);
         if (shADiv) {
-            assert('甲已分红 >= 5000', shADiv.total_dividend >= 5000);
-            assert('甲剩余可分 = 应分 - 已分', typeof shADiv.remaining_dividend === 'number');
+            const paidA = divAfter.body.data.shareholders
+                .filter(r => r.id === shAId).reduce((s, r) => s + Number(r.total_dividend || 0), 0);
+            assert('甲已分红 >= 5000', paidA >= 5000);
             console.log(`    甲: 应分=${shADiv.entitled_dividend}, 已分=${shADiv.total_dividend}, 剩余=${shADiv.remaining_dividend}`);
         }
         if (shBDiv) {

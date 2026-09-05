@@ -104,58 +104,41 @@ class ShareholderService {
     /**
      * 入资分析
      */
+    /**
+     * 入资分析：只回按币种拆开的明细，折算与占比计算交给前端。
+     *
+     * 服务端算不了「应入资额」—— 那要先把各币种折成同一个口径，
+     * 而汇率与「汇率是否已失效」的判断都在前端（与仪表盘一致）。
+     * 这里再算一遍等于把 CNY 和 USD 直接相加，正是要修掉的问题。
+     */
     public function getContributionAnalysis(int $projectId): array {
-        $contributions = $this->repo->getContributionSummary($projectId);
-        $totalContribution = array_sum(array_column($contributions, 'total_contribution'));
-
-        foreach ($contributions as &$row) {
+        $rows = $this->repo->getContributionSummary($projectId);
+        foreach ($rows as &$row) {
             $row['share_ratio'] = (float)$row['share_ratio'];
             $row['total_contribution'] = (float)$row['total_contribution'];
-            // 按比例应入资金额
-            $row['expected_contribution'] = $totalContribution > 0
-                ? round($totalContribution * $row['share_ratio'] / 100, 2)
-                : 0;
-            // 差额：正数=多入，负数=少入
-            $row['difference'] = round($row['total_contribution'] - $row['expected_contribution'], 2);
         }
-
-        return [
-            'shareholders' => $contributions,
-            'total_contribution' => round($totalContribution, 2),
-        ];
+        return ['shareholders' => $rows];
     }
 
     /**
      * 分红计算
      */
+    /**
+     * 分红计算：同样只回按币种拆开的明细。
+     *
+     * 净利润是分红的基数，此前它由「不分币种直接相加的收入 - 支出」得出，
+     * 6200 美元被当成 6200 元计了进去 —— 基数错了，每个股东该分多少
+     * 就跟着错，而界面上完全看不出来。
+     */
     public function getDividendCalculation(int $projectId): array {
-        $financials = $this->repo->getProjectFinancials($projectId);
-        $totalIncome = (float)$financials['total_income'];
-        $totalExpense = (float)$financials['total_expense'];
-        $netProfit = round($totalIncome - $totalExpense, 2);
-
-        $dividends = $this->repo->getDividendSummary($projectId);
-        $totalDividendPaid = 0;
-
-        foreach ($dividends as &$row) {
+        $rows = $this->repo->getDividendSummary($projectId);
+        foreach ($rows as &$row) {
             $row['share_ratio'] = (float)$row['share_ratio'];
             $row['total_dividend'] = (float)$row['total_dividend'];
-            $totalDividendPaid += $row['total_dividend'];
-            // 按比例可分红金额（基于净利润）
-            $row['entitled_dividend'] = $netProfit > 0
-                ? round($netProfit * $row['share_ratio'] / 100, 2)
-                : 0;
-            // 剩余可分红 = 应得 - 已分
-            $row['remaining_dividend'] = round($row['entitled_dividend'] - $row['total_dividend'], 2);
         }
-
         return [
-            'total_income' => round($totalIncome, 2),
-            'total_expense' => round($totalExpense, 2),
-            'net_profit' => $netProfit,
-            'distributable' => max(0, round($netProfit - $totalDividendPaid, 2)),
-            'total_dividend_paid' => round($totalDividendPaid, 2),
-            'shareholders' => $dividends,
+            'financials'   => $this->repo->getProjectFinancials($projectId),
+            'shareholders' => $rows,
         ];
     }
 }

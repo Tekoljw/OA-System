@@ -61,11 +61,13 @@ class ShareholderRepository extends BaseRepository {
                 s.id, s.name, s.share_ratio,
                 -- 入资由一级流水类型标识，不再靠科目 code：
                 -- 科目现在按类型分池、可自由增删，拿它当业务标记必然失准
+                a.currency_type,
                 COALESCE(SUM(CASE WHEN t.transaction_type_code = 'shareholder_investment' THEN t.amount ELSE 0 END), 0) AS total_contribution
             FROM shareholders s
             LEFT JOIN transactions t ON t.shareholder_id = s.id AND t.project_id = s.project_id AND t.status = 'completed'
+            LEFT JOIN accounts a ON a.id = t.account_id
             WHERE s.project_id = ?
-            GROUP BY s.id, s.name, s.share_ratio
+            GROUP BY s.id, s.name, s.share_ratio, a.currency_type
             ORDER BY s.share_ratio DESC
         ");
         $stmt->execute([$projectId]);
@@ -79,11 +81,13 @@ class ShareholderRepository extends BaseRepository {
         $stmt = $this->db->prepare("
             SELECT
                 s.id, s.name, s.share_ratio,
+                a.currency_type,
                 COALESCE(SUM(CASE WHEN t.transaction_type_code = 'shareholder_dividend' THEN t.amount ELSE 0 END), 0) AS total_dividend
             FROM shareholders s
             LEFT JOIN transactions t ON t.shareholder_id = s.id AND t.project_id = s.project_id AND t.status = 'completed'
+            LEFT JOIN accounts a ON a.id = t.account_id
             WHERE s.project_id = ?
-            GROUP BY s.id, s.name, s.share_ratio
+            GROUP BY s.id, s.name, s.share_ratio, a.currency_type
             ORDER BY s.share_ratio DESC
         ");
         $stmt->execute([$projectId]);
@@ -93,15 +97,26 @@ class ShareholderRepository extends BaseRepository {
     /**
      * 项目总收入和总支出
      */
+    /**
+     * 项目总收入和总支出，按币种拆开。
+     *
+     * 此前不分币种直接 SUM(amount)，把 CNY 和 USD 加在一起 —— 实测项目 1 的
+     * 总收入被算成 920241.54 CNY + 6200 USD = 926441.54，6200 美元被当成
+     * 6200 元计进了净利润。而净利润正是分红的基数，这个数错了，
+     * 每个股东该分多少钱就跟着错。
+     * 折算交给前端做，与仪表盘同一套口径，也能复用「汇率已失效」的提示。
+     */
     public function getProjectFinancials(int $projectId): array {
         $stmt = $this->db->prepare("
-            SELECT
-                COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS total_income,
-                COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS total_expense
-            FROM transactions
-            WHERE project_id = ? AND status = 'completed'
+            SELECT t.type, a.currency_type,
+                   COALESCE(SUM(t.amount), 0) AS total
+            FROM transactions t
+            LEFT JOIN accounts a ON a.id = t.account_id
+            WHERE t.project_id = ? AND t.status = 'completed'
+              AND t.type IN ('income', 'expense')
+            GROUP BY t.type, a.currency_type
         ");
         $stmt->execute([$projectId]);
-        return $stmt->fetch(\PDO::FETCH_ASSOC);
+        return $stmt->fetchAll(\PDO::FETCH_ASSOC);
     }
 }
